@@ -1,5 +1,10 @@
 # Agenda kurzu
 
+### Lekce 00 - Přípravné materiály před startem kurzu
+Vnímáte u sebe nějaké slabiny a chcete se na kurz lépe připravit? Třeba základní zkušenost s API aplikacemi máte, ale potřebujete se nachytřit v základech Kubernetu? Nebo nasazování a škálování aplikací běžně děláte, ale potřebujete si osvěžit základy používání databází jako je PostgreSQL? Programujete pokročile v Javě, Javscriptu nebo C#, ale v Python se potřebujete trochu pocvičit?
+
+Dostanete seznam doporučených tutoriálů - nejsou podmínkou, ale pokud chcete pro svou připravenost udělat maximum, skvělé!
+
 ### Lekce 01 – Business požadavky, architektura & základní chatbot nad dokumenty
 Základní chatbot zpřístupní popisy produktů z farmy v přirozeném jazyce, takže zákazník ihned zjistí původ, kvalitu i dostupnost zboží. Rychlé a přesné odpovědi snižují zátěž podpory a zvyšují míru dokončených objednávek.  
 
@@ -36,12 +41,15 @@ Asistent kombinuje interní API s web-search, aby ukázal aktuální ceny, záso
 - Hybrid search
 - RAG fencing
 - Semantic cache  
+- Autentizace a autorizace uživatelů
 
 **Technologie:**
 - PyPDF/OCR
 - Whisper
 - OpenAI embeddings
 - PostgreSQL (pgvector)
+- Authentik (OIDC řešení)
+- OpenID Connect, OAuth 2.0 a JWT tokeny
 
 ### Lekce 04 – Deep Research & Knowledge Graph
 Znalostní graf propojí suroviny, recepty a sezónnost, takže AI doporučí ideální košík pro konkrétní událost i roční dobu. Díky cíleným doporučením se zvyšuje upsell a snižuje plýtvání sezónních produktů.  

@@ -2,6 +2,11 @@
 
 Tento pokročilý kurz vás provede tvorbou **virtuálního farmářského tržiště** a naučí vás navrhovat, implementovat a nasazovat produkční AI služby. Projdeme kompletní workflow – od práce s dokumenty, deep research a multimodality, přes personalizační paměť a dynamicky generované UI, až po integraci do podnikových systémů, autonomní workflow, multi-agentní spolupráci, observabilitu, evaluaci, bezpečnost a škálovatelné nasazení. 
 
+## V čem je tento kurz jiný
+- Celý kurz společně budujeme AI aplikaci, která řeší reálný byznys problém. Od jednoduchého minimálního produktu přes komplexní funkce až po zabezpečení, měření a vylepšování kvality, nasazení, škálování a observabilitu.
+- V kurzu naživo programujeme řešení s využitím AI-asistovaného vývoje. Díky tomu jsme schopni urazit velký kus cesty a přitom si ponechává maximální flexibilitu code-first přístupu v návrhu a implementaci a nejsme zamčeni v žádné low-code platformě.
+- Intenzivní každodenní hands-on formát vám pomůže udržet motivaci a rychle se posunout vpřed.
+
 ## Struktura kurzu  
 - 10 navazujících lekcí, každý všední den po dobu dvou týdnů.  
 - Každá lekce rozšiřuje společný projekt a staví na výstupech z předchozího dne.
