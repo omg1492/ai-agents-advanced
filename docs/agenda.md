@@ -16,7 +16,8 @@ Základní chatbot zpřístupní popisy produktů z farmy v přirozeném jazyce,
 **Technologie:**
 - OpenAI API
 - PostgreSQL (pgvector)
-- Python (FastAPI, Streamlit)
+- Python (backend, FastAPI)
+- React UI (assistant-ui)
 - LangGraph
 
 ### Lekce 02 – Používání nástrojů: Web search, API, MCP
@@ -90,7 +91,7 @@ AI analyzuje nutriční a zdravotní data uživatele, vizualizuje je v přehledn
 **Technologie:**
 - Python sandbox
 - Matplotlib/Plotly
-- React
+- React UI (assistant-ui)
 
 ### Lekce 07 – Orchestrace AI workflow
 Automatizované workflow vyhodnotí stížnost, přiložené důkazy a pravidla nároku, aby okamžitě řešilo jasné případy a ostatní eskalovalo. Rychlá reakce zlepšuje NPS a snižuje provozní náklady podpory.  

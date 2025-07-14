@@ -22,6 +22,7 @@ Zákazníci naopak dostanou transparentní informace o původu surovin, čerstv�
 - Python Code Interpreter se sandboxem pro datovou analýzu a vizualizace.  
 - Agentní orchestrace a multi-agentní systémy pro komplexní úkoly.  
 - Bezpečnostní & evaluační framework, observabilita a škálovatelné nasazení.
+- React UI (assistant-ui) pro chat a vizualizace
 
 ## Dvě větve projektu  
 | Větev | Popis | Použití na hodině |
@@ -39,7 +40,8 @@ Rychlé a přesné odpovědi snižují zátěž podpory a zvyšují míru dokon�
 
 #### Technické aspekty plné verze
 - CSV ingest → PostgreSQL (pgvector) + embeddings  
-- Backend (FastAPI) + RAG, UI (Streamlit)
+- Backend (FastAPI) + RAG  
+- UI (React – assistant-ui)
   
 #### Technické kroky - kódování naživo
 - Backend + UI bez RAG → přidání RAG
@@ -47,7 +49,8 @@ Rychlé a přesné odpovědi snižují zátěž podpory a zvyšují míru dokon�
 #### Použité technologie a nástroje
 - OpenAI API  
 - PostgreSQL (pgvector)  
-- Python (FastAPI, Streamlit)  
+- Python (backend, FastAPI)  
+- React UI (assistant-ui)  
 - LangGraph (RAG)
 
 ### Lekce 02 – Používání nástrojů: Web search, API, MCP
@@ -137,7 +140,7 @@ Interaktivní infografiky zvyšují angažovanost a motivují ke koupi doporuče
 #### Použité technologie a nástroje
 - Python sandbox (Code Interpreter)  
 - Matplotlib / Plotly  
-- React (generované UI)
+- React UI (assistant-ui)
 
 ### Lekce 07 – Orchestrace AI workflow
 

@@ -33,7 +33,9 @@ Cílem je vybudovat AI aplikaci, která:
 Jaké funkce přidáme do aplikace v jaké lekci je k přečteně v [agendě](agenda.md)
 
 ## Použité technologie  
-- Python ( FastAPI / Streamlit ) + LangGraph pro RAG a agenty  
+- Python (backend, FastAPI, MCP)  
+- React UI (assistant-ui)  
+- LangGraph pro RAG a agenty  
 - OpenAI API, embeddings + PostgreSQL (pgvector)  
 - MCP pro napojení interních API a web-search nástrojů  
 - Temporal pro orchestraci workflow, LiteLLM pro model routing  
