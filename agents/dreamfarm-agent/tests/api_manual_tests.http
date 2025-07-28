@@ -1,0 +1,281 @@
+### DreamFarm Agent API Testing
+### Manual testing file for the DreamFarm Agent REST API
+### Use with VS Code REST Client extension or similar tools
+
+# Variables
+@baseUrl = http://localhost:8001
+@contentType = application/json
+
+###
+
+# Health Check
+GET {{baseUrl}}/health
+
+###
+
+# Create a new thread
+POST {{baseUrl}}/threads
+Content-Type: {{contentType}}
+
+{
+  "title": "Fresh Vegetables Inquiry"
+}
+
+###
+
+# Create thread without title (should use default)
+POST {{baseUrl}}/threads
+Content-Type: {{contentType}}
+
+{}
+
+###
+
+# Get thread information
+# NOTE: Replace {thread_id} with actual thread ID from create response
+GET {{baseUrl}}/threads/replace-with-actual-thread-id
+
+###
+
+# Send a message to a thread
+# NOTE: Replace {thread_id} with actual thread ID from create response
+POST {{baseUrl}}/threads/replace-with-actual-thread-id/messages
+Content-Type: {{contentType}}
+
+{
+  "message": "Hello! I'm looking for fresh vegetables for my family. What do you have available this season?"
+}
+
+###
+
+# Send another message to continue conversation
+POST {{baseUrl}}/threads/replace-with-actual-thread-id/messages
+Content-Type: {{contentType}}
+
+{
+  "message": "Do you have any organic tomatoes? I'm planning to make a salad."
+}
+
+###
+
+# Get conversation history
+GET {{baseUrl}}/threads/replace-with-actual-thread-id/messages
+
+###
+
+# Get conversation history with pagination
+GET {{baseUrl}}/threads/replace-with-actual-thread-id/messages?limit=10&offset=0
+
+###
+
+# Test error cases
+
+# Get non-existent thread
+GET {{baseUrl}}/threads/non-existent-thread-id
+
+###
+
+# Send message to non-existent thread
+POST {{baseUrl}}/threads/non-existent-thread-id/messages
+Content-Type: {{contentType}}
+
+{
+  "message": "This should fail"
+}
+
+###
+
+# Get messages from non-existent thread
+GET {{baseUrl}}/threads/non-existent-thread-id/messages
+
+###
+
+# Test various conversation scenarios
+
+# Create thread for seasonal produce inquiry
+POST {{baseUrl}}/threads
+Content-Type: {{contentType}}
+
+{
+  "title": "Seasonal Produce Availability"
+}
+
+###
+
+# Ask about seasonal vegetables
+POST {{baseUrl}}/threads/replace-with-seasonal-thread-id/messages
+Content-Type: {{contentType}}
+
+{
+  "message": "What vegetables are in season right now? I want to buy local produce."
+}
+
+###
+
+# Create thread for cooking advice
+POST {{baseUrl}}/threads
+Content-Type: {{contentType}}
+
+{
+  "title": "Cooking with Farm Fresh Ingredients"
+}
+
+###
+
+# Ask for cooking suggestions
+POST {{baseUrl}}/threads/replace-with-cooking-thread-id/messages
+Content-Type: {{contentType}}
+
+{
+  "message": "I just bought fresh carrots, spinach, and potatoes from a local farm. Any cooking suggestions?"
+}
+
+###
+
+# Create thread for farmer connection
+POST {{baseUrl}}/threads
+Content-Type: {{contentType}}
+
+{
+  "title": "Connect with Local Farmers"
+}
+
+###
+
+# Ask about connecting with farmers
+POST {{baseUrl}}/threads/replace-with-farmer-thread-id/messages
+Content-Type: {{contentType}}
+
+{
+  "message": "How can I connect directly with local farmers in my area? I want to support sustainable farming."
+}
+
+###
+
+# Test edge cases
+
+# Send empty message (should still work)
+POST {{baseUrl}}/threads/replace-with-actual-thread-id/messages
+Content-Type: {{contentType}}
+
+{
+  "message": ""
+}
+
+###
+
+# Send very long message
+POST {{baseUrl}}/threads/replace-with-actual-thread-id/messages
+Content-Type: {{contentType}}
+
+{
+  "message": "This is a very long message to test how the system handles lengthy user input. I'm interested in learning about sustainable farming practices, organic vegetables, seasonal availability, local farmers in my area, the best ways to store fresh produce, cooking techniques for farm-fresh ingredients, and how to support local agriculture. Can you help me with all of these topics and provide detailed information about each one?"
+}
+
+###
+
+# Test malformed requests
+
+# Missing message field
+POST {{baseUrl}}/threads/replace-with-actual-thread-id/messages
+Content-Type: {{contentType}}
+
+{
+  "wrong_field": "This should fail validation"
+}
+
+###
+
+# Invalid JSON
+POST {{baseUrl}}/threads/replace-with-actual-thread-id/messages
+Content-Type: {{contentType}}
+
+{invalid json}
+
+###
+
+# Test CORS (if testing from browser/different origin)
+OPTIONS {{baseUrl}}/threads
+Origin: http://localhost:3000
+
+###
+
+# Comprehensive workflow test
+# 1. Create thread
+POST {{baseUrl}}/threads
+Content-Type: {{contentType}}
+
+{
+  "title": "Complete Farm Shopping Experience"
+}
+
+# 2. Start conversation
+# POST {{baseUrl}}/threads/{thread_id_from_step_1}/messages
+# Content-Type: {{contentType}}
+# 
+# {
+#   "message": "Hi! I'm new to buying from local farms. Can you guide me through what's available?"
+# }
+
+# 3. Continue conversation
+# POST {{baseUrl}}/threads/{thread_id_from_step_1}/messages
+# Content-Type: {{contentType}}
+# 
+# {
+#   "message": "I'm particularly interested in vegetables for making soups. What would you recommend?"
+# }
+
+# 4. Get full conversation history
+# GET {{baseUrl}}/threads/{thread_id_from_step_1}/messages
+
+# 5. Get thread info to verify message count
+# GET {{baseUrl}}/threads/{thread_id_from_step_1}
+
+###
+
+# Performance testing (create multiple threads rapidly)
+POST {{baseUrl}}/threads
+Content-Type: {{contentType}}
+
+{
+  "title": "Performance Test Thread 1"
+}
+
+###
+
+POST {{baseUrl}}/threads
+Content-Type: {{contentType}}
+
+{
+  "title": "Performance Test Thread 2"
+}
+
+###
+
+POST {{baseUrl}}/threads
+Content-Type: {{contentType}}
+
+{
+  "title": "Performance Test Thread 3"
+}
+
+###
+
+# Test special characters and unicode
+POST {{baseUrl}}/threads
+Content-Type: {{contentType}}
+
+{
+  "title": "Special Characters Test: éñ中文🥕🌽🥬"
+}
+
+###
+
+POST {{baseUrl}}/threads/replace-with-special-chars-thread-id/messages
+Content-Type: {{contentType}}
+
+{
+  "message": "Do you have any légumes français? I'm looking for carottes 🥕, maïs 🌽, and salade 🥬. 谢谢!"
+}
+
+###

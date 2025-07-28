@@ -1,0 +1,443 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "DreamFarm Agent",
+    "description": "AI-powered assistant for Dream Farm marketplace",
+    "version": "0.1.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health Check",
+        "description": "Health check endpoint.\n\nReturns:\n    Health status and timestamp",
+        "operationId": "health_check_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/threads": {
+      "post": {
+        "summary": "Create Thread",
+        "description": "Create a new conversation thread.\n\nArgs:\n    request: Thread creation request with optional title\n    \nReturns:\n    Created thread details",
+        "operationId": "create_thread_threads_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateThreadRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateThreadResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/threads/{thread_id}": {
+      "get": {
+        "summary": "Get Thread",
+        "description": "Get thread information by ID.\n\nArgs:\n    thread_id: ID of the thread to retrieve\n    \nReturns:\n    Thread information\n    \nRaises:\n    HTTPException: If thread not found",
+        "operationId": "get_thread_threads__thread_id__get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/threads/{thread_id}/messages": {
+      "post": {
+        "summary": "Send Message",
+        "description": "Send a message in a conversation thread.\n\nArgs:\n    thread_id: ID of the thread\n    request: Message content to send\n    \nReturns:\n    Response containing user message and AI response\n    \nRaises:\n    HTTPException: If thread not found or processing fails",
+        "operationId": "send_message_threads__thread_id__messages_post",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SendMessageResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "summary": "Get Messages",
+        "description": "Get conversation history for a thread.\n\nArgs:\n    thread_id: ID of the thread\n    limit: Maximum number of messages to return (default: 50)\n    offset: Number of messages to skip (default: 0)\n    \nReturns:\n    Messages and total count\n    \nRaises:\n    HTTPException: If thread not found",
+        "operationId": "get_messages_threads__thread_id__messages_get",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 50,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "default": 0,
+              "title": "Offset"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GetMessagesResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "CreateThreadRequest": {
+        "properties": {
+          "title": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Title"
+          }
+        },
+        "type": "object",
+        "title": "CreateThreadRequest",
+        "description": "Request model for creating a new thread.\n\nAttributes:\n    title: Optional title for the thread"
+      },
+      "CreateThreadResponse": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "CreateThreadResponse",
+        "description": "Response model for thread creation.\n\nAttributes:\n    thread_id: Unique identifier for the created thread\n    title: Title of the created thread\n    created_at: ISO 8601 timestamp when thread was created\n    updated_at: ISO 8601 timestamp when thread was last updated"
+      },
+      "GetMessagesResponse": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/Message"
+            },
+            "type": "array",
+            "title": "Messages"
+          },
+          "total_count": {
+            "type": "integer",
+            "title": "Total Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "messages",
+          "total_count"
+        ],
+        "title": "GetMessagesResponse",
+        "description": "Response model for retrieving messages.\n\nAttributes:\n    thread_id: ID of the thread\n    messages: List of messages in the thread\n    total_count: Total number of messages in the thread"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "timestamp"
+        ],
+        "title": "HealthResponse",
+        "description": "Health check response model.\n\nAttributes:\n    status: Current health status of the service\n    timestamp: ISO 8601 timestamp of the health check"
+      },
+      "Message": {
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "title": "Message Id"
+          },
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "role": {
+            "type": "string",
+            "enum": [
+              "user",
+              "assistant"
+            ],
+            "title": "Role"
+          },
+          "content": {
+            "type": "string",
+            "title": "Content"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message_id",
+          "thread_id",
+          "role",
+          "content",
+          "timestamp"
+        ],
+        "title": "Message",
+        "description": "Message model representing a single message in a conversation.\n\nAttributes:\n    message_id: Unique identifier for the message\n    thread_id: ID of the thread this message belongs to\n    role: Role of the message sender (user or assistant)\n    content: Content of the message\n    timestamp: ISO 8601 timestamp when message was created"
+      },
+      "SendMessageRequest": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "SendMessageRequest",
+        "description": "Request model for sending a message.\n\nAttributes:\n    message: Content of the message to send"
+      },
+      "SendMessageResponse": {
+        "properties": {
+          "message_id": {
+            "type": "string",
+            "title": "Message Id"
+          },
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "user_message": {
+            "type": "string",
+            "title": "User Message"
+          },
+          "assistant_response": {
+            "type": "string",
+            "title": "Assistant Response"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message_id",
+          "thread_id",
+          "user_message",
+          "assistant_response",
+          "timestamp"
+        ],
+        "title": "SendMessageResponse",
+        "description": "Response model for sending a message.\n\nAttributes:\n    message_id: Unique identifier for the user message\n    thread_id: ID of the thread\n    user_message: Content of the user's message\n    assistant_response: Content of the assistant's response\n    timestamp: ISO 8601 timestamp when the interaction occurred"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}
