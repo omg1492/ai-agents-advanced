@@ -1,0 +1,502 @@
+[
+  {
+    "name": "USDA Organic",
+    "description": "This certification, issued by the United States Department of Agriculture, ensures that products are produced without synthetic fertilizers, pesticides, genetically modified organisms, antibiotics, or growth hormones. Farms must meet strict organic standards and undergo annual inspections.",
+    "certificationId": "a2799da9-5944-4f95-9f7e-11a854ae4aec"
+  },
+  {
+    "name": "Protected Designation of Origin (PDO)",
+    "description": "PDO certifies that a product is produced, processed, and prepared in a specific geographical area using recognized know-how. All stages, from raw materials to processing, must occur in the designated region to guarantee authenticity and tradition.",
+    "certificationId": "481d1b3f-0c65-4d26-aec5-e630c4b30bf5"
+  },
+  {
+    "name": "Fairtrade International Certified",
+    "description": "Fairtrade certification ensures that farmers and workers receive fair prices, decent working conditions, and sustainable livelihoods. The certification prohibits forced labor and child labor and encourages environmentally sustainable farming practices.",
+    "certificationId": "69a51e06-6190-46d9-a392-455fe7b939ab"
+  },
+  {
+    "name": "Rainforest Alliance Certified",
+    "description": "This certification signifies that products come from farms and forests managed according to rigorous environmental, social, and economic criteria. It promotes biodiversity conservation, improved livelihoods, and sustainable land use.",
+    "certificationId": "88b12c4e-e75a-43c6-800b-cb51f197e8ca"
+  },
+  {
+    "name": "GlobalG.A.P. Certified",
+    "description": "GlobalG.A.P. is an internationally recognized certification for Good Agricultural Practices. It covers food safety, environmental impact, worker health and safety, and animal welfare throughout the production process.",
+    "certificationId": "ae79af48-b161-49e8-bfbe-a8c379f44f5a"
+  },
+  {
+    "name": "Non-GMO Project Verified",
+    "description": "This certification ensures that products are produced without genetic engineering and that rigorous best practices for GMO avoidance are followed, including ongoing testing and traceability throughout the supply chain.",
+    "certificationId": "92d46edc-7dc7-4f68-83c6-ddf685306443"
+  },
+  {
+    "name": "Certified Humane Raised & Handled",
+    "description": "This label guarantees that animal products come from farms where animals are treated humanely, provided with quality feed, shelter, and care, and not administered unnecessary antibiotics or hormones.",
+    "certificationId": "58531073-44ae-4a80-88d9-4b42d7e94229"
+  },
+  {
+    "name": "Demeter Biodynamic Certification",
+    "description": "Demeter certification verifies farms that follow biodynamic agricultural principles, which go beyond organic standards to include holistic, ecological, and ethical approaches to farming and food production.",
+    "certificationId": "2cd2bdd7-5de4-407b-a5e1-153e7002ca14"
+  },
+  {
+    "name": "LEAF Marque (Linking Environment And Farming)",
+    "description": "LEAF Marque certifies farms committed to sustainable farming practices that enhance biodiversity, protect soil and water, and minimize pollution. Certified farmers must meet rigorous environmental standards and undergo regular audits.",
+    "certificationId": "b6c0664a-f860-4274-bec4-7cf0c8167cfd"
+  },
+  {
+    "name": "Canada Organic Regime (COR) Certified",
+    "description": "COR certification indicates that products meet Canadian organic standards, which include bans on synthetic pesticides, fertilizers, and genetically modified organisms, and require annual inspections and traceability.",
+    "certificationId": "8be93ed2-cc59-4f5a-9ab2-f536ad3a3901"
+  },
+  {
+    "name": "Red Tractor Assurance Scheme",
+    "description": "A UK-based certification assuring food safety, animal welfare, environmental protection, and traceability. Certified farms adhere to rigorous standards and undergo independent inspections.",
+    "certificationId": "9d874385-9b2d-45b7-86d5-cea4c5127b2d"
+  },
+  {
+    "name": "Marine Stewardship Council (MSC) Certified",
+    "description": "MSC certification ensures that seafood is caught using sustainable fishing practices that maintain healthy fish populations, minimize environmental impact, and are traceable from ocean to plate.",
+    "certificationId": "67b98e9c-88cd-4a43-8cfa-b5922ee16522"
+  },
+  {
+    "name": "Sustainable Agriculture Network (SAN) Certified",
+    "description": "SAN certification demonstrates that a farm meets comprehensive social, environmental, and economic sustainability standards, including biodiversity conservation, fair treatment of workers, and responsible resource management.",
+    "certificationId": "d432749f-9b28-47fc-9662-3ab444308908"
+  },
+  {
+    "name": "EU Organic Certification",
+    "description": "This designation certifies that agricultural products from the European Union are grown without synthetic pesticides, herbicides, or genetically modified organisms, following strict EU regulations for organic production and labeling.",
+    "certificationId": "bffd36c7-3e80-4e29-b57c-243c17ef123e"
+  },
+  {
+    "name": "Certified Carbon Neutral Farm",
+    "description": "This certification confirms that a farm has measured, reduced, and offset its greenhouse gas emissions, achieving net-zero carbon emissions through sustainable practices and verified carbon offset projects.",
+    "certificationId": "68da27f6-50e9-468d-9e3a-ca9f430b8c22"
+  },
+  {
+    "name": "Rainforest Alliance Certified",
+    "description": "Indicates that agricultural products are produced using methods that support environmental, social, and economic sustainability. Certification requires adherence to rigorous standards that protect forests, wildlife, and the rights and well-being of workers and local communities.",
+    "certificationId": "bb86f211-eaa2-40b8-bfbf-2ae4560db496"
+  },
+  {
+    "name": "USDA Organic Certification",
+    "description": "Awarded to farms and products that comply with the United States Department of Agriculture's strict organic standards. Prohibits the use of synthetic fertilizers, pesticides, and genetically modified organisms, and requires sustainable farming practices.",
+    "certificationId": "5b65c3bf-d92d-4bcd-9a02-05d0b9155595"
+  },
+  {
+    "name": "Protected Designation of Origin (PDO)",
+    "description": "Recognizes and protects regional agricultural products whose quality and characteristics are essentially linked to their geographical origin. Certification ensures that production, processing, and preparation happen within the designated region using recognized know-how.",
+    "certificationId": "8f87eec4-65ec-4ba2-ac40-5a7ca0beb769"
+  },
+  {
+    "name": "Fairtrade International Certification",
+    "description": "Ensures that farm products are produced by workers and farmers who receive fair wages and work in safe conditions. Certification also supports sustainable farming practices and community development initiatives.",
+    "certificationId": "72c2ffab-6cb4-4a1c-a785-65ff0cfc6032"
+  },
+  {
+    "name": "GLOBALG.A.P. Certification",
+    "description": "A globally recognized standard for farm production that covers food safety, environmental management, animal welfare, and worker health and safety. Farms must undergo regular audits and implement strict risk-assessment and traceability measures.",
+    "certificationId": "75b1d8ea-9afe-4c6d-95ca-e87439c7a37f"
+  },
+  {
+    "name": "Salmon-Safe Certification",
+    "description": "Awarded to farms and vineyards that implement practices to protect water quality and restore salmon habitats. Certification criteria include management of runoff, chemical use reduction, and preservation of natural waterways.",
+    "certificationId": "31fd3921-2649-4670-b4bf-b64fb48eb395"
+  },
+  {
+    "name": "Certified Grassfed by AGW",
+    "description": "Verifies that livestock are raised entirely on pasture, fed a 100% grass and forage diet, and never confined to feedlots. Certification includes strict animal welfare, environmental, and traceability standards.",
+    "certificationId": "266e9fde-b96c-4cc2-a460-42e6e38ae9d3"
+  },
+  {
+    "name": "AOC (Appellation d’Origine Contrôlée)",
+    "description": "A French certification for agricultural products that guarantees they are produced within a specific region using traditional methods. The AOC label ensures authenticity, quality, and preservation of local heritage.",
+    "certificationId": "483b4694-5ccf-4fa6-9565-87514fc98b1e"
+  },
+  {
+    "name": "Bird Friendly Coffee Certification",
+    "description": "Administered by the Smithsonian Migratory Bird Center, this certification is awarded to coffee grown under a shade canopy that provides habitat for migratory birds. Requires organic practices and preservation of native vegetation.",
+    "certificationId": "3ffd4812-8a18-4621-9947-c360a39afe87"
+  },
+  {
+    "name": "Certified Regenerative Organic",
+    "description": "Recognizes farms and products that go beyond organic standards to regenerate soil, improve biodiversity, and ensure high animal welfare. Certification requires holistic farm management, cover cropping, and no synthetic inputs.",
+    "certificationId": "d1b329bc-56d7-47e2-9796-64752b9d338d"
+  },
+  {
+    "name": "Alaska Responsible Fisheries Management (RFM) Certification",
+    "description": "Confirms that fisheries and seafood products from Alaska adhere to internationally recognized standards for sustainable fisheries management, traceability, and environmental stewardship.",
+    "certificationId": "be6e1749-1096-4323-a266-d2a151223f9c"
+  },
+  {
+    "name": "Certified Naturally Grown",
+    "description": "A peer-reviewed certification for small-scale farmers using sustainable organic methods without synthetic chemicals, GMOs, or artificial inputs. Emphasizes transparency and community engagement.",
+    "certificationId": "89bfecac-7e58-4a21-9748-da1c152d9c3a"
+  },
+  {
+    "name": "Sustainable Winegrowing Certification",
+    "description": "Indicates that vineyards and wineries follow comprehensive sustainable practices, including water conservation, soil health, energy efficiency, and social responsibility. Certification involves third-party audits and continuous improvement.",
+    "certificationId": "d13ecbfa-7941-4688-b64f-a809a4105162"
+  },
+  {
+    "name": "Certified Bee Friendly Farm",
+    "description": "Awarded to farms implementing pollinator-friendly practices such as providing diverse flowering plants, reducing pesticide use, and preserving natural habitats for bees and other pollinators.",
+    "certificationId": "81d0bcf3-9262-496a-9731-43dd16783195"
+  },
+  {
+    "name": "Japan Agricultural Standards (JAS) Organic Certification",
+    "description": "The official Japanese organic certification for farm products. Requires compliance with strict standards for organic production, including prohibited substances, soil management, and record-keeping, verified through inspections and documentation.",
+    "certificationId": "9c676e80-06ed-4ecb-8bad-15729dc94bb1"
+  },
+  {
+    "name": "Protected Geographical Indication (PGI)",
+    "description": "The Protected Geographical Indication (PGI) certification is awarded to agricultural products and foodstuffs closely linked to a specific geographic area. At least one stage of production, processing, or preparation must occur in the designated region. The PGI assures consumers of the unique qualities and reputation of the product as related to its origin.",
+    "certificationId": "986e0ad2-3454-41cf-bbcc-82aa656bbeba"
+  },
+  {
+    "name": "USDA Certified Organic",
+    "description": "USDA Certified Organic status is granted by the United States Department of Agriculture to producers who comply with rigorous standards for organic farming. This includes the prohibition of synthetic fertilizers, pesticides, genetically modified organisms (GMOs), and the use of sustainable farming practices that promote ecological balance and conserve biodiversity.",
+    "certificationId": "f0d34b60-d0dd-4df0-ba50-cc4358a1f0f3"
+  },
+  {
+    "name": "Fairtrade International Certification",
+    "description": "Fairtrade International Certification ensures that products meet social, economic, and environmental standards set by Fairtrade International. Producers receive fair prices, decent working conditions, and sustainable livelihoods, while environmental standards promote responsible farming and prohibit the use of hazardous chemicals.",
+    "certificationId": "557589ea-9774-424c-8789-6a4df3166300"
+  },
+  {
+    "name": "Rainforest Alliance Certified",
+    "description": "Rainforest Alliance Certified farms are recognized for their commitment to environmental sustainability, social responsibility, and economic viability. Certification requires adherence to standards that protect ecosystems, wildlife, and workers’ rights while promoting efficient farm management and conservation of natural resources.",
+    "certificationId": "6e4b8f9f-a246-4b05-82fb-6861290fcccf"
+  },
+  {
+    "name": "Demeter Biodynamic Certification",
+    "description": "Demeter Biodynamic Certification is awarded to farms and products that use biodynamic agricultural methods, which go beyond organic standards. This certification requires holistic, ecological, and ethical approaches to farming, including biodiversity, soil fertility, and on-farm resource cycling, as well as the use of herbal preparations.",
+    "certificationId": "0211a39e-78b3-4b50-a68a-46efbce75215"
+  },
+  {
+    "name": "GlobalG.A.P. Certification",
+    "description": "GlobalG.A.P. Certification is an internationally recognized set of farm standards dedicated to Good Agricultural Practices (GAP). It covers food safety, environmental protection, animal welfare, and worker health and safety, ensuring traceability and transparency throughout the agricultural supply chain.",
+    "certificationId": "786d6d9c-d236-4712-bfaa-4bace16e167b"
+  },
+  {
+    "name": "Marine Stewardship Council (MSC) Certification",
+    "description": "Marine Stewardship Council Certification is granted to fisheries and seafood producers that meet rigorous sustainability standards. It ensures that seafood comes from fisheries managed responsibly with respect for marine environments, healthy fish populations, and traceable sourcing.",
+    "certificationId": "c8a91ef8-e769-40f3-9e7c-bfb7d5ef36de"
+  },
+  {
+    "name": "CanadaGAP Certification",
+    "description": "CanadaGAP Certification is a food safety program for companies that produce, handle, and broker fruits and vegetables in Canada. It sets out requirements for effective food safety management systems, including hygiene, traceability, and recordkeeping, to minimize risks of contamination.",
+    "certificationId": "93401be9-51cb-405d-a597-a27d328571e6"
+  },
+  {
+    "name": "Red Tractor Assurance",
+    "description": "Red Tractor Assurance is a UK-based food and farming standard that covers food safety, animal welfare, environmental protection, and traceability. Certified products are rigorously inspected to ensure they meet strict criteria from farm to fork, providing trustworthy assurance to consumers.",
+    "certificationId": "41ac747b-16fc-46b5-bb11-2b785792f465"
+  },
+  {
+    "name": "EU Organic Certification",
+    "description": "EU Organic Certification is a regulated standard for organic production within the European Union. Certified producers must adhere to strict rules prohibiting synthetic chemicals, GMOs, and growth hormones, while promoting biodiversity, soil health, and animal welfare.",
+    "certificationId": "b60d7f5f-7451-4cf7-ac8e-1ad2f49a383f"
+  },
+  {
+    "name": "Certified Humane Raised & Handled",
+    "description": "Certified Humane Raised & Handled is a certification for animal products that guarantees animals are raised under humane conditions. The certification requires ample space, shelter, gentle handling, and a diet free of antibiotics or hormones, with rigorous regular inspections.",
+    "certificationId": "9af8a771-499a-4dae-8ac8-2870b728cc3c"
+  },
+  {
+    "name": "Protected Designation of Origin (PDO)",
+    "description": "Protected Designation of Origin (PDO) certifies that a product is produced, processed, and prepared in a specific region using recognized know-how. Every aspect of the production process must occur in the geographical area, guaranteeing unique qualities and authenticity tied to its origin.",
+    "certificationId": "3c26db4b-7f32-4cc8-8b1d-ab6996b5c002"
+  },
+  {
+    "name": "Forest Stewardship Council (FSC) Certification",
+    "description": "Forest Stewardship Council Certification applies to forest products, including non-timber and agroforestry items, ensuring they are sourced from responsibly managed forests. The FSC promotes sustainable forestry practices that conserve biological diversity, water resources, and respect the rights of indigenous peoples and workers.",
+    "certificationId": "08b733c9-e4f2-44b5-a963-7c1a7b90c274"
+  },
+  {
+    "name": "LEAF Marque (Linking Environment and Farming)",
+    "description": "LEAF Marque certifies farms that operate to high standards of sustainable agriculture. Certification requires integrated farm management practices that enhance biodiversity, soil and water conservation, energy efficiency, and support for local communities.",
+    "certificationId": "47253c5d-a76d-4d0a-b7e1-b74cf0e5db99"
+  },
+  {
+    "name": "Naturland Certification",
+    "description": "Naturland Certification is an internationally recognized organic standard developed in Germany. It covers organic farming, aquaculture, and forestry, emphasizing high environmental standards, social responsibility, and fair working conditions throughout the supply chain.",
+    "certificationId": "5ee5e746-3e3d-46dd-a2d6-e205ac451e96"
+  },
+  {
+    "name": "Rainforest Alliance Certified",
+    "description": "This certification ensures that agricultural products are produced using methods that support environmental, social, and economic sustainability. Farms must meet rigorous standards for ecosystem conservation, wildlife protection, and fair treatment of workers.",
+    "certificationId": "10bad3f1-4aba-42b0-ba4a-1dbdf7cf949a"
+  },
+  {
+    "name": "Fairtrade International Certification",
+    "description": "Fairtrade International Certification guarantees that producers receive fair prices and work in safe conditions. It includes strict social, economic, and environmental standards for workers and the communities where products are grown.",
+    "certificationId": "83acc5ad-cd30-41bd-8380-51f20473e9dd"
+  },
+  {
+    "name": "USDA Organic Certification",
+    "description": "Awarded by the United States Department of Agriculture, this certification confirms that products are grown without the use of synthetic pesticides, fertilizers, genetically modified organisms, or irradiation, and that they adhere to strict organic farming practices.",
+    "certificationId": "28ae0f7a-f235-4623-add5-5272b8114cbe"
+  },
+  {
+    "name": "Demeter Biodynamic Certification",
+    "description": "This certification is based on biodynamic agricultural principles, requiring holistic and ecological methods. Certified farms must demonstrate closed nutrient cycles, biodiversity, and the use of biodynamic preparations.",
+    "certificationId": "25be852f-a7db-4b45-a99e-512613702510"
+  },
+  {
+    "name": "AOC (Appellation d’Origine Contrôlée) Certification",
+    "description": "A French certification ensuring that products such as wine, cheese, and butter are produced within specific geographical regions and using traditional methods, guaranteeing authenticity and quality.",
+    "certificationId": "131e2e04-2f87-4249-8bef-46c159508985"
+  },
+  {
+    "name": "Japan Agricultural Standard (JAS) Organic Certification",
+    "description": "The JAS Organic Certification is issued by the Japanese Ministry of Agriculture, Forestry, and Fisheries. It ensures that agricultural products are produced without synthetic fertilizers or pesticides and follow strict organic guidelines.",
+    "certificationId": "76519e3f-89fc-4526-a45e-09d220fd5114"
+  },
+  {
+    "name": "Certified Naturally Grown (CNG)",
+    "description": "This grassroots certification is tailored for small-scale farmers using natural methods. CNG standards closely mirror those of certified organic but are managed by peer reviews rather than government inspections.",
+    "certificationId": "22f62e6d-95bc-44b5-940a-23f04069c525"
+  },
+  {
+    "name": "Sustainable Agriculture Network (SAN) Certification",
+    "description": "SAN Certification recognizes farms that implement social and environmental best practices, including habitat preservation, fair labor conditions, and efficient resource management.",
+    "certificationId": "62dd5846-8164-4858-9bde-c79c62257a06"
+  },
+  {
+    "name": "PDO (Protected Designation of Origin) Certification",
+    "description": "This European certification protects the names of regional foods. Only products genuinely originating in a specific region and produced according to recognized methods can be labeled with the PDO seal.",
+    "certificationId": "90c4c84d-8803-4d43-980e-5253fd0b245b"
+  },
+  {
+    "name": "Carbon Trust Standard for Farms",
+    "description": "This certification verifies that farms are actively measuring, managing, and reducing their carbon emissions. It requires transparent reporting and continuous improvement in environmental performance.",
+    "certificationId": "b76d9349-64aa-4a8d-90f0-05fd8630573d"
+  },
+  {
+    "name": "RSPO Certified Sustainable Palm Oil",
+    "description": "The Roundtable on Sustainable Palm Oil (RSPO) certification confirms that palm oil is produced according to strict environmental and social criteria, including the conservation of natural resources and respect for the rights of workers and local communities.",
+    "certificationId": "356b9aa0-b334-46dd-b334-a33e6366b86f"
+  },
+  {
+    "name": "BRCGS Food Safety Certification",
+    "description": "The BRCGS Food Safety Certification is an internationally recognized standard for food safety and quality. It requires rigorous hazard analysis, risk management, and hygiene processes throughout the production chain.",
+    "certificationId": "bf8e4ecd-5f36-4f5a-9e4d-87c9580a3726"
+  },
+  {
+    "name": "Australian Certified Organic (ACO)",
+    "description": "ACO certification is the leading organic certification in Australia, ensuring that produce is grown and handled without synthetic chemicals, genetically modified organisms, or artificial inputs.",
+    "certificationId": "80a2c21d-724f-4cdd-8428-d3d2e5312edf"
+  },
+  {
+    "name": "Canada Organic Regime (COR) Certification",
+    "description": "This Canadian government certification ensures that agricultural products are produced, processed, and handled in accordance with strict organic standards, including the prohibition of synthetic chemicals and GMOs.",
+    "certificationId": "4e01a93a-6c52-4fe4-8815-deb1cb71fb09"
+  },
+  {
+    "name": "GLOBALG.A.P. Aquaculture Certification",
+    "description": "This certification ensures that aquaculture operations meet international standards for food safety, environmental sustainability, animal welfare, and worker health and safety.",
+    "certificationId": "71a90bf6-5596-4347-94d7-f549bc954386"
+  },
+  {
+    "name": "Rainforest Alliance Certified",
+    "description": "This certification is awarded to farms and agricultural products that meet rigorous environmental, social, and economic sustainability criteria as set by the Rainforest Alliance. Certified operations must conserve biodiversity, ensure fair treatment and good working conditions for workers, and implement responsible land management.",
+    "certificationId": "0d79b679-a989-418e-9b52-6138dc4b909c"
+  },
+  {
+    "name": "Fairtrade International Certification",
+    "description": "Granted by Fairtrade International, this certification ensures that farm products are produced under fair labor conditions, with farmers receiving a minimum guaranteed price and a Fairtrade Premium for community development. It also requires environmentally responsible farming practices.",
+    "certificationId": "39c3982b-5f88-48b2-bd7a-20775b6db05a"
+  },
+  {
+    "name": "USDA Certified Organic",
+    "description": "Issued by the United States Department of Agriculture, this certification confirms that agricultural products are grown and processed without synthetic fertilizers, pesticides, genetically modified organisms, or irradiation, and adhere to strict organic farming standards.",
+    "certificationId": "58ecf313-df4c-4a6f-807b-a4a8263f67dc"
+  },
+  {
+    "name": "Demeter Biodynamic Certification",
+    "description": "This certification is provided for farms and products that follow biodynamic agricultural principles, which include ecological harmony, soil fertility, and holistic management practices. Demeter standards are stricter than organic, involving specific preparations and biodiversity requirements.",
+    "certificationId": "8a96551c-0046-46f1-8b55-87a346445944"
+  },
+  {
+    "name": "Red Tractor Assurance (UK)",
+    "description": "A quality and food safety certification in the United Kingdom, Red Tractor Assurance verifies that products have been farmed, processed, and packed to rigorous standards covering food safety, traceability, animal welfare, and environmental protection.",
+    "certificationId": "501ba8fd-09dd-4013-bd95-01b30d9f70e0"
+  },
+  {
+    "name": "LEAF Marque Certification",
+    "description": "The Linking Environment and Farming (LEAF) Marque certifies that products are produced by farms committed to environmentally responsible management, including integrated crop and livestock management, wildlife conservation, and resource efficiency.",
+    "certificationId": "c23de40b-9365-44c6-b793-9f33a3479c0f"
+  },
+  {
+    "name": "Non-GMO Project Verified",
+    "description": "This certification is granted to products that have been produced in compliance with rigorous best practices for GMO avoidance, including testing, traceability, and segregation, as verified by the Non-GMO Project.",
+    "certificationId": "fcff0341-3646-45f1-b590-fbb53fb9eaf3"
+  },
+  {
+    "name": "Protected Geographical Indication (PGI) Certification",
+    "description": "PGI certification recognizes products whose quality, reputation, or other characteristics are linked to their geographical origin, and where at least one stage of production, processing, or preparation takes place in the region.",
+    "certificationId": "90945688-e9e6-45e2-b4d8-63d753693881"
+  },
+  {
+    "name": "Friend of the Sea Certified Sustainable Seafood",
+    "description": "Awarded to fisheries and aquaculture operations that comply with sustainable practices, including stock management, environmental impact reduction, and social accountability, as evaluated by Friend of the Sea standards.",
+    "certificationId": "df019cd3-0d04-494b-a53b-1504497ba364"
+  },
+  {
+    "name": "Rainfed Agriculture Certified",
+    "description": "This certification verifies that crops are grown exclusively using natural rainfall, without supplemental irrigation, promoting water conservation and traditional farming methods suitable for local ecosystems.",
+    "certificationId": "495c221a-4eed-41e9-93b4-dcebe12c2f3e"
+  },
+  {
+    "name": "Certified Humane Raised and Handled",
+    "description": "This certification ensures that farm animals are raised in accordance with precise, humane standards that promote animal welfare, including adequate space, shelter, gentle handling, and access to fresh water and a healthy diet.",
+    "certificationId": "41539fe1-59b9-432f-88a2-b541518f2cc9"
+  },
+  {
+    "name": "Integrated Farm Assurance (IFA) Certification",
+    "description": "The IFA certification program evaluates and verifies that farms implement integrated management systems covering food safety, environmental sustainability, worker health and safety, and animal welfare across all aspects of production.",
+    "certificationId": "680d6d61-2c63-4757-b5e5-d00af6548382"
+  },
+  {
+    "name": "Forest Stewardship Council (FSC) Controlled Wood Certification",
+    "description": "This certification applies to wood and non-timber forest products sourced from forests managed in an environmentally appropriate, socially beneficial, and economically viable manner, ensuring responsible forest management.",
+    "certificationId": "b037d5a1-9ffb-47d5-876c-0c185c98c53a"
+  },
+  {
+    "name": "EU Ecolabel for Agricultural Products",
+    "description": "The EU Ecolabel certifies that agricultural products meet high environmental standards throughout their life cycle, from production to disposal, including reduced pesticide use, low greenhouse gas emissions, and biodiversity protection.",
+    "certificationId": "bafd0476-c06f-48b8-ac76-5a37257d423c"
+  },
+  {
+    "name": "Certified Grassfed by A Greener World (AGW)",
+    "description": "This certification verifies that livestock are fed a 100% grass and forage diet, are raised outdoors on pasture, and are managed according to high welfare and environmental standards, with no routine antibiotics or growth hormones.",
+    "certificationId": "5ac2d8d4-b78f-41ba-9f02-eb7db02c3433"
+  },
+  {
+    "name": "USDA Organic Certification",
+    "description": "This certification is issued by the United States Department of Agriculture (USDA) to producers who comply with strict organic farming practices. It ensures that crops are grown without the use of synthetic pesticides, genetically modified organisms, or prohibited substances, and that livestock is raised on organic feed with access to the outdoors.",
+    "certificationId": "09e4a90b-c18f-4981-8b9a-e86dbdc5e04d"
+  },
+  {
+    "name": "Fairtrade International Certified",
+    "description": "This certification guarantees that products meet rigorous social, economic, and environmental standards set by Fairtrade International. It ensures fair prices for producers, safe working conditions, and sustainable farming practices, with emphasis on supporting smallholder farmers and workers.",
+    "certificationId": "2b36f651-6ffd-4277-898d-076ec9129b33"
+  },
+  {
+    "name": "Demeter Biodynamic Certification",
+    "description": "This certification is awarded to farms and products adhering to the biodynamic principles established by Demeter International. It involves holistic, ecological, and ethical approaches to farming, including the use of biodynamic preparations, crop rotation, and biodiversity conservation.",
+    "certificationId": "d36ef37b-8cc0-4701-a1d0-095ce0e64b82"
+  },
+  {
+    "name": "GlobalG.A.P. Aquaculture Certification",
+    "description": "Issued by GLOBALG.A.P., this certification covers responsible aquaculture practices, focusing on food safety, environmental sustainability, animal welfare, and worker safety throughout the production process of farmed fish and seafood.",
+    "certificationId": "3ceae33e-4025-4d64-9b24-e1b925873fa3"
+  },
+  {
+    "name": "Certified Regenerative Organic",
+    "description": "This certification recognizes farms that implement regenerative organic agriculture practices, including soil health improvement, enhanced biodiversity, animal welfare, and fair labor. It requires meeting standards set by the Regenerative Organic Alliance.",
+    "certificationId": "570f9566-c84a-4321-b329-684f106d1f9a"
+  },
+  {
+    "name": "Geographical Indication (GI) Certified",
+    "description": "This certification is granted to products with a specific geographical origin and qualities or reputation attributable to that origin. It ensures authenticity and protects traditional knowledge and production methods tied to a particular region.",
+    "certificationId": "f594c9ed-4d81-440d-9f0e-08b62b86df56"
+  },
+  {
+    "name": "Certified Carbon Neutral Farm",
+    "description": "Awarded to farms that achieve net-zero carbon emissions through a combination of emissions reduction, renewable energy adoption, and verified carbon offset projects. Certification includes regular audits and transparent reporting of greenhouse gas inventories.",
+    "certificationId": "8458b04f-d045-4154-a713-0137e6473d13"
+  },
+  {
+    "name": "Marine Stewardship Council (MSC) Certified Sustainable Seafood",
+    "description": "This certification is given to seafood products that come from fisheries meeting the Marine Stewardship Council’s standards for sustainable fishing, protecting marine ecosystems, and ensuring fish populations are maintained for the future.",
+    "certificationId": "f7b7b507-5c4c-45a7-8711-8ad848a0727d"
+  },
+  {
+    "name": "Certified Animal Welfare Approved",
+    "description": "This certification is granted to farms that adhere to the highest standards of animal welfare, including pasture-based systems, species-appropriate diets, and prohibitions on routine antibiotics or growth hormones. Audits are conducted by independent assessors.",
+    "certificationId": "692eccd7-19de-4eab-ba3a-258aa8eae987"
+  },
+  {
+    "name": "ISO 22000 Food Safety Management Certification",
+    "description": "This international certification attests that a farm or food business operates a robust food safety management system, complying with ISO 22000 standards. It covers hazard analysis, critical control points, and continual improvement processes.",
+    "certificationId": "ba5c3a52-ec36-46e3-88aa-318a81b4346f"
+  },
+  {
+    "name": "Pasture for Life Certification",
+    "description": "Awarded to farms where livestock are raised exclusively on pasture, without the use of grains or concentrated feeds. This certification ensures natural grazing, promotes biodiversity, and supports traditional pasture-based farming systems.",
+    "certificationId": "459901b8-66fa-41d4-b083-abb410b8dfbf"
+  },
+  {
+    "name": "Certified Sustainable Agroforestry",
+    "description": "This certification is given to farms and producers implementing sustainable agroforestry practices, integrating trees and shrubs into agricultural landscapes to enhance biodiversity, soil health, and ecosystem services.",
+    "certificationId": "a67598c5-5759-44e5-92c0-1b5dc7edc6d1"
+  },
+  {
+    "name": "Organic EU Certification",
+    "description": "This official European Union certification is awarded to producers who comply with the EU’s organic production regulations, banning synthetic pesticides and fertilizers, and requiring crop rotations and animal welfare standards.",
+    "certificationId": "b5a196f2-8ec8-4af9-827b-2a4aa7dbf05f"
+  },
+  {
+    "name": "Ethical Trade Initiative (ETI) Certified",
+    "description": "This certification recognizes producers who meet the Ethical Trade Initiative’s base code, ensuring fair wages, safe working conditions, and respect for workers’ rights throughout the supply chain.",
+    "certificationId": "3c71e22d-b187-4b90-b51a-6607d6c4f12a"
+  },
+  {
+    "name": "Certified Water Stewardship Farm",
+    "description": "This certification is awarded to farms that demonstrate responsible water management, efficient usage, water quality protection, and active engagement with local water users and ecosystems, as verified by independent audits.",
+    "certificationId": "10a5f72f-203d-4087-8500-d52f66d543de"
+  },
+  {
+    "name": "Rainforest Alliance Certified",
+    "description": "Products bearing the Rainforest Alliance Certified seal are produced using methods that support environmental, social, and economic sustainability. Farms must meet rigorous standards for ecosystem conservation, wildlife protection, and fair treatment of workers.",
+    "certificationId": "5868f539-1037-43b9-a41d-84b57977a32f"
+  },
+  {
+    "name": "Demeter Biodynamic Certification",
+    "description": "Demeter Biodynamic Certification is awarded to farms and products that adhere to biodynamic agricultural practices, including holistic crop management, biodiversity enhancement, and strict limitations on synthetic inputs. Certification requires annual inspections and compliance with Demeter International standards.",
+    "certificationId": "f345beb7-6a05-4539-8dd8-0090c121efb0"
+  },
+  {
+    "name": "Fairtrade International Certification",
+    "description": "Fairtrade International Certification ensures that products have been produced and traded according to fair trade standards, guaranteeing fair wages, safe working conditions, and community development for producers and workers in developing countries.",
+    "certificationId": "112bf065-5351-4bd0-a5fb-e76f66725463"
+  },
+  {
+    "name": "Protected Designation of Origin (PDO)",
+    "description": "The Protected Designation of Origin (PDO) certification guarantees that products are produced, processed, and prepared in a specific geographical area using recognized know-how. PDO is a European Union scheme that protects the names of regional foods.",
+    "certificationId": "233215e4-3278-46fa-b167-90865fee133c"
+  },
+  {
+    "name": "Non-GMO Project Verified",
+    "description": "The Non-GMO Project Verified seal is awarded to products that have been tested and meet rigorous standards for the avoidance of genetically modified organisms. Verification includes ongoing testing, traceability, and segregation practices.",
+    "certificationId": "558efad2-c200-4129-bcce-91a5b3186ff7"
+  },
+  {
+    "name": "GLOBALG.A.P. Certification",
+    "description": "GLOBALG.A.P. Certification is an internationally recognized standard for farm production that ensures food safety, environmental sustainability, and worker welfare. Farms must comply with strict criteria around hygiene, pesticide use, and record-keeping.",
+    "certificationId": "4410731f-2658-4706-b2c2-8ed802fdd196"
+  },
+  {
+    "name": "Certified Regenerative Organic",
+    "description": "Certified Regenerative Organic recognizes farms that go beyond organic standards by implementing practices that restore soil health, increase biodiversity, and improve animal welfare. Certification requires third-party audits and a commitment to continuous improvement.",
+    "certificationId": "36a03357-bbf4-4e0c-8c08-593428344bf3"
+  },
+  {
+    "name": "Certified Integrated Pest Management (IPM) Farm",
+    "description": "This certification is awarded to farms that implement Integrated Pest Management (IPM) practices, minimizing the use of chemical pesticides through biological control, crop rotation, and monitoring. Certification requires detailed documentation and periodic audits.",
+    "certificationId": "12c209d0-0f03-4eb1-8758-5db49a3e444e"
+  },
+  {
+    "name": "Sustainable Rice Platform (SRP) Certified",
+    "description": "The SRP Certified label ensures that rice is produced according to the Sustainable Rice Platform’s standards, which include water use efficiency, reduced greenhouse gas emissions, responsible agrochemical use, and fair labor practices.",
+    "certificationId": "59f24172-3d5f-4b80-b4c2-6b901c90c0fe"
+  },
+  {
+    "name": "UTZ Certified Responsible Farming",
+    "description": "UTZ Certified Responsible Farming is awarded to farms and products that adhere to rigorous standards for sustainable agriculture, including good agricultural practices, safe working conditions, and environmental protection. Certification involves regular audits and traceability requirements.",
+    "certificationId": "0d6eee64-2421-4628-b7ae-3e4df04f1862"
+  }
+]

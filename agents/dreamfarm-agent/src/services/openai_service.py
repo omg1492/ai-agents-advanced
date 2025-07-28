@@ -68,7 +68,7 @@ class OpenAIService:
                 raise ValueError("Missing AZURE_OPENAI_DEPLOYMENT_NAME environment variable")
             return model
         else:
-            return os.getenv("OPENAI_MODEL", "gpt-4o")
+            return os.getenv("OPENAI_MODEL", "gpt-4.1")
     
     async def generate_response(self, messages: list, system_prompt: Optional[str] = None) -> str:
         """Generate a response using the OpenAI API.
