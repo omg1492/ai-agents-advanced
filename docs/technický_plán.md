@@ -213,7 +213,7 @@ Provozní tým tak může včas optimalizovat výkon i rozpočet.
 ### Lekce 10 – Observabilita & Škálovatelné nasazení
 
 #### Popis vylepšení a business přínos
-Komplexní telemetry a elastické škálování zajistí stabilní provoz během sezónních špiček a transparentní monitoring nákladů.  
+Komplexní telemetrie a elastické škálování zajistí stabilní provoz během sezónních špiček a transparentní monitoring nákladů.  
 Provozní tým tak může včas optimalizovat výkon i rozpočet.
 
 #### Technické aspekty plné verze
