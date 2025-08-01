@@ -121,35 +121,18 @@ class ThreadService:
         # Get relevant product context via RAG search
         rag_context = await self.rag_service.get_relevant_context(user_message)
         
-        try:
-            system_prompt = self.template_service.render_template(
-                "system_prompt.j2",
-                {
-                    "user_location": None,  # TODO: Add user location detection
-                    "seasonal_products": [],  # TODO: Add seasonal product data
-                    "user_preferences": [],  # TODO: Add user preference tracking
-                    "simple_rag": rag_context  # Include RAG search results
-                }
-            )
-            
-            # Debug logging to see the final rendered system prompt
-            logger.debug(f"Rendered system prompt for thread {thread_id}:\n{system_prompt}")
-            
-        except Exception as e:
-            logger.warning(f"Failed to render system prompt template: {e}, using fallback")
-            system_prompt = """You are a helpful AI assistant for Dream Farm, a virtual farmers' marketplace that connects local farmers with customers. 
-
-Your role is to help customers:
-- Find fresh, local produce and farm products
-- Learn about seasonal availability
-- Connect with local farmers
-- Understand sustainable farming practices
-- Get cooking suggestions for farm-fresh ingredients
-
-Be friendly, knowledgeable about farming and fresh produce, and always focus on connecting people with local, sustainable food sources. If asked about topics unrelated to farming, food, or the marketplace, politely redirect the conversation back to how you can help with farm-related needs."""
-            
-            # Debug logging for fallback prompt as well
-            logger.debug(f"Using fallback system prompt for thread {thread_id}:\n{system_prompt}")
+        system_prompt = self.template_service.render_template(
+            "system_prompt.j2",
+            {
+                "user_location": None,  # TODO: Add user location detection
+                "seasonal_products": [],  # TODO: Add seasonal product data
+                "user_preferences": [],  # TODO: Add user preference tracking
+                "simple_rag": rag_context  # Include RAG search results
+            }
+        )
+        
+        # Debug logging to see the final rendered system prompt
+        logger.debug(f"Rendered system prompt for thread {thread_id}:\n{system_prompt}")
 
         try:
             assistant_response = await self.openai_service.generate_response(
