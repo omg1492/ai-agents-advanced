@@ -1,602 +1,602 @@
 [
   {
-    "name": "Peanut Protein",
+    "name": "Cow's Milk Protein",
     "safetyScore": 2,
-    "description": "The infamous peanut allergen, responsible for severe reactions. Notorious at school lunch tables everywhere.",
-    "allergenId": "49994c90-342e-4ca5-853c-0c62e859905b"
+    "description": "A classic dairy allergen found in milk, cheese, yogurt, and that mysterious white puddle in your fridge.",
+    "allergenId": "3115b74b-9b58-40fd-99cc-9d9e4b95fa8f"
   },
   {
-    "name": "Lactose",
-    "safetyScore": 5,
-    "description": "Milk sugar that can cause trouble for those lacking the right digestive enzymes. Dairy fans beware!",
-    "allergenId": "ea3bfc1f-4710-4662-ac1c-962ee9812ca8"
-  },
-  {
-    "name": "Wheat Gluten",
-    "safetyScore": 3,
-    "description": "The stretchy protein in wheat that helps bread rise and celiacs panic.",
-    "allergenId": "c2d6d534-501c-446c-8925-d04359a10385"
-  },
-  {
-    "name": "Egg Albumin",
-    "safetyScore": 4,
-    "description": "The main protein in egg whites, great for meringues, not so great for the allergic.",
-    "allergenId": "f028784d-64fb-4cb3-ac3a-f47dceee28f3"
-  },
-  {
-    "name": "Soybean Protein",
-    "safetyScore": 5,
-    "description": "Common in many processed foods, soybeans can surprise the sensitive eater.",
-    "allergenId": "5d284565-3b58-41ef-9f04-7627ec89e6ba"
-  },
-  {
-    "name": "Crustacean Shell Protein",
+    "name": "Peanut Peril",
     "safetyScore": 1,
-    "description": "From crabs and shrimp, this allergen is the reason some people can only dream of surf & turf.",
-    "allergenId": "d07904fb-ca84-495f-ad45-f58509042263"
+    "description": "A notorious allergen lurking in peanut butter, snacks, and most school lunch horror stories.",
+    "allergenId": "4a6cedde-3b84-4c8d-99bc-3ac888d4e4a2"
   },
   {
-    "name": "Tree Nut Mix",
-    "safetyScore": 2,
-    "description": "Almonds, walnuts, cashews, oh my! A mixed bag of nutty reactions.",
-    "allergenId": "56c04a87-423f-4d2a-9571-b51810d04f63"
-  },
-  {
-    "name": "Mustard Seed Extract",
-    "safetyScore": 6,
-    "description": "The tiny seed that packs a punch in flavor and, for some, in allergic reactions.",
-    "allergenId": "7b5fbe07-624e-4715-aa89-59f0f7a43c7e"
-  },
-  {
-    "name": "Sesame Seed Protein",
-    "safetyScore": 4,
-    "description": "The reason bagels can be treacherous for some. Sesame is sneaky and everywhere.",
-    "allergenId": "dbc4c746-d6b4-4363-b8b7-329721fdc2f3"
-  },
-  {
-    "name": "Celery Root Protein",
-    "safetyScore": 7,
-    "description": "A root veg with a surprisingly robust reputation for causing allergies, especially in Europe.",
-    "allergenId": "4a82077c-bcf4-49c8-a7a1-33b5cfa336a2"
-  },
-  {
-    "name": "Fish Parvalbumin",
+    "name": "Egg White Albumin",
     "safetyScore": 3,
-    "description": "The protein in fish that turns sushi from delightful to dangerous for some diners.",
-    "allergenId": "8949c82f-c145-443e-a6e7-046b1b22f91e"
+    "description": "The protein in egg whites that can scramble your immune system faster than an omelet on Sunday morning.",
+    "allergenId": "5cac7be0-ce80-44cb-b2ec-0883a202e109"
   },
   {
-    "name": "Buckwheat Allergen",
-    "safetyScore": 6,
-    "description": "Despite the name, not related to wheat but still a culprit in pancake-induced sniffles.",
-    "allergenId": "c3ba4f4d-a466-45a0-96c5-9a94dbc130d7"
+    "name": "Gluten Glitch",
+    "safetyScore": 2,
+    "description": "The infamous wheat protein that sours bread, pasta, and the mood of gluten-free bakery patrons everywhere.",
+    "allergenId": "92419bfd-ca2d-4b57-b31b-6c17b100cc24"
   },
   {
-    "name": "Cow Dander",
-    "safetyScore": 8,
-    "description": "Not just a barnyard aroma—cow dander can cause sneezing and itchy eyes for sensitive farm visitors.",
-    "allergenId": "6640d163-c309-4fe1-895d-7f771034cd1f"
+    "name": "Soybean Stealth",
+    "safetyScore": 4,
+    "description": "A sneaky allergen hiding in tofu, soy milk, and half the processed foods in your pantry.",
+    "allergenId": "2032c5e0-9dab-4caf-9abe-8956fa2fb5c0"
   },
   {
-    "name": "Bee Pollen",
+    "name": "Tree Nut Trouble",
+    "safetyScore": 1,
+    "description": "Almonds, walnuts, cashews, and their tree-dwelling brethren bring more than just crunch to the table.",
+    "allergenId": "a9251322-2777-4f50-8cb8-e669e1214750"
+  },
+  {
+    "name": "Shellfish Shock",
+    "safetyScore": 0,
+    "description": "Found in shrimp, crabs, and lobster—a beachside snack for some, a medical emergency for others.",
+    "allergenId": "eb147644-5aab-467c-8fbe-343f053a0350"
+  },
+  {
+    "name": "Fish Fiasco",
+    "safetyScore": 2,
+    "description": "From salmon to sardines, these slippery proteins can reel in allergic reactions fast.",
+    "allergenId": "148a369c-85c2-4ca2-af52-aa886c684b8f"
+  },
+  {
+    "name": "Sesame Seed Surprise",
     "safetyScore": 5,
-    "description": "Beloved by health enthusiasts, feared by allergy sufferers. Buzz-worthy, for sure.",
-    "allergenId": "e1673d69-6117-4ebc-8a24-0523206d2298"
+    "description": "Tiny seeds with big impact, often lurking on buns and in tahini—don't let their size fool you.",
+    "allergenId": "5a3810d3-a652-41ca-9fc9-81882b76f4ba"
   },
   {
-    "name": "Corn Zein",
+    "name": "Mustard Madness",
+    "safetyScore": 6,
+    "description": "More than just a hot dog topping, mustard seeds pack a punch for sensitive immune systems.",
+    "allergenId": "3d9a0ef9-1d58-404c-89e9-b32cb686fb78"
+  },
+  {
+    "name": "Celery Stalker",
     "safetyScore": 7,
-    "description": "Corn’s main protein—generally safe, but a maize-ingly annoying for a few.",
-    "allergenId": "3861eac3-c0a8-4121-ab1c-25d9d754de22"
+    "description": "Often hiding in soups and salads, celery can be more menacing than its crunch suggests.",
+    "allergenId": "9c7017c6-8156-4dfd-ac95-f6cd8f159b73"
   },
   {
-    "name": "Apple Mal d 1 Protein",
+    "name": "Lupin Lunacy",
+    "safetyScore": 7,
+    "description": "A legume gaining popularity in gluten-free flours, but not every tummy is a fan.",
+    "allergenId": "e774b922-94cb-401b-912a-37b46f24223c"
+  },
+  {
+    "name": "Apple Anomaly",
     "safetyScore": 8,
-    "description": "The culprit behind itchy lips after eating raw apples, especially if you have a birch pollen allergy.",
-    "allergenId": "b811c684-72b5-4076-abf4-b0708959ecc5"
+    "description": "A rare, sometimes quirky allergen, especially for those with birch pollen allergies (apples: the forbidden fruit?).",
+    "allergenId": "ee81e41c-aed3-4740-af7f-96db06d01fa2"
   },
   {
-    "name": "Sheep Wool Lanolin",
+    "name": "Carrot Catastrophe",
+    "safetyScore": 8,
+    "description": "Carrots can trigger allergies, especially in people with pollen sensitivities—orange you surprised?",
+    "allergenId": "7257d0a8-2df6-4ad1-b588-9cd63a311998"
+  },
+  {
+    "name": "Corn Conundrum",
+    "safetyScore": 6,
+    "description": "Corn on the cob, popcorn, and syrup—delicious to most, but confusingly allergenic to a few.",
+    "allergenId": "5ea894c9-f398-4128-9db0-f1507ac3c217"
+  },
+  {
+    "name": "Bee Pollen Buzz",
+    "safetyScore": 7,
+    "description": "Marketed as a superfood, but for some, it’s just a super sneeze inducer.",
+    "allergenId": "24b7cc1e-fc17-4c44-99d4-040e124e580c"
+  },
+  {
+    "name": "Mushroom Misfortune",
+    "safetyScore": 8,
+    "description": "A fungal foe for a select few, causing more than just culinary disappointment.",
+    "allergenId": "ab926e18-7d55-436c-8ab9-368a7493071b"
+  },
+  {
+    "name": "Strawberry Sneeze",
+    "safetyScore": 7,
+    "description": "Juicy red berries that can leave sensitive types red in the face for all the wrong reasons.",
+    "allergenId": "591b170a-93e5-4f25-ba55-247eb4ebcd61"
+  },
+  {
+    "name": "Sunflower Seed Sorrow",
+    "safetyScore": 8,
+    "description": "A less common allergen, but these sunny seeds can cloud a picnic for some.",
+    "allergenId": "ef366eb9-9845-4ae5-bfcb-12dabf519284"
+  },
+  {
+    "name": "Horsehair Hazard",
     "safetyScore": 9,
-    "description": "Natural and soothing—unless you’re allergic. Found in wool and some cosmetics.",
-    "allergenId": "c192231c-9bee-4d13-a28a-6bdb2f326853"
+    "description": "For those working on farms, horse dander can trigger sneezes more than galloping hooves—hay fever’s equine cousin.",
+    "allergenId": "1e35f365-5d60-4e83-8b1c-c744e3f9edb4"
   },
   {
-    "name": "Strawberry Fragaria Allergen",
-    "safetyScore": 8,
-    "description": "That summer treat may cause more than just berry-stained hands for the sensitive.",
-    "allergenId": "7df74d35-b095-435b-bc9c-f874fea7af4e"
-  },
-  {
-    "name": "Duck Feather Dander",
-    "safetyScore": 8,
-    "description": "Quack if you sneeze! Not just for pillows—duck dander can be found all over the farm.",
-    "allergenId": "5fb9dc16-5692-47a9-81c2-1e729f9f3bb4"
-  },
-  {
-    "name": "Chili Pepper Capsaicin",
-    "safetyScore": 7,
-    "description": "The spicy chemical in hot peppers that brings tears to the eyes—sometimes from joy, sometimes from allergy.",
-    "allergenId": "36d6f51b-eefa-444a-9349-a2687fa366de"
-  },
-  {
-    "name": "Peanut Ara h 1 Protein",
+    "name": "Peanut Panic",
     "safetyScore": 2,
-    "description": "Major allergen found in peanuts, notorious for causing severe allergic reactions even in trace amounts.",
-    "allergenId": "26cd3583-dd65-4b9f-9741-ae5f179c9b8a"
+    "description": "A notorious legume that causes severe allergic reactions for many; not to be taken lightly at any farm picnic.",
+    "allergenId": "8065500e-1107-4db0-8ff6-35d28c38c738"
   },
   {
-    "name": "Wheat Gluten",
+    "name": "Dairy Dilemma",
+    "safetyScore": 3,
+    "description": "Cow's milk and its derivatives can create chaos for those with lactose intolerance or milk allergies.",
+    "allergenId": "f92657ae-58f9-41ab-b984-ea08fd3282a0"
+  },
+  {
+    "name": "Almond Alarm",
+    "safetyScore": 2,
+    "description": "Crunchy and healthy for most, but a small bite can spell danger for nut-allergic folks.",
+    "allergenId": "64ab6c89-0ac9-4992-a7a7-2b4147b723e7"
+  },
+  {
+    "name": "Egg Emergency",
+    "safetyScore": 3,
+    "description": "Chicken eggs are a breakfast staple, but for some, exposure can scramble their day.",
+    "allergenId": "bda5f8fc-54d6-400a-83d0-d3a51f7ea82f"
+  },
+  {
+    "name": "Wheat Worry",
     "safetyScore": 4,
-    "description": "The infamous protein responsible for gluten intolerance and celiac disease; found in most wheat-based farm products.",
-    "allergenId": "eaff8fef-7695-431c-a916-de56332626c8"
+    "description": "Wheat contains gluten, a common culprit for allergy and celiac sufferers.",
+    "allergenId": "75e4bad8-e7c5-43c6-94e7-9e052b11d2fe"
   },
   {
-    "name": "Egg Ovalbumin",
-    "safetyScore": 3,
-    "description": "The primary protein allergen in chicken eggs, a breakfast classic with a hidden power to cause sneezing and swelling.",
-    "allergenId": "8d8d0e39-1c7f-4f87-9fff-f552b53802be"
-  },
-  {
-    "name": "Soy Gly m 5 Protein",
-    "safetyScore": 5,
-    "description": "A protein allergen found in soybeans, often lurking in veggie burgers and tofu.",
-    "allergenId": "8ffc5b58-ed49-423b-98ce-9ad2e0f224cf"
-  },
-  {
-    "name": "Sesame Seed Ses i 1 Protein",
-    "safetyScore": 3,
-    "description": "A potent allergen in sesame seeds; small but mighty in the kitchen and on allergy lists.",
-    "allergenId": "1f1308f7-2509-441b-b73d-4c48ec1db8f0"
-  },
-  {
-    "name": "Almond Prunus Allergen",
-    "safetyScore": 3,
-    "description": "Main allergenic protein in almonds, a favorite nut for bakers and a nemesis for nut allergy sufferers.",
-    "allergenId": "13bf33eb-3756-4845-a35d-464725fb912d"
-  },
-  {
-    "name": "Goat Milk Casein",
-    "safetyScore": 4,
-    "description": "A dairy allergen in goat milk, perfect for those who thought escaping cow milk was enough.",
-    "allergenId": "e6b511fe-9466-492a-9da2-74659643116d"
-  },
-  {
-    "name": "Barley Hordein",
-    "safetyScore": 5,
-    "description": "A gluten-like protein found in barley, fueling both beer production and allergy woes.",
-    "allergenId": "72de7e40-add6-4ee1-8f28-af89bf186994"
-  },
-  {
-    "name": "Tomato Lyc e 1 Protein",
-    "safetyScore": 6,
-    "description": "An allergen hiding in everyone’s favorite pizza topping; can cause oral allergy syndrome in sensitive individuals.",
-    "allergenId": "a56d0039-7e61-434b-a4fb-7681784da8fb"
-  },
-  {
-    "name": "Oat Avenin",
+    "name": "Oat Oddity",
     "safetyScore": 7,
-    "description": "A protein in oats sometimes causing reactions in the gluten-averse. Sorry, oatmeal fans!",
-    "allergenId": "41047749-67c4-4092-ae03-786bd9104f1b"
+    "description": "Oats are wholesome, but can be contaminated with gluten or cause rare oat allergies.",
+    "allergenId": "e6baed4a-0f47-4eba-98c1-7bee7276676d"
   },
   {
-    "name": "Celery Api g 1 Allergen",
-    "safetyScore": 3,
-    "description": "The sneaky allergen in celery stalks, causing anything from mild itchiness to full-blown anaphylaxis.",
-    "allergenId": "73ce04ca-06b3-4efd-8260-dad5df50a8fd"
+    "name": "Sesame Seed Scare",
+    "safetyScore": 2,
+    "description": "Tiny seeds, big problems; sesame can trigger severe reactions even in trace amounts.",
+    "allergenId": "254e6b91-92bd-4320-933b-03c939022234"
   },
   {
-    "name": "Mustard Sin a 1 Protein",
-    "safetyScore": 4,
-    "description": "The protein responsible for mustard allergies, adding a dash of danger to your hot dog.",
-    "allergenId": "85fdedf6-5616-48ba-8f9f-d6ab0063fa0f"
-  },
-  {
-    "name": "Pecan Nut Car i 1 Protein",
-    "safetyScore": 3,
-    "description": "Primary protein in pecans, making pecan pie a risky holiday treat for some.",
-    "allergenId": "b3c0e394-1141-4119-8915-ed15e5b9108b"
-  },
-  {
-    "name": "Rabbit Fur Allergen",
-    "safetyScore": 6,
-    "description": "Found in the soft fur of farm rabbits, causing sniffles and sneezes for those who pet before they prep.",
-    "allergenId": "80f651bd-f281-4605-81e7-e2c34b1bd22d"
-  },
-  {
-    "name": "Grape Vitis vinifera Allergen",
-    "safetyScore": 7,
-    "description": "An allergen in grapes, making wine tasting and fruit salads a calculated risk for a select few.",
-    "allergenId": "f5ac9e7a-7d26-41a1-803c-82fcc74f653a"
-  },
-  {
-    "name": "Pumpkin Cucurbita Allergen",
-    "safetyScore": 8,
-    "description": "A mild allergen in pumpkin flesh and seeds, haunting more autumn pies than Halloween ghosts.",
-    "allergenId": "8299cd05-c33a-4eac-b7b6-f8740f2a4ba6"
-  },
-  {
-    "name": "Horse Dander Equ c 1 Protein",
-    "safetyScore": 5,
-    "description": "A common allergen from horse dander; cause of many a sneeze in the stable.",
-    "allergenId": "8f513841-0bf2-4dca-9945-23764e11bf53"
-  },
-  {
-    "name": "Quail Egg Protein",
-    "safetyScore": 4,
-    "description": "Main allergen in quail eggs, for gourmets who want a smaller, but just as risky, breakfast experience.",
-    "allergenId": "91350533-85f7-40b5-a283-b6dbbc28dfdc"
-  },
-  {
-    "name": "Hazelnut Cor a 1 Protein",
-    "safetyScore": 3,
-    "description": "The troublemaker protein in hazelnuts, making Nutella indulgence dangerous for some.",
-    "allergenId": "fe979437-d163-4645-be12-307a65840d5d"
-  },
-  {
-    "name": "Blue Cheese Penicillium Mold",
-    "safetyScore": 6,
-    "description": "The tangy mold responsible for blue cheese’s flavor and the occasional surprise allergy attack.",
-    "allergenId": "5590bda7-d784-46ed-8ee9-3d3faa66ea11"
-  },
-  {
-    "name": "Cow's Milk Casein Protein",
-    "safetyScore": 3,
-    "description": "A major protein in cow's milk responsible for many dairy allergies, especially in children.",
-    "allergenId": "5f525dfd-8335-45b8-8a7e-50fb90ce0995"
-  },
-  {
-    "name": "Peanut Ara h 1 Protein",
+    "name": "Shellfish Shock",
     "safetyScore": 1,
-    "description": "The infamous peanut protein that can send some people running for their EpiPen. Extra caution required!",
-    "allergenId": "772fb76c-ed3b-4eb5-90bd-03b17ac04078"
+    "description": "Though farmed mainly in aquaculture, accidental shellfish allergens can cross-contaminate soil and water.",
+    "allergenId": "25d7409c-3c3b-40a3-b7a3-7ec804aab161"
   },
   {
-    "name": "Wheat Gluten",
-    "safetyScore": 4,
-    "description": "The sticky protein found in wheat and other grains that causes trouble for those with celiac disease or gluten sensitivity.",
-    "allergenId": "759178e5-1f93-473c-8834-d51dd7ff25d8"
-  },
-  {
-    "name": "Sheep Wool Lanolin",
-    "safetyScore": 6,
-    "description": "An oily substance from sheep's wool that can cause allergic reactions in sensitive individuals. Not just a problem for knitters!",
-    "allergenId": "b76c4101-4c81-4480-98fb-6001e25ae163"
-  },
-  {
-    "name": "Soybean Gly m 5 Protein",
-    "safetyScore": 5,
-    "description": "A primary allergen in soybeans, which can sneak into many processed farm products and tofu.",
-    "allergenId": "2d79a025-9b53-43e8-8933-f8ee459da55b"
-  },
-  {
-    "name": "Egg White Ovalbumin",
-    "safetyScore": 4,
-    "description": "A common protein in chicken egg whites. Great for meringues, not so great for allergy sufferers.",
-    "allergenId": "b35fdf8e-3fd5-4a50-a6b1-5257be7d83d2"
-  },
-  {
-    "name": "Almond Prunus dulcis Protein",
+    "name": "Soybean Surprise",
     "safetyScore": 3,
-    "description": "Tasty in marzipan, terrible for nut allergy sufferers. Almonds are a major tree nut allergen.",
-    "allergenId": "f340bfb1-2ed5-429b-97af-6714655259f4"
+    "description": "A staple protein source, but for soy-sensitive individuals, it's a real trickster.",
+    "allergenId": "7308d62e-d781-4869-ad00-222cdb35589b"
   },
   {
-    "name": "Goat's Milk Beta-Lactoglobulin",
-    "safetyScore": 5,
-    "description": "Found in goat's milk, this protein can trip up those with a general animal milk allergy.",
-    "allergenId": "0a31787c-7df7-4337-b868-c964f031b5bd"
-  },
-  {
-    "name": "Sesame Seed Ses i 1 Protein",
+    "name": "Hazelnut Havoc",
     "safetyScore": 2,
-    "description": "Tiny seeds, big problems. Sesame allergies are on the rise and can be severe.",
-    "allergenId": "af176763-4a53-4f2a-a253-33585c296cb8"
+    "description": "Deceptively delicious but dangerous for those with nut allergies.",
+    "allergenId": "b069460b-6dfb-4044-84b3-ba3aaa263299"
   },
   {
-    "name": "Fish Parvalbumin",
-    "safetyScore": 3,
-    "description": "A heat-stable muscle protein present in many fish species, a common culprit behind fish allergies.",
-    "allergenId": "da199263-07d8-4b61-bb2c-c434cb2bdd9c"
-  },
-  {
-    "name": "Barley Hordein",
-    "safetyScore": 4,
-    "description": "A gluten protein found in barley, problematic for celiac and gluten-sensitive individuals—beer beware!",
-    "allergenId": "8273c633-4f61-46fa-b9c4-e466a868ee6a"
-  },
-  {
-    "name": "Chickpea Vicilin Protein",
+    "name": "Mustard Mayhem",
     "safetyScore": 5,
-    "description": "The protein in chickpeas that could even make hummus a risky dip for some unlucky folks.",
-    "allergenId": "a5ffa54a-662b-4505-9d3d-f36250d77acf"
+    "description": "A spicy addition to many dishes, but mustard can provoke severe reactions in some people.",
+    "allergenId": "34580ff8-085a-4ab0-a30a-60aa7318140d"
   },
   {
-    "name": "Beef Albumin Protein",
+    "name": "Fishy Fallout",
+    "safetyScore": 2,
+    "description": "Farmed fish and their proteins can be a hidden hazard for the fish-allergic.",
+    "allergenId": "1149f1b6-2bed-4aea-b862-0b4ae7e55017"
+  },
+  {
+    "name": "Buckwheat Bother",
     "safetyScore": 6,
-    "description": "A protein found in beef that can cause rare but real allergic reactions. Sorry to those who love a good steak.",
-    "allergenId": "5d004a58-dd44-49bd-a970-b5da05da3126"
+    "description": "Despite being gluten-free, buckwheat can cause sneaky reactions in a select few.",
+    "allergenId": "f8a454f5-a471-43c9-b812-ee52b4b5bb2f"
   },
   {
-    "name": "Oat Avenin Protein",
+    "name": "Quail Egg Quandary",
     "safetyScore": 7,
-    "description": "A less-common gluten-like protein in oats, sometimes problematic for those with celiac disease.",
-    "allergenId": "838d053e-5d6a-456b-ac3d-f676730ac781"
+    "description": "A gourmet alternative to chicken eggs, but not any safer for the egg-sensitive.",
+    "allergenId": "d507671f-6035-4bbc-a963-6e068f238211"
   },
   {
-    "name": "Snail Mucus Protein",
+    "name": "Goat Cheese Grief",
+    "safetyScore": 5,
+    "description": "Goat's milk cheese seems fancy but contains similar proteins to cow's milk—watch out!",
+    "allergenId": "c5887f0d-b689-45c8-8bc5-473b13e033a2"
+  },
+  {
+    "name": "Pecan Predicament",
+    "safetyScore": 2,
+    "description": "Pecans add crunch to pies and peril to nut-allergic eaters alike.",
+    "allergenId": "ab9132f8-2b98-4bdc-9e3e-e78f8fe5fa62"
+  },
+  {
+    "name": "Chickpea Challenge",
+    "safetyScore": 6,
+    "description": "Main ingredient in hummus, but can be a sneaky trigger for legume-allergic folks.",
+    "allergenId": "f733d198-0605-4120-a64f-e3f5cd93b640"
+  },
+  {
+    "name": "Barley Blunder",
+    "safetyScore": 4,
+    "description": "A key ingredient in many grains and beers, barley contains gluten and can cause trouble.",
+    "allergenId": "93e0a34b-be83-4517-ade1-95ef28b4743c"
+  },
+  {
+    "name": "Kiwi Kerfuffle",
+    "safetyScore": 6,
+    "description": "Fuzzy on the outside, but some people have a real reaction to this tangy fruit.",
+    "allergenId": "aa31b12a-d131-45e4-81e6-dce1ea4e98ec"
+  },
+  {
+    "name": "Snail Shell Shock",
     "safetyScore": 8,
-    "description": "Unusual but possible: allergic reactions to proteins in snail mucus, especially among adventurous eaters.",
-    "allergenId": "39b33860-bf69-4f50-a553-a1a6836720e6"
+    "description": "Escargot from snail farms can cause mollusk allergies—handle with care if you’re sensitive.",
+    "allergenId": "10685aaa-e8f9-4858-9367-8e6921ac3d07"
   },
   {
-    "name": "Duck Feather Dander",
-    "safetyScore": 7,
-    "description": "Feathers aren't just soft—they can trigger sneezes and itchy eyes for the dander-sensitive.",
-    "allergenId": "7484ceb6-0af3-45c0-a69b-41890c8832ff"
-  },
-  {
-    "name": "Carrot Dau c 1 Protein",
-    "safetyScore": 6,
-    "description": "A protein in carrots that can cause oral allergy syndrome, especially in birch pollen allergy sufferers.",
-    "allergenId": "ece5ec21-8826-4ea3-978f-4e11a55178b1"
-  },
-  {
-    "name": "Sunflower Seed Hel a 1 Protein",
-    "safetyScore": 4,
-    "description": "A protein in sunflower seeds that can cause allergic reactions in a small percentage of people.",
-    "allergenId": "72684c43-7eab-4dcb-8c98-e8a101118e73"
-  },
-  {
-    "name": "Apple Mal d 1 Protein",
-    "safetyScore": 7,
-    "description": "The main allergen in apples, which can cause reactions in those allergic to birch pollen—an unfortunate twist on 'an apple a day.'",
-    "allergenId": "31f3215f-5044-4cc8-8d12-044a10c0f624"
-  },
-  {
-    "name": "Buckwheat Fag e 1 Protein",
-    "safetyScore": 3,
-    "description": "A major allergen in buckwheat, a grain alternative loved by some and feared by the allergic.",
-    "allergenId": "842475d9-bc9c-40e0-9285-0a03351b15fc"
-  },
-  {
-    "name": "Peanut Ara h 2 Protein",
-    "safetyScore": 2,
-    "description": "A potent allergen found in peanuts, responsible for many severe peanut allergies and emergency EpiPen sales.",
-    "allergenId": "7e3a8c17-46ca-4709-ad71-7790cdc3dac5"
-  },
-  {
-    "name": "Cow's Milk Casein",
-    "safetyScore": 3,
-    "description": "The main protein found in cow's milk, causing trouble for both babies and adults who just want a bowl of cereal.",
-    "allergenId": "e1f3aee6-c5a8-4c40-9586-b7b428d722a5"
-  },
-  {
-    "name": "Egg Ovalbumin",
-    "safetyScore": 4,
-    "description": "A major egg white protein, infamous for ruining brunches for those with egg allergies.",
-    "allergenId": "dd42f928-a176-40da-b38e-0f0903793e9f"
-  },
-  {
-    "name": "Wheat Gluten",
-    "safetyScore": 3,
-    "description": "The sticky protein in wheat that makes bread fluffy and some stomachs grumpy.",
-    "allergenId": "26964fd8-346d-4013-8d84-c6bcaebf2723"
-  },
-  {
-    "name": "Soy Gly m 5 Protein",
-    "safetyScore": 5,
-    "description": "A common allergenic protein in soybeans, lurking in everything from tofu to soy sauce.",
-    "allergenId": "5f723bdf-d203-4d8b-9ede-5fe418ff9c1b"
-  },
-  {
-    "name": "Hazelnut Cor a 9 Protein",
-    "safetyScore": 2,
-    "description": "A major allergen found in hazelnuts, especially dangerous in chocolate spreads and desserts.",
-    "allergenId": "978f263e-0ae1-458c-8395-98f82c970697"
-  },
-  {
-    "name": "Sesame Seed Ses i 1 Protein",
-    "safetyScore": 3,
-    "description": "The culprit behind sesame allergies, hiding in bagels, hummus, and the occasional artisan bread.",
-    "allergenId": "49258092-421b-4bdd-8b11-83fe3ebd8d69"
-  },
-  {
-    "name": "Sheep Wool Lanolin",
-    "safetyScore": 6,
-    "description": "A natural greasy substance from sheep's wool that can cause rashes and itchiness, but makes for soft sweaters.",
-    "allergenId": "98b7f894-e9a2-48c9-a366-f014bfe36231"
-  },
-  {
-    "name": "Fish Parvalbumin",
-    "safetyScore": 2,
-    "description": "A fish muscle protein that's the reason some avoid the catch of the day (and sushi).",
-    "allergenId": "0134bf8e-b1a0-4b68-bc57-db273ef9eadd"
-  },
-  {
-    "name": "Celery Api g 1 Protein",
-    "safetyScore": 4,
-    "description": "A sneaky allergen in celery, causing reactions particularly for those with pollen allergies.",
-    "allergenId": "0e2736d0-8549-47d4-9c32-68e110ff36c7"
-  },
-  {
-    "name": "Mustard Sin a 1 Protein",
-    "safetyScore": 5,
-    "description": "A protein in mustard seeds, lending flavor and sometimes trouble to dressings and sauces.",
-    "allergenId": "cca463e6-afee-45be-aa27-196bd6995d71"
-  },
-  {
-    "name": "Almond Amandin Protein",
-    "safetyScore": 2,
-    "description": "A major allergenic protein in almonds, making marzipan and almond croissants off-limits for some.",
-    "allergenId": "fc393d9f-3e08-49ef-9696-0ad5f6301093"
-  },
-  {
-    "name": "Latex Hev b 6 Protein",
-    "safetyScore": 3,
-    "description": "A protein from rubber trees sometimes contaminating farm produce, causing issues for sensitive individuals (and balloon artists).",
-    "allergenId": "c0875713-17ca-4ebc-856e-fdb6d0ffc9de"
-  },
-  {
-    "name": "Goat's Milk Beta-Lactoglobulin",
-    "safetyScore": 4,
-    "description": "A protein in goat's milk that tries to be different from cow's milk but is just as troublesome for some.",
-    "allergenId": "16646a94-c794-4cb4-82e1-489f52a683f1"
-  },
-  {
-    "name": "Honeybee Royal Jelly Protein",
-    "safetyScore": 6,
-    "description": "A rare allergenic protein found in royal jelly, fit for queens but not for everyone.",
-    "allergenId": "01101d8c-90cb-4762-b42a-eb9fb3f79ff1"
-  },
-  {
-    "name": "Mango Mangiferin Protein",
-    "safetyScore": 5,
-    "description": "A mango skin protein, responsible for the not-so-tropical allergic reactions in sensitive folks.",
-    "allergenId": "64687936-8a15-45dd-a42e-5fab4394c0a6"
-  },
-  {
-    "name": "Corn Zein Protein",
-    "safetyScore": 6,
-    "description": "A storage protein in corn, less common as an allergen but still a cornfield nemesis for a few.",
-    "allergenId": "6ba96d5d-8e50-401d-add1-f02aceb2df6a"
-  },
-  {
-    "name": "Pigeon Feather Dander",
-    "safetyScore": 7,
-    "description": "Airborne allergen from pigeons, found wherever farms and friendly birds meet.",
-    "allergenId": "899e9bd1-c468-4633-9e0f-e8c92ba13d50"
-  },
-  {
-    "name": "Tomato Lyc e 1 Protein",
-    "safetyScore": 5,
-    "description": "A tomato allergen that turns pizza night into a risky adventure for the sensitive.",
-    "allergenId": "91baccd2-7547-4612-9677-b391899b5b6e"
-  },
-  {
-    "name": "Rabbit Fur Allergen (Ory c 1)",
-    "safetyScore": 7,
-    "description": "A protein in rabbit fur, mildly allergenic but a real problem for those who just wanted a farm cuddle.",
-    "allergenId": "594b63f7-5539-4fe7-a39a-205f62e17536"
-  },
-  {
-    "name": "Cow's Milk Casein Protein",
-    "safetyScore": 3,
-    "description": "Major milk allergen, infamous for ruining the lives of the lactosely unlucky.",
-    "allergenId": "4efe4ecd-d15a-4b2f-b284-fffea8daddea"
-  },
-  {
-    "name": "Peanut Ara h 1 Protein",
+    "name": "Peanut Panic",
     "safetyScore": 1,
-    "description": "Notorious legume allergen, responsible for the bulk of peanut reactions worldwide.",
-    "allergenId": "4564774e-084b-415f-b4f8-0b65c3caf1a2"
+    "description": "Peanuts, the notorious legume, cause severe allergic reactions in some unlucky snackers.",
+    "allergenId": "134a361d-c0c9-4bef-8beb-0a6fbce67a0d"
   },
   {
-    "name": "Wheat Gluten",
+    "name": "Almond Alarm",
     "safetyScore": 2,
-    "description": "Protein mix in wheat that makes bread chewy and gluten-sensitive people grumpy.",
-    "allergenId": "eaf4767d-219f-4b22-ab96-c08090a39082"
+    "description": "Almonds: a crunchy delight for most, but a dangerous foe for the nut-sensitive.",
+    "allergenId": "67efd063-3571-4f74-ba6d-cd5f1412a88c"
   },
   {
-    "name": "Egg Ovalbumin Protein",
+    "name": "Dairy Dilemma",
     "safetyScore": 3,
-    "description": "Egg white protein, a breakfast staple and allergen nemesis for some.",
-    "allergenId": "331eceb8-9412-4f46-9178-686e94c78246"
+    "description": "Milk, cheese, and other dairy products can lead to digestive drama and more for those with allergies or lactose intolerance.",
+    "allergenId": "b3906c10-5ba4-4760-8429-161323ef3e93"
   },
   {
-    "name": "Sheep Wool Lanolin",
-    "safetyScore": 6,
-    "description": "Natural fat from sheep wool, lovely for soft hands, less so for sensitive skin.",
-    "allergenId": "f87a4960-a04c-4349-bdb4-021eaf70d42b"
-  },
-  {
-    "name": "Soy Gly m 5 Protein",
-    "safetyScore": 4,
-    "description": "Common soy protein, found in almost everything labeled 'plant-based'.",
-    "allergenId": "097259a8-5527-4a19-92bb-c555ed7062a3"
-  },
-  {
-    "name": "Chicken Feather Dander",
-    "safetyScore": 7,
-    "description": "Tiny airborne bits from chickens, especially dangerous at pillow fights.",
-    "allergenId": "96767571-cb26-4e0a-a5f6-da73f12b71a2"
-  },
-  {
-    "name": "Apple Mal d 1 Protein",
-    "safetyScore": 5,
-    "description": "Apple protein that disappoints some fruit lovers with itchy mouths.",
-    "allergenId": "af2dabae-a313-4d76-8a2c-fbb555110dcb"
-  },
-  {
-    "name": "Sunflower Seed Hel a 1 Protein",
-    "safetyScore": 7,
-    "description": "Main sunflower seed allergen, present in snacks and birdfeeders alike.",
-    "allergenId": "7dc3e78b-94d5-4342-b0d8-a5fe954540ce"
-  },
-  {
-    "name": "Barley Hordein Protein",
-    "safetyScore": 4,
-    "description": "Gluten-type protein in barley; sneaky culprit in beer and malt.",
-    "allergenId": "e1846c37-56e3-4d40-95fb-903ad1361094"
-  },
-  {
-    "name": "Celery Api g 1 Protein",
-    "safetyScore": 6,
-    "description": "Allergen in celery, loved by salads, hated by select immune systems.",
-    "allergenId": "6250d9d5-2d46-4c08-a9cf-ad42a189addc"
-  },
-  {
-    "name": "Strawberry Fra a 1 Protein",
-    "safetyScore": 8,
-    "description": "Makes strawberries taste good and sometimes makes lips tingle, not in a good way.",
-    "allergenId": "e37a070c-c71c-4917-8399-47a40b655ee0"
-  },
-  {
-    "name": "Oat Avenin Protein",
-    "safetyScore": 6,
-    "description": "Oat equivalent of gluten, soft on the stomach for most—except the unlucky few.",
-    "allergenId": "7f6cd485-98ba-440f-9aea-b3ac0e6107df"
-  },
-  {
-    "name": "Horse Dander Equ c 1",
-    "safetyScore": 5,
-    "description": "Floating horse skin flakes, beloved by horses, less so by allergic farmhands.",
-    "allergenId": "dfd012ef-d8c6-40de-89ce-93f68b6ad41c"
-  },
-  {
-    "name": "Duck Egg Lysozyme",
-    "safetyScore": 4,
-    "description": "Egg white enzyme in duck eggs, perfect for alternative baking, not for allergies.",
-    "allergenId": "81f4d2d7-1f80-4b60-b23f-052dc9ef109a"
-  },
-  {
-    "name": "Fish Parvalbumin Protein",
+    "name": "Wheat Worry",
     "safetyScore": 2,
-    "description": "Primary fish allergen, popular in ponds and allergic reactions alike.",
-    "allergenId": "bff3d14a-c740-478c-8b39-133d41c4c33c"
+    "description": "Wheat proteins like gluten can trigger reactions from mild discomfort to full-blown celiac chaos.",
+    "allergenId": "7bf3b205-62ed-42b4-bbca-0e643c90ca35"
   },
   {
-    "name": "Buckwheat Fag e 1 Protein",
+    "name": "Sesame Surprise",
+    "safetyScore": 3,
+    "description": "Tiny seeds, big problems. Sesame is sneaky in breads and salads, and tricky for some immune systems.",
+    "allergenId": "a5be231b-2946-4c19-8929-721c07bbecf6"
+  },
+  {
+    "name": "Soybean Scare",
+    "safetyScore": 3,
+    "description": "Soybeans lurk in many foods, sometimes triggering strong reactions in the soy-averse.",
+    "allergenId": "b60b22b8-699d-41ae-a30a-366ea54c6e38"
+  },
+  {
+    "name": "Hazelnut Havoc",
+    "safetyScore": 2,
+    "description": "Hazelnuts: delicious in chocolate, disastrous for the nut-allergic.",
+    "allergenId": "27a8dbd8-b170-4f2a-a6a4-50ee355f304a"
+  },
+  {
+    "name": "Eggshell Emergency",
+    "safetyScore": 3,
+    "description": "Chicken eggs can scramble immune systems, particularly in young children.",
+    "allergenId": "1d684f1d-d1c7-4ff8-b851-146e53438ef8"
+  },
+  {
+    "name": "Celery Crisis",
     "safetyScore": 5,
-    "description": "Buckwheat protein, the bane of gluten-free pancake enthusiasts with allergies.",
-    "allergenId": "beff15a5-705c-4757-af2e-f90f5284fe58"
+    "description": "Celery may seem healthy, but for some, even a stalk can spark an allergenic uproar.",
+    "allergenId": "d2ca78df-6489-4c0c-a6a6-d4522010eee3"
   },
   {
-    "name": "Garlic Alliinase Enzyme",
-    "safetyScore": 7,
-    "description": "Garlic enzyme responsible for its aroma and for a few rare allergic sneezes.",
-    "allergenId": "ec4a67a2-bdda-4b91-8a9d-c2128de1b4e9"
+    "name": "Shellfish Shockwave",
+    "safetyScore": 1,
+    "description": "Shrimp, crab, and lobster bring the flavor—but also risk anaphylaxis for shellfish-sensitive souls.",
+    "allergenId": "cbb17e10-3937-4f51-b74a-1ae18ca23d2d"
   },
   {
-    "name": "Bee Pollen Mix",
+    "name": "Apple Anomaly",
+    "safetyScore": 6,
+    "description": "Some folks react to apples, especially if they have birch pollen allergies. Fruit salad: not always safe!",
+    "allergenId": "fd216f94-b450-491e-9ed1-5890867de132"
+  },
+  {
+    "name": "Macadamia Madness",
+    "safetyScore": 2,
+    "description": "Macadamia nuts may taste buttery, but they can cause nutty allergic reactions.",
+    "allergenId": "4f2952d9-ec85-43f2-a79f-d7219b6d0996"
+  },
+  {
+    "name": "Lupin Lunacy",
     "safetyScore": 4,
-    "description": "Wild blend of pollens collected by bees, a health food and allergenic lottery ticket.",
-    "allergenId": "fb93d0c9-e2d8-4e07-a10f-e2985d8b2ef0"
+    "description": "Lupin beans are a rising star in flour blends, but also a rising source of allergic shenanigans.",
+    "allergenId": "9949909d-5442-47b8-a79b-567cc23a2827"
   },
   {
-    "name": "Potato Pat a 1 Protein",
+    "name": "Coconut Conundrum",
+    "safetyScore": 6,
+    "description": "Coconuts sometimes cause confusion—and allergies—especially in those sensitive to tree nuts.",
+    "allergenId": "3b5af2f7-cb8b-40c8-a2ed-4f1ce28cc4c5"
+  },
+  {
+    "name": "Bee Pollen Predicament",
+    "safetyScore": 5,
+    "description": "Bee pollen, beloved by health gurus, can stir up sneezes and swelling for the sensitive.",
+    "allergenId": "1e5e5200-575e-462d-832f-2bc603d09029"
+  },
+  {
+    "name": "Strawberry Snafu",
+    "safetyScore": 7,
+    "description": "Strawberries are sweet, but can cause hives and tingling lips for some unlucky berry fans.",
+    "allergenId": "357a43b9-67ee-4b23-a5b9-1ed9d7d185d1"
+  },
+  {
+    "name": "Sunflower Seed Sideshow",
+    "safetyScore": 6,
+    "description": "Sunflower seeds: great for birds, sometimes not so great for human snackers with allergies.",
+    "allergenId": "0ed2c81f-e641-4482-845b-4a7ae9dde294"
+  },
+  {
+    "name": "Oat Oopsie",
+    "safetyScore": 6,
+    "description": "Oats are usually safe, but occasionally cause trouble due to gluten cross-contamination or rare oat protein allergies.",
+    "allergenId": "89f73d51-0d4c-4a0e-89fa-415daeefb7bb"
+  },
+  {
+    "name": "Corn Conundrum",
+    "safetyScore": 7,
+    "description": "Corn allergies are rare, but those affected really do have to worry about more than just popcorn crumbs.",
+    "allergenId": "63dbb33d-5497-46a7-a8a9-71d4fc7f66e1"
+  },
+  {
+    "name": "Pumpkin Seed Peril",
+    "safetyScore": 8,
+    "description": "Pumpkin seeds (pepitas) can cause mild reactions in rare cases—less dramatic than most, but still a hazard for a few.",
+    "allergenId": "f592785e-c382-4765-960b-0fbd8d5096f2"
+  },
+  {
+    "name": "Eggplant Enigma",
+    "safetyScore": 7,
+    "description": "Some people can develop rare allergies to eggplant, especially those with sensitivities to nightshade vegetables.",
+    "allergenId": "48f1bcb1-ae6d-4cde-8941-86cd3ce7db4b"
+  },
+  {
+    "name": "Walnut Worry",
+    "safetyScore": 2,
+    "description": "A serious tree nut allergen that can cause severe reactions, from hives to anaphylaxis.",
+    "allergenId": "97470731-4b4f-4998-89a7-6686eb30aec6"
+  },
+  {
+    "name": "Dairy Dilemma",
+    "safetyScore": 3,
+    "description": "Milk proteins like casein and whey cause classic dairy allergies, often resulting in digestive and skin issues.",
+    "allergenId": "173fc6f0-b033-4b26-a303-0a8bbe12bd94"
+  },
+  {
+    "name": "Hazelnut Hiccup",
+    "safetyScore": 2,
+    "description": "Hazelnuts pack a punch for nut-allergic folks, making them a risky farm treat.",
+    "allergenId": "9574f370-273a-4929-87bb-f00ee3b1a9f0"
+  },
+  {
+    "name": "Soybean Surprise",
+    "safetyScore": 5,
+    "description": "Soybeans hide in many foods and are a common allergen, especially for kids.",
+    "allergenId": "72cb3ebf-c0ba-42a9-8393-7175ad5fba7e"
+  },
+  {
+    "name": "Celery Shock",
+    "safetyScore": 6,
+    "description": "Celery might seem innocent, but it's a serious allergen in parts of Europe and growing elsewhere.",
+    "allergenId": "1de633b0-4c15-4c2e-a76a-6600dc077f7c"
+  },
+  {
+    "name": "Peach Predicament",
+    "safetyScore": 7,
+    "description": "Peaches can trigger oral allergy syndrome in people sensitive to pollen.",
+    "allergenId": "079f1419-49de-49d9-a5ca-9e131d8f9693"
+  },
+  {
+    "name": "Gluten Glitch",
+    "safetyScore": 3,
+    "description": "Wheat and related grains can cause havoc for those with celiac disease or wheat allergies.",
+    "allergenId": "e094ea8d-377b-4cab-9e03-44d033fee196"
+  },
+  {
+    "name": "Sesame Seed Slip-Up",
+    "safetyScore": 4,
+    "description": "Tiny but mighty, sesame seeds are now a major allergen with potentially severe effects.",
+    "allergenId": "9236f628-df09-4c10-b7ed-63d9475ca653"
+  },
+  {
+    "name": "Mustard Mishap",
+    "safetyScore": 6,
+    "description": "Mustard seeds, frequent in farms and kitchens, are surprising but important allergens in many countries.",
+    "allergenId": "0d2120d1-7257-4a75-80ed-04684ce48c4f"
+  },
+  {
+    "name": "Peanut Panic",
+    "safetyScore": 1,
+    "description": "Peanuts are infamous for causing severe, rapid allergic reactions, sometimes life-threatening.",
+    "allergenId": "8ffa47c2-3e6b-49b5-a824-6b8b800e9516"
+  },
+  {
+    "name": "Quinoa Quirk",
+    "safetyScore": 8,
+    "description": "Quinoa is generally safe but can trigger rare allergic reactions due to saponins or seed proteins.",
+    "allergenId": "4d826339-78bf-4341-a5c9-579a02d773cc"
+  },
+  {
+    "name": "Carrot Conundrum",
+    "safetyScore": 7,
+    "description": "Some folks can react to carrots, especially those with pollen allergies, in a classic farm-to-table twist.",
+    "allergenId": "8fe00cba-8a46-4655-9711-bc1b0f6f838a"
+  },
+  {
+    "name": "Buckwheat Blunder",
+    "safetyScore": 5,
+    "description": "Buckwheat, a common alternative grain, is a well-known allergen in parts of Asia and Europe.",
+    "allergenId": "9d692aeb-5a45-4958-bef8-1b9f972d7295"
+  },
+  {
+    "name": "Fig Fiasco",
+    "safetyScore": 8,
+    "description": "Figs can cause allergic reactions, especially in people sensitive to birch pollen or latex.",
+    "allergenId": "91eb9f70-4009-4ec0-8f62-ae0b8b1e7aef"
+  },
+  {
+    "name": "Sheep Milk Surprise",
+    "safetyScore": 5,
+    "description": "Sheep’s milk is not just for fancy cheese—it's also a sneaky allergen for the dairy-sensitive.",
+    "allergenId": "7520496f-4934-4d5c-80fd-9c4350df3577"
+  },
+  {
+    "name": "Chickpea Challenge",
+    "safetyScore": 6,
+    "description": "Chickpeas, starring in many farm dishes, can cause allergic reactions in both kids and adults.",
+    "allergenId": "611424fe-b159-4d57-a9de-1a2f9fba1b57"
+  },
+  {
+    "name": "Pistachio Predicament",
+    "safetyScore": 2,
+    "description": "Pistachios, like other tree nuts, are a classic cause of farm allergen woes.",
+    "allergenId": "d626f94e-0431-4d0a-8699-93c9e5000371"
+  },
+  {
+    "name": "Goat Cheese Gaffe",
+    "safetyScore": 4,
+    "description": "Goat cheese is delicious but can bring trouble to those with dairy or goat-specific protein allergies.",
+    "allergenId": "3ed3ec9d-b1c4-4a46-91a1-f9b5a4286a98"
+  },
+  {
+    "name": "Barley Blip",
+    "safetyScore": 5,
+    "description": "Barley isn’t just for beer—it’s also a gluten grain with the potential to cause allergic and celiac reactions.",
+    "allergenId": "a4c6628e-3501-458c-ac87-9176ca045d68"
+  },
+  {
+    "name": "Almond Alarm",
+    "safetyScore": 2,
+    "description": "A common tree nut allergen that can turn a snack into a sprint for the epinephrine auto-injector.",
+    "allergenId": "4424a6c5-4f2b-4c85-b19e-e0f87d7c72f9"
+  },
+  {
+    "name": "Wheat Worry",
+    "safetyScore": 3,
+    "description": "Allergic reactions from wheat proteins can cause more than just a crummy day for sensitive individuals.",
+    "allergenId": "ebafb33b-44c3-4024-b4eb-185a03d3bd35"
+  },
+  {
+    "name": "Egg Emergency",
+    "safetyScore": 4,
+    "description": "Egg allergies crack up immune systems in all the wrong ways, especially for kids.",
+    "allergenId": "01a8c2e9-bd10-4144-ae39-7f56a8dd0a21"
+  },
+  {
+    "name": "Soy Sorrow",
+    "safetyScore": 5,
+    "description": "A bean with a mean reputation, soy sneaks into many farm-based foods and can cause trouble for the allergic.",
+    "allergenId": "040a2395-77a5-41a1-ae42-45178538dedb"
+  },
+  {
+    "name": "Sesame Shocker",
+    "safetyScore": 2,
+    "description": "Tiny seeds, giant problems—sesame allergies are on the rise and can trigger severe reactions.",
+    "allergenId": "fc886d03-dd34-4dad-a63a-620dfbf451bb"
+  },
+  {
+    "name": "Hazelnut Havoc",
+    "safetyScore": 2,
+    "description": "A favorite in spreads but a foe for some, hazelnuts are a classic tree nut allergen.",
+    "allergenId": "1058599d-06e1-4d0f-a880-7345d0172e93"
+  },
+  {
+    "name": "Sunflower Seed Scare",
+    "safetyScore": 7,
+    "description": "Rare but real, sunflower seeds can leave sensitive folks feeling less than sunny.",
+    "allergenId": "1be41824-b23f-4018-8438-2e7f195d48f1"
+  },
+  {
+    "name": "Celery Crisis",
+    "safetyScore": 5,
+    "description": "A sneaky allergen in soups and salads, celery can cause robust reactions in the truly unlucky.",
+    "allergenId": "114777e5-2c06-46d1-a5d5-c25f9811a27f"
+  },
+  {
+    "name": "Mustard Mayhem",
+    "safetyScore": 6,
+    "description": "Not just for hot dogs, mustard seeds can start a full-blown immune commotion.",
+    "allergenId": "d7fc4066-086a-4b15-b427-784714587d1c"
+  },
+  {
+    "name": "Cashew Catastrophe",
+    "safetyScore": 2,
+    "description": "A creamy nut that can turn snacktime into a perilous adventure for the allergic.",
+    "allergenId": "7fa7b1de-77f8-4f76-8c24-0cc2fd01f04e"
+  },
+  {
+    "name": "Cow’s Milk Calamity",
+    "safetyScore": 3,
+    "description": "Moo-ving past dairy is necessary for those with this classic and potentially severe allergen.",
+    "allergenId": "f7f24820-e51a-4278-a9a8-8b98b96f4424"
+  },
+  {
+    "name": "Lupin Lunacy",
+    "safetyScore": 5,
+    "description": "This legume sometimes finds its way into flours and can surprise the unsuspecting with allergic reactions.",
+    "allergenId": "12c59288-bffa-48f7-80b8-001b7e07cf54"
+  },
+  {
+    "name": "Strawberry Shock",
+    "safetyScore": 7,
+    "description": "These sweet red berries can cause not-so-sweet trouble for a sensitive few.",
+    "allergenId": "d108983d-c188-4642-aa71-4db9e0c4296e"
+  },
+  {
+    "name": "Oat Oopsie",
+    "safetyScore": 8,
+    "description": "Generally safe, but oats can trip up those with rare oat protein allergies (or gluten cross-contamination).",
+    "allergenId": "6724b2b6-8fa0-4c22-a36c-8cf28f3ac096"
+  },
+  {
+    "name": "Pecan Peril",
+    "safetyScore": 2,
+    "description": "A southern staple and pie favorite, pecans can pack a punch for nut-allergic snackers.",
+    "allergenId": "ccb80c10-8233-4fe6-815b-9fe5d77b34af"
+  },
+  {
+    "name": "Apple Anomaly",
     "safetyScore": 9,
-    "description": "Potato tuber protein, rarely allergenic, but for some, spud-tacularly upsetting.",
-    "allergenId": "e8c8b1d2-7fad-4ae7-8e17-f057e6817e17"
+    "description": "An uncommon allergy, but apples can trigger oral allergy syndrome in some, especially pollen-sensitive folks.",
+    "allergenId": "46c7fe8f-cc1a-47c8-8173-a2625d41c0e6"
+  },
+  {
+    "name": "Beefy Blunder",
+    "safetyScore": 6,
+    "description": "Alpha-gal in beef can cause delayed allergic reactions, even hours after a barbecue feast.",
+    "allergenId": "0a180eb6-7fdf-469f-b674-639fcd5ea063"
+  },
+  {
+    "name": "Corn Conundrum",
+    "safetyScore": 8,
+    "description": "Corn allergies are rare, but they can pop up (pun intended) and cause reactions from tortilla chips to popcorn.",
+    "allergenId": "dec215b7-d5b6-4bae-b97c-3b963ef96c1e"
+  },
+  {
+    "name": "Honey Hazard",
+    "safetyScore": 8,
+    "description": "Raw honey can contain pollen allergens causing a buzz for sensitive types.",
+    "allergenId": "8e060a13-84a0-48fc-b704-c42d3400538b"
+  },
+  {
+    "name": "Shellfish Shockwave",
+    "safetyScore": 1,
+    "description": "Crustaceans from farm ponds can unleash dramatic (and dangerous) allergic reactions in the unsuspecting eater.",
+    "allergenId": "98c3c3ed-8f6a-4f4e-accc-6e93fe0a8cfb"
   }
 ]

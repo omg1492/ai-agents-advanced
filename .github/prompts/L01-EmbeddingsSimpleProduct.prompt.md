@@ -1,0 +1,11 @@
+Create script to prepare simple table with embeddings.
+- Input is ../source_json/producers.json
+- Create Pandas frame
+- Table columns should be producerName, productName, productDescription and productId
+- Create new column combinedText in format PRODUCER: name, PRODUCT: name, DESCRIPTION: description
+- Call OpenAI embeddings model large to get embeddings into column called embedding
+- Use AZURE_OPENAI_EMBEDDING_ENDPOINT etc. (insert work EMBEDDING to distinguish) and for openai option use OPENAI_EMBEDDING_MODEL env variable.
+- LLM can be rate limited, implement retries and note model will typically return amount of seconds to wait during 429 errors.
+- Report progress ever 100 records or so
+- Once done export this as Parquet file ../processed/simple_products.parquet
+- Frameworks log level should be set to WARNING while keeping your own logger at INFO level

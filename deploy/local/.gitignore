@@ -1,0 +1,2 @@
+# PostgreSQL data (keep structure, ignore actual data)
+data/postgres/*

@@ -43,7 +43,7 @@ class Producer(BaseModel):
     """Pydantic model for producer data."""
     name: str = Field(..., description="Creative, realistic producer/farm name")
     description: str = Field(..., description="Detailed description of the producer, their history, specialization, and philosophy")
-    products: List[Product] = Field(..., description="List of 0-10 products that this producer makes, logically matching their specialization")
+    products: List[Product] = Field(..., description="List of 0-40 products that this producer makes, logically matching their specialization", min_items=0, max_items=50)
 
 
 class ProducerBatch(BaseModel):
@@ -90,6 +90,23 @@ class FarmDataGenerator:
         self.allergens = []
         self.certifications = []
         self.producers = []
+        
+        # Token tracking
+        self.total_input_tokens = 0
+        self.total_output_tokens = 0
+    
+    def _track_tokens(self, response) -> None:
+        """Track token usage from API response."""
+        if hasattr(response, 'usage') and response.usage:
+            input_tokens = response.usage.prompt_tokens
+            output_tokens = response.usage.completion_tokens
+            self.total_input_tokens += input_tokens
+            self.total_output_tokens += output_tokens
+    
+    def _print_token_summary(self) -> None:
+        """Print current token usage summary."""
+        total_tokens = self.total_input_tokens + self.total_output_tokens
+        print(f"📊 Token usage - Input: {self.total_input_tokens:,}, Output: {self.total_output_tokens:,}, Total: {total_tokens:,}")
     
     def generate_allergens(self, target_count: int = 100) -> List[Dict[str, Any]]:
         """
@@ -140,10 +157,14 @@ class FarmDataGenerator:
                     print(f"Model refused to generate allergens: {response.choices[0].message.refusal}")
                     continue
                 
+                # Track token usage
+                self._track_tokens(response)
+                
                 batch_data = response.choices[0].message.parsed.allergens
                 batch_allergens = [allergen.model_dump() for allergen in batch_data]
                 allergens.extend(batch_allergens)
                 print(f"Generated batch of {len(batch_allergens)} allergens. Total: {len(allergens)}")
+                self._print_token_summary()
                 
             except Exception as e:
                 print(f"Error generating allergens batch: {e}")
@@ -207,10 +228,14 @@ class FarmDataGenerator:
                     print(f"Model refused to generate certifications: {response.choices[0].message.refusal}")
                     continue
                 
+                # Track token usage
+                self._track_tokens(response)
+                
                 batch_data = response.choices[0].message.parsed.certifications
                 batch_certifications = [cert.model_dump() for cert in batch_data]
                 certifications.extend(batch_certifications)
                 print(f"Generated batch of {len(batch_certifications)} certifications. Total: {len(certifications)}")
+                self._print_token_summary()
                 
             except Exception as e:
                 print(f"Error generating certifications batch: {e}")
@@ -227,47 +252,39 @@ class FarmDataGenerator:
     
     def generate_producers(self, target_count: int = 200) -> List[Dict[str, Any]]:
         """
-        Generate producer data with valid certification IDs and their products using structured outputs.
-        
-        Args:
-            target_count: Number of producers to generate
-            
-        Returns:
-            List of producer dictionaries
+        Generate producer data with valid certification IDs and their products using structured outputs, in parallel.
         """
-        print(f"Generating {target_count} producers with their products...")
-        
+        import concurrent.futures
+        import threading
+        import time
+        from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+        print(f"Generating {target_count} producers with their products (parallel)...")
+
         if not self.certifications or not self.allergens:
             raise ValueError("Certifications and allergens must be generated first")
-        
+
         cert_ids = [cert["certificationId"] for cert in self.certifications]
-        
-        # Prepare allergen information for the LLM
-        allergen_info = []
-        for allergen in self.allergens:
-            allergen_info.append({
-                "id": allergen["allergenId"],
-                "name": allergen["name"],
-                "description": allergen["description"]
-            })
-        
-        allergen_context = "Available allergens for product assignment:\n"
-        for allergen in allergen_info:
-            allergen_context += f"- ID: {allergen['id']}, Name: {allergen['name']}, Description: {allergen['description']}\n"
-        
-        producers = []
-        batch_size = 5  # Smaller batches due to complex nested structure
-        
-        while len(producers) < target_count:
-            remaining = target_count - len(producers)
-            current_batch_size = min(batch_size, remaining)
-            
-            existing_context = ""
-            if producers:
-                existing_names = [p["name"] for p in producers[-5:]]
-                existing_context = f"Already generated producers (avoid duplicates): {', '.join(existing_names)}\n\n"
-            
-            prompt = f"""{existing_context}{allergen_context}
+        allergen_info = [
+            {"id": allergen["allergenId"], "name": allergen["name"], "description": allergen["description"]}
+            for allergen in self.allergens
+        ]
+        allergen_context = "Available allergens for product assignment:\n" + "".join(
+            f"- ID: {a['id']}, Name: {a['name']}, Description: {a['description']}\n" for a in allergen_info
+        )
+
+        batch_size = 3
+        batches = []
+        for i in range(0, target_count, batch_size):
+            batches.append(min(batch_size, target_count - i))
+
+        lock = threading.Lock()
+        all_producers = []
+        all_token_usage = {"input": 0, "output": 0}
+
+        def build_prompt(existing_names, current_batch_size):
+            existing_context = f"Already generated producers (avoid duplicates): {', '.join(existing_names)}\n\n" if existing_names else ""
+            return f"""{existing_context}{allergen_context}
 
 Generate {current_batch_size} different farm product producers with their products. 
 Include various types: family farms, cooperatives, organic producers, specialty farms, etc.
@@ -276,7 +293,17 @@ Make them diverse in location, size, and specialization. Be creative and sometim
 Each producer should have:
 - name: Creative, realistic producer/farm name
 - description: Detailed description of the producer, their history, specialization, and philosophy
-- products: List of 0-20 products that this producer makes (should logically match their specialization)
+- products: List of 20-40 products that this producer makes (MINIMUM 0, aim for 20-40!)
+
+CRITICAL FOR PRODUCTS - GENERATE MANY PRODUCTS PER PRODUCER:
+- You MUST generate at least 15 products per producer, ideally 20-40
+- Think comprehensively about all possible variations a real producer would make
+- Products should match the producer's specialization perfectly
+- Be creative with product variations: different flavors, sizes, seasonal items, specialty versions, aged versions, limited editions
+- Examples:
+  * Dairy farm: whole milk, 2% milk, skim milk, chocolate milk, strawberry milk, vanilla milk, buttermilk, heavy cream, light cream, various aged cheeses (cheddar 6mo, 1yr, 2yr), fresh cheeses, flavored yogurts, Greek yogurt, frozen yogurt, butter (salted, unsalted, cultured), ice cream (vanilla, chocolate, strawberry, mint, etc.), cottage cheese, sour cream, etc.
+  * Bakery: sourdough bread, whole wheat bread, rye bread, baguettes, croissants, muffins (blueberry, chocolate, banana), cookies (chocolate chip, oatmeal, sugar), cakes, pies, pastries, bagels, donuts, etc.
+  * Vegetable farm: different varieties of tomatoes, peppers, lettuce types, root vegetables, herbs, seasonal specialties, pickled versions, dried versions, etc.
 
 For each product within a producer:
 - name: Creative, appetizing product name that fits the producer's specialization
@@ -284,13 +311,16 @@ For each product within a producer:
 - allergenIds: List of allergen IDs that logically apply to this product (0-5 allergens)
 
 IMPORTANT: 
-- Products should match the producer's specialization (dairy farm → dairy products, etc.)
 - Choose allergens intelligently based on product type
 - Use actual allergen IDs from the list above
-- Some producers might have 0 products if they're just starting or in transition
+- Focus on generating comprehensive, realistic product lines for each producer
+- Think like a real producer - what would they actually make and sell?
 
 Note: Do NOT include certificationId - it will be added separately."""
-            
+
+        @retry(stop=stop_after_attempt(8), wait=wait_exponential(multiplier=2, min=2, max=60), retry=retry_if_exception_type(Exception))
+        def generate_batch(existing_names, current_batch_size):
+            prompt = build_prompt(existing_names, current_batch_size)
             try:
                 response = self.client.beta.chat.completions.parse(
                     model=self.model,
@@ -301,37 +331,57 @@ Note: Do NOT include certificationId - it will be added separately."""
                     response_format=ProducerBatch,
                     temperature=0.8
                 )
-                
-                # Handle potential refusal
-                if response.choices[0].message.refusal:
-                    print(f"Model refused to generate producers: {response.choices[0].message.refusal}")
-                    continue
-                
+                # Track token usage
+                input_tokens = getattr(response.usage, 'prompt_tokens', 0)
+                output_tokens = getattr(response.usage, 'completion_tokens', 0)
                 batch_data = response.choices[0].message.parsed.producers
                 batch_producers = [producer.model_dump() for producer in batch_data]
-                producers.extend(batch_producers)
-                print(f"Generated batch of {len(batch_producers)} producers. Total: {len(producers)}")
-                
+                batch_products = sum(len(producer["products"]) for producer in batch_producers)
+                return {
+                    "producers": batch_producers,
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "batch_products": batch_products
+                }
             except Exception as e:
-                print(f"Error generating producers batch: {e}")
-                continue
-        
+                # If 429, raise to trigger retry
+                if hasattr(e, 'status_code') and e.status_code == 429:
+                    print("Rate limited (429). Retrying batch...")
+                else:
+                    print(f"Error in batch: {e}")
+                raise
+
+        def thread_task(args):
+            idx, current_batch_size = args
+            # For deduplication, pass last 5 names from global list (thread-safe)
+            with lock:
+                existing_names = [p["name"] for p in all_producers[-5:]]
+            result = generate_batch(existing_names, current_batch_size)
+            with lock:
+                all_producers.extend(result["producers"])
+                all_token_usage["input"] += result["input_tokens"]
+                all_token_usage["output"] += result["output_tokens"]
+                total_products_so_far = sum(len(p["products"]) for p in all_producers)
+                print(f"[Thread {idx}] Generated batch of {len(result['producers'])} producers with {result['batch_products']} products. Total: {len(all_producers)} producers, {total_products_so_far} products")
+                print(f"[Thread {idx}] 📊 Token usage - Input: {all_token_usage['input']:,}, Output: {all_token_usage['output']:,}, Total: {all_token_usage['input']+all_token_usage['output']:,}")
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
+            executor.map(thread_task, enumerate(batches))
+
         # Trim to exact count and add IDs and certifications
-        producers = producers[:target_count]
+        producers = all_producers[:target_count]
         valid_allergen_ids = [allergen["allergenId"] for allergen in self.allergens]
-        
         for producer in producers:
             producer["producerId"] = str(uuid.uuid4())
             producer["certificationId"] = random.choice(cert_ids)
-            
-            # Add product IDs and validate allergen IDs
             for product in producer["products"]:
                 product["productId"] = str(uuid.uuid4())
-                # Validate that allergen IDs are valid
                 product["allergenIds"] = [aid for aid in product["allergenIds"] if aid in valid_allergen_ids]
-        
         self.producers = producers
-        print(f"Successfully generated {len(producers)} producers with their products")
+        # Update global token counters
+        self.total_input_tokens += all_token_usage["input"]
+        self.total_output_tokens += all_token_usage["output"]
+        print(f"Successfully generated {len(producers)} producers with their products (parallel)")
         return producers
     
     def generate_stock(self) -> List[Dict[str, Any]]:
@@ -408,6 +458,13 @@ Note: Do NOT include certificationId - it will be added separately."""
             print(f"- certifications.json: {len(certifications)} records")
             print(f"- producers.json: {len(producers)} records (with {total_products} products total)")
             print(f"- stock.json: {len(stock)} records")
+            
+            # Final token usage summary
+            total_tokens = self.total_input_tokens + self.total_output_tokens
+            print("\n📊 Final Token Usage Summary:")
+            print(f"- Input tokens: {self.total_input_tokens:,}")
+            print(f"- Output tokens: {self.total_output_tokens:,}")
+            print(f"- Total tokens: {total_tokens:,}")
             
         except Exception as e:
             print(f"❌ Error during data generation: {e}")
