@@ -1,5 +1,36 @@
 # Implementation Log
 
+## Code Structure Review & Template System - 2025-08-01
+
+### Architecture Enhancement
+
+1. **Jinja2 Template System Implementation**:
+   - **Decision**: Added dedicated `TemplateService` for managing AI prompts with Jinja2 templates
+   - **Structure**: Created `src/templates/` directory for organized prompt management
+   - **Benefits**:
+     - Separation of prompt logic from business logic
+     - Dynamic prompt generation with context injection
+     - Better maintainability and reusability of prompts
+     - Template validation and error handling
+
+2. **Configuration Service Implementation**:
+   - **Decision**: Centralized configuration management with `ConfigService`
+   - **Features**: Environment-based config, validation, type safety with dataclasses
+   - **Benefits**: 
+     - Single source of truth for configuration
+     - Better error messages for missing config
+     - Environment-specific settings support
+
+3. **Utility Module Addition**:
+   - **Decision**: Added `src/utils/` package for shared utility functions
+   - **Functions**: Input sanitization, error formatting, safe nested access
+   - **Benefits**: Reusable helper functions, consistent error handling
+
+### Template Structure
+- `system_prompt.j2`: Main AI assistant system prompt with context variables
+- `product_recommendation.j2`: Specialized prompt for product recommendations
+- Templates support dynamic content injection (user location, preferences, available products)
+
 ## Lesson 1: DreamFarm Agent Implementation
 
 ### 2025-07-28 - Initial Implementation

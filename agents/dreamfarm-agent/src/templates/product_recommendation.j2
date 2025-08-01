@@ -1,0 +1,29 @@
+{# Product Recommendation Prompt Template #}
+## Product Recommendation Request
+
+Customer is looking for: **{{ user_query }}**
+
+{% if constraints -%}
+### Constraints/Requirements:
+{% for constraint in constraints -%}
+- {{ constraint }}
+{% endfor %}
+{% endif %}
+
+{% if available_products -%}
+### Available Products to Consider:
+{% for product in available_products -%}
+- **{{ product.name }}** ({{ product.farmer }}) - ${{ product.price }}/{{ product.unit }}
+  {% if product.organic -%}- Organic certified{% endif %}
+  {% if product.seasonal -%}- {{ product.season }} seasonal{% endif %}
+{% endfor %}
+{% endif %}
+
+{% if user_preferences -%}
+### User Preferences:
+{% for preference in user_preferences -%}
+- {{ preference }}
+{% endfor %}
+{% endif %}
+
+Please provide personalized recommendations with explanations for why each product fits their needs.

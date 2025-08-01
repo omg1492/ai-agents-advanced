@@ -1,32 +1,17 @@
 # DreamFarm Agent
 
-AI-powered assistant for the Dream 4. **Run the agent:**
-   
-   **Recommended (using script entry point):**
-   ```bash
-   uv run dreamfarm-agent
-   ```
-   
-   **Alternative (using uvicorn directly):**
-   ```bash
-   uv run uvicorn src.main:app --reload --port 8001
-   ```
-   
-   **For development with auto-reload:**
-   ```bash
-   uv run uvicorn src.main:app --reload --port 8001 --reload-dir src
-   ```
-
-   The agent will be available at `http://localhost:8001`place that connects local farmers with customers.
+AI-powered assistant for the Dream Farm marketplace that connects local farmers with customers.
 
 ## Overview
 
-This is the main AI agent for Lesson 1 of the Advanced AI Applications course. It provides a simple thread-based conversation system that allows customers to interact with an AI assistant about farm products and local produce.
+This is the main AI agent for the Advanced AI Applications course. It provides a thread-based conversation system that allows customers to interact with an AI assistant about farm products and local produce.
 
 ## Features
 
 - **Thread-based Conversations**: Each conversation is managed as a separate thread with message history
 - **Dual OpenAI Support**: Works with both Azure OpenAI Service and OpenAI API
+- **Jinja2 Template System**: Flexible prompt templating for different scenarios
+- **Configuration Management**: Centralized config with environment-based settings
 - **Dream Farm Context**: AI assistant specialized in farm marketplace topics
 - **RESTful API**: Clean HTTP endpoints for frontend integration
 - **In-memory Storage**: Simple storage for Lesson 1 (will be replaced with database in later lessons)
@@ -47,7 +32,11 @@ This is the main AI agent for Lesson 1 of the Advanced AI Applications course. I
 
 2. **Install dependencies:**
    ```bash
+   # Install production dependencies
    uv sync
+   
+   # Install development dependencies (needed for testing)
+   uv sync --dev
    ```
 
 3. **Configure environment variables:**
@@ -84,6 +73,12 @@ This is the main AI agent for Lesson 1 of the Advanced AI Applications course. I
    The agent will be available at `http://localhost:8001`
 
 ### Testing
+
+**Prerequisites for Testing:**
+```bash
+# Make sure development dependencies are installed
+uv sync --dev
+```
 
 **Industry Standard Testing (Recommended):**
 ```bash

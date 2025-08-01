@@ -7,6 +7,7 @@ from typing import Dict, List, Optional
 
 from src.models.thread import Thread, Message, CreateThreadResponse, SendMessageResponse, GetMessagesResponse
 from src.services.openai_service import OpenAIService
+from src.services.template_service import TemplateService
 
 
 logger = logging.getLogger(__name__)
@@ -26,6 +27,7 @@ class ThreadService:
             openai_service: OpenAI service instance for generating responses
         """
         self.openai_service = openai_service
+        self.template_service = TemplateService()
         self.threads: Dict[str, Thread] = {}
         self.messages: Dict[str, List[Message]] = {}
         logger.info("Initialized ThreadService with in-memory storage")
@@ -114,7 +116,19 @@ class ThreadService:
         conversation_messages.append({"role": "user", "content": user_message})
         
         # Generate AI response with Dream Farm context
-        system_prompt = """You are a helpful AI assistant for Dream Farm, a virtual farmers' marketplace that connects local farmers with customers. 
+        try:
+            system_prompt = self.template_service.render_template(
+                "system_prompt.j2",
+                {
+                    "user_location": None,  # TODO: Add user location detection
+                    "seasonal_products": [],  # TODO: Add seasonal product data
+                    "user_preferences": [],  # TODO: Add user preference tracking
+                    "simple_rag": None  # TODO: Add RAG search results
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to render system prompt template: {e}, using fallback")
+            system_prompt = """You are a helpful AI assistant for Dream Farm, a virtual farmers' marketplace that connects local farmers with customers. 
 
 Your role is to help customers:
 - Find fresh, local produce and farm products
