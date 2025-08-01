@@ -24,9 +24,9 @@ class TemplateService:
                          Defaults to src/templates relative to this file.
         """
         if template_dir is None:
-            # Default to templates directory relative to this service
-            current_dir = Path(__file__).parent
-            template_dir = current_dir / "templates"
+            # Default to templates directory relative to src/ (one level up from services/)
+            current_dir = Path(__file__).parent  # src/services/
+            template_dir = current_dir.parent / "templates"  # src/templates/
         
         self.template_dir = Path(template_dir)
         

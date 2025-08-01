@@ -22,9 +22,10 @@ from src.services.thread_service import ThreadService
 # Load environment variables
 load_dotenv()
 
-# Configure logging
+# Configure logging level from environment (default to INFO)
+log_level = os.getenv("LOG_LEVEL", "INFO").upper()
 logging.basicConfig(
-    level=logging.INFO,
+    level=getattr(logging, log_level, logging.INFO),
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)

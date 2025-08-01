@@ -10,6 +10,7 @@ This is the main AI agent for the Advanced AI Applications course. It provides a
 
 - **Thread-based Conversations**: Each conversation is managed as a separate thread with message history
 - **Dual OpenAI Support**: Works with both Azure OpenAI Service and OpenAI API
+- **RAG Capabilities**: Semantic search over farm product database using PostgreSQL + pgvector
 - **Jinja2 Template System**: Flexible prompt templating for different scenarios
 - **Configuration Management**: Centralized config with environment-based settings
 - **Dream Farm Context**: AI assistant specialized in farm marketplace topics
@@ -50,6 +51,17 @@ This is the main AI agent for the Advanced AI Applications course. It provides a
    AZURE_OPENAI_API_VERSION=2024-02-15-preview
    AZURE_OPENAI_DEPLOYMENT_NAME=your-deployment-name
    CORS_ORIGINS=http://localhost:3000
+   
+   # RAG Configuration (requires PostgreSQL + pgvector)
+   ENABLE_RAG=true
+   PGHOST=localhost
+   PGDATABASE=your-database
+   PGUSER=your-username
+   PGPASSWORD=your-password
+   AZURE_OPENAI_EMBEDDING_ENDPOINT=https://your-resource.openai.azure.com/
+   AZURE_OPENAI_EMBEDDING_API_KEY=your-embedding-api-key
+   AZURE_OPENAI_EMBEDDING_API_VERSION=2024-12-01-preview
+   AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME=text-embedding-3-large
    ```
 
    **For OpenAI API:**
@@ -58,6 +70,14 @@ This is the main AI agent for the Advanced AI Applications course. It provides a
    OPENAI_API_KEY=your-openai-api-key
    OPENAI_MODEL=gpt-4o
    CORS_ORIGINS=http://localhost:3000
+   
+   # RAG Configuration (requires PostgreSQL + pgvector)  
+   ENABLE_RAG=true
+   PGHOST=localhost
+   PGDATABASE=your-database
+   PGUSER=your-username
+   PGPASSWORD=your-password
+   # For OpenAI API, use the same key for embeddings
    ```
 
 4. **Run the agent:**
@@ -85,14 +105,21 @@ uv sync --dev
 # Run all tests
 uv run pytest
 
-# Run only unit tests (fast)
+# Run only unit tests (fast, with mocks)
 uv run pytest -m unit
 
-# Run only integration tests (recommended for CI/CD)
+# Run only integration tests (slower, requires real database and API)
 uv run pytest -m integration
+
+# Run integration tests for RAG functionality (requires database + OpenAI API)
+uv run pytest -m "integration and requires_api" tests/test_rag_integration.py
 
 # Run with coverage report
 uv run pytest --cov=src --cov-report=html
+
+# Run specific test file
+uv run pytest tests/test_rag_service.py  # Unit tests with mocks
+uv run pytest tests/test_rag_integration.py  # Integration tests with real services
 ```
 
 **Manual/Exploratory Testing:**
@@ -145,6 +172,9 @@ curl -X POST http://localhost:8001/threads/{thread_id}/messages \
 - **FastAPI**: Web framework for the REST API
 - **Pydantic**: Data validation and serialization
 - **OpenAI/Azure OpenAI**: AI response generation
+- **PostgreSQL + pgvector**: Vector database for semantic search (RAG)
+- **SQLAlchemy**: Database ORM for vector operations
+- **Jinja2**: Template engine for dynamic prompt generation
 - **In-memory storage**: Thread and message persistence (Lesson 1 only)
 
 ## Development
@@ -182,11 +212,10 @@ tests/
 
 ## Future Enhancements (Later Lessons)
 
-- Database persistence (PostgreSQL)
+- Database persistence for threads/messages (PostgreSQL)
 - MCP tool integration
 - User authentication
 - Multi-agent orchestration
-- RAG capabilities
 
 ## Troubleshooting
 

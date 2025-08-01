@@ -14,11 +14,13 @@ This document describes the architecture and design of our advanced AI applicati
 
 ### Architecture Overview
 
-**Lesson 1 - Simple Architecture:**
+**Lesson 1 - Simple Architecture with RAG:**
 ```mermaid
 graph LR
     A[React Frontend<br/>assistant-ui] -->|HTTP/REST| B[DreamFarm<br/>Agent]
     B -->|OpenAI API| C[Azure OpenAI<br/>or OpenAI]
+    B -->|SQL Query| D[PostgreSQL<br/>with pgvector]
+    D -->|Product Data<br/>+ Embeddings| B
 ```
 
 **Lesson 2+ - MCP Tool Integration:**
@@ -79,9 +81,27 @@ For production deployment, you can add nginx or Envoy for load balancing, SSL, a
 OPENAI_API_TYPE=azure
 AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
 AZURE_OPENAI_API_KEY=your-api-key
-AZURE_OPENAI_API_VERSION=2024-02-15-preview
+AZURE_OPENAI_API_VERSION=2024-12-01-preview
 AZURE_OPENAI_DEPLOYMENT_NAME=your-deployment-name
 CORS_ORIGINS=http://localhost:3000
+
+# RAG Configuration
+ENABLE_RAG=true
+RAG_SIMILARITY_THRESHOLD=0.7
+RAG_MAX_RESULTS=3
+
+# PostgreSQL Configuration
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=aidb
+PGUSER=admin
+PGPASSWORD=Admin12345678
+
+# Azure OpenAI Embeddings (for RAG)
+AZURE_OPENAI_EMBEDDING_ENDPOINT=https://your-resource.openai.azure.com/
+AZURE_OPENAI_EMBEDDING_API_KEY=your-api-key
+AZURE_OPENAI_EMBEDDING_API_VERSION=2024-12-01-preview
+AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME=text-embedding-3-large
 ```
 
 **DreamFarm Agent (.env) - OpenAI:**
@@ -90,6 +110,21 @@ OPENAI_API_TYPE=openai
 OPENAI_API_KEY=your-openai-api-key
 OPENAI_MODEL=gpt-4o
 CORS_ORIGINS=http://localhost:3000
+
+# RAG Configuration
+ENABLE_RAG=true
+RAG_SIMILARITY_THRESHOLD=0.7
+RAG_MAX_RESULTS=3
+
+# PostgreSQL Configuration
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=aidb
+PGUSER=admin
+PGPASSWORD=Admin12345678
+
+# OpenAI Embeddings (for RAG)
+OPENAI_EMBEDDING_MODEL=text-embedding-3-large
 ```
 
 **Frontend (Runtime Configuration):**
@@ -150,6 +185,63 @@ def get_model_name():
 ```
 
 This abstraction allows the same codebase to work with both providers seamlessly.
+
+### RAG (Retrieval-Augmented Generation) Implementation
+
+The DreamFarm Agent includes a simple RAG system for semantic product search:
+
+#### RAG Architecture
+1. **User Message Processing**: When a user sends a message, the system generates an embedding for the query
+2. **Semantic Search**: The query embedding is compared against product embeddings in PostgreSQL using pgvector
+3. **Context Injection**: Relevant products (above similarity threshold) are formatted and injected into the system prompt
+4. **Enhanced Response**: The AI assistant generates responses with access to relevant product information
+
+#### RAG Components
+
+**RAGService** (`src/services/rag_service.py`):
+- Manages embedding generation using OpenAI/Azure OpenAI
+- Performs vector similarity search in PostgreSQL
+- Formats search results for system prompt injection
+- Feature flag support via `ENABLE_RAG` environment variable
+
+**Database Schema**:
+```sql
+-- simple_products table with pgvector extension
+CREATE TABLE simple_products (
+    id SERIAL PRIMARY KEY,
+    product_id UUID NOT NULL UNIQUE,
+    producer_name VARCHAR(255) NOT NULL,
+    product_name VARCHAR(255) NOT NULL,
+    product_description TEXT NOT NULL,
+    combined_text TEXT NOT NULL,
+    embedding vector(2000)  -- 2000-dimensional embeddings
+);
+
+-- HNSW index for fast cosine similarity search
+CREATE INDEX idx_simple_products_embedding_cosine 
+ON simple_products 
+USING hnsw (embedding vector_cosine_ops);
+```
+
+#### RAG Configuration
+
+**Feature Flag**: Set `ENABLE_RAG=true` to enable semantic search
+**Similarity Threshold**: `RAG_SIMILARITY_THRESHOLD=0.7` (0.0-1.0, higher = more strict)
+**Max Results**: `RAG_MAX_RESULTS=3` (top N similar products to include)
+
+#### RAG Workflow
+1. User asks: "I need fresh vegetables for a salad"
+2. System generates embedding for the query
+3. Cosine similarity search finds relevant products (e.g., lettuce, tomatoes, cucumbers)
+4. Top 3 results above threshold are formatted as context
+5. System prompt includes: `<relevant_products>Product info...</relevant_products>`
+6. AI assistant responds with knowledge of available products
+
+#### Benefits
+- **Semantic Understanding**: Finds products by meaning, not just keywords
+- **Real-time Context**: Always uses current product database
+- **Configurable**: Can be enabled/disabled and tuned via environment variables
+- **Scalable**: Uses PostgreSQL with proper indexing for performance
 
 ### Thread Management Strategy
 

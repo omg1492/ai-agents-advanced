@@ -16,16 +16,33 @@ This project follows industry best practices for API testing with multiple layer
 
 ### Test Types
 
-1. **Unit Tests** (`test_thread_service.py`)
+1. **Unit Tests** (`test_*_service.py`)
    - Fast, isolated tests with mocks
    - Test business logic without external dependencies
    - Run frequently during development
+   - Examples: `test_thread_service.py`, `test_rag_service.py`, `test_template_service.py`
 
-2. **Integration Tests** (`test_api_integration.py`) 
+2. **Integration Tests** (`test_*_integration.py`) 
    - Test API endpoints using FastAPI TestClient
-   - Mock external services (OpenAI) but test real HTTP flow
-   - Test request/response validation, error handling
+   - Test real functionality with external services
    - **This is the industry standard for API testing**
+   - Examples: `test_api_integration.py`, `test_rag_integration.py`
+
+### RAG Testing Strategy
+
+**Unit Tests** (`test_rag_service.py`):
+- ✅ Mock OpenAI API calls and database connections
+- ✅ Fast execution, no external dependencies
+- ✅ Test error handling and business logic
+- Run with: `pytest -m unit tests/test_rag_service.py`
+
+**Integration Tests** (`test_rag_integration.py`):
+- ✅ Real OpenAI API calls for embeddings
+- ✅ Real PostgreSQL database with pgvector
+- ✅ End-to-end RAG functionality verification
+- ⚠️ Requires environment setup (database, API keys)
+- ⚠️ Slower execution, costs money (OpenAI API calls)
+- Run with: `pytest -m integration tests/test_rag_integration.py`
 
 ## Running Tests
 
@@ -34,19 +51,31 @@ This project follows industry best practices for API testing with multiple layer
 uv run pytest
 ```
 
-### Specific Test Categories
+### Test Categories
 ```bash
-# Unit tests only
-uv run pytest tests/test_thread_service.py -v
+# Unit tests only (fast, no external dependencies)
+uv run pytest -m unit -v
 
-# Integration tests only  
+# Integration tests only (requires database + API keys)
+uv run pytest -m integration -v
+
+# Skip slow/expensive tests
+uv run pytest -m "not integration" -v
+```
+
+### Specific Services
+```bash
+# RAG service unit tests (mocked)
+uv run pytest tests/test_rag_service.py -v
+
+# RAG service integration tests (real API/DB)
+uv run pytest tests/test_rag_integration.py -v
+
+# API integration tests
 uv run pytest tests/test_api_integration.py -v
 
-# Skip integration tests that need real API
-uv run pytest -m "not integration"
-
-# Run only integration tests
-uv run pytest -m integration
+# Thread service unit tests
+uv run pytest tests/test_thread_service.py -v
 ```
 
 ### Test Coverage
