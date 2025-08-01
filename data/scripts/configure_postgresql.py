@@ -155,11 +155,11 @@ def load_connection_params() -> dict:
     
     # Default connection parameters (matching docker-compose.yml)
     connection_params = {
-        'host': os.getenv('POSTGRES_HOST', 'localhost'),
-        'port': int(os.getenv('POSTGRES_PORT', 5432)),
-        'database': os.getenv('POSTGRES_DB', 'aidb'),
-        'user': os.getenv('POSTGRES_USER', 'admin'),
-        'password': os.getenv('POSTGRES_PASSWORD', 'Admin12345678')
+        'host': os.getenv('PGHOST', 'localhost'),
+        'port': int(os.getenv('PGPORT', 5432)),
+        'database': os.getenv('PGDATABASE', 'aidb'),
+        'user': os.getenv('PGUSER', 'admin'),
+        'password': os.getenv('PGPASSWORD', 'Admin12345678')
     }
     
     # Validate required parameters
