@@ -7,3 +7,6 @@ Following topics are technical concepts you should now before starting the lesso
 - Get familiar with Python concepts and libraries like `classes`, `Pydantic`, `FastAPI`, `SQLAlchemy`, `pytest`, and `Jinja2`
 - Basic understanding of how to run `React` apps, use `npm`, have it installed on your machine
 - Learn basics of `PostgreSQL` (creating databases, tables, running queries), knowing little bit of `pgvector` is a plus
+- Get familiar with `GitHub Copilot` (this is what I will be using, but if you are user of Cursor or Windsurf, it is fine too)
+- Basics of `git` and `GitHub` (cloning repositories, creating branches, committing changes, pushing to remote)
+- Make sure you have access to `OpenAI` or `Azure OpenAI` API keys with enough credit (I will be using Azure OpenAI for which you can get Azure trail subscription for free, but going directly with OpenAI is also fine)
