@@ -14,8 +14,6 @@ Env variables (unified):
 - OPENAI_BASE_URL (for Azure, must end with /openai/v1/)
 - OPENAI_API_VERSION (for Azure, e.g. 2024-10-21 or preview)
 - OPENAI_EMBEDDING_MODEL (e.g. text-embedding-3-large or Azure deployment name)
-
-Note: legacy Azure-specific env variables are not supported in this script.
 """
 
 from __future__ import annotations
