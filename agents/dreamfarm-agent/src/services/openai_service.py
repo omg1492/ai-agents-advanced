@@ -109,18 +109,13 @@ class OpenAIService:
             Exception: If the API call fails
         """
         try:
-            # GPT-5 supports minimal reasoning effort per latest docs
-            reasoning = None
-            if str(self.model_name).lower().startswith("gpt-5"):
-                reasoning = {"effort": "minimal"}
-
             response = await self.client.responses.create(
                 model=self.model_name,
                 instructions=system_prompt or None,
                 input=user_text,
                 store=True,
                 previous_response_id=previous_response_id or None,
-                reasoning=reasoning,
+                reasoning = {"effort": "minimal"},
             )
 
             text = getattr(response, "output_text", None) or ""

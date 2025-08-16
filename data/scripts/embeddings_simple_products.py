@@ -1,285 +1,246 @@
-"""
-Script to generate embeddings for product data from producers.json.
+"""Generate embeddings for product data from producers.json using unified envs.
 
-This script processes the producers.json file, creates a flat table of products,
-generates combined text descriptions, and creates embeddings using OpenAI's
-text-embedding-3-large model.
+This script:
+- Loads ../source_json/producers.json
+- Builds a flat table with columns: producerName, productName, productDescription, productId
+- Creates combinedText in the format: "PRODUCER: name, PRODUCT: name, DESCRIPTION: description"
+- Calls the OpenAI embeddings API (supports OpenAI and Azure OpenAI via unified env)
+- Implements retries with respect for 429 Retry-After headers and exponential backoff
+- Logs progress roughly every 100 records
+- Saves output to ../processed/simple_products.parquet
+
+Env variables (unified):
+- OPENAI_API_KEY
+- OPENAI_BASE_URL (for Azure, must end with /openai/v1/)
+- OPENAI_API_VERSION (for Azure, e.g. 2024-10-21 or preview)
+- OPENAI_EMBEDDING_MODEL (e.g. text-embedding-3-large or Azure deployment name)
+
+Note: legacy Azure-specific env variables are not supported in this script.
 """
+
+from __future__ import annotations
 
 import json
 import logging
 import os
 import time
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, List, Optional, Sequence
 
 import pandas as pd
 from dotenv import load_dotenv
-from openai import AzureOpenAI, OpenAI
-from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+from openai import APIStatusError, OpenAI, RateLimitError
+from tenacity import before_sleep_log, retry, retry_if_exception, stop_after_attempt, wait_exponential
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+# Configure logging: our logger INFO, third-party WARNING
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
+logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpcore").setLevel(logging.WARNING)
 
-# Reduce verbosity of SDK loggers
-logging.getLogger('openai').setLevel(logging.WARNING)
-logging.getLogger('httpx').setLevel(logging.WARNING)
-logging.getLogger('httpcore').setLevel(logging.WARNING)
 
-# Load environment variables
-load_dotenv()
+def _ensure_endswith(base: str, suffix: str) -> str:
+    """Ensure a string ends with suffix exactly once."""
+    if not base.endswith(suffix):
+        return base.rstrip("/") + ("/" if not suffix.startswith("/") else "") + suffix.lstrip("/")
+    return base
+
+
+def _build_unified_openai_client() -> tuple[OpenAI, str]:
+    """Create a unified OpenAI client and resolve embedding model name.
+
+    Returns (client, model_or_deployment_name).
+    """
+    load_dotenv()
+
+    api_key = os.getenv("OPENAI_API_KEY")
+    base_url = os.getenv("OPENAI_BASE_URL")
+    api_version = os.getenv("OPENAI_API_VERSION")
+    embedding_model = os.getenv("OPENAI_EMBEDDING_MODEL") or "text-embedding-3-large"
+
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY not configured")
+
+    default_query: Optional[dict[str, str]] = None
+    if base_url:
+        default_query = {"api-version": api_version or "2024-10-21"}
+
+    client = OpenAI(api_key=api_key, base_url=base_url, default_query=default_query)
+    return client, embedding_model
+
+
+def _is_retryable_error(exc: BaseException) -> bool:
+    """Return True for rate limit and transient server errors."""
+    if isinstance(exc, RateLimitError):
+        return True
+    if isinstance(exc, APIStatusError):
+        return exc.status_code == 429 or 500 <= (exc.status_code or 0) < 600
+    return False
 
 
 class EmbeddingsGenerator:
-    """Handles embedding generation with proper retry logic and rate limiting."""
-    
-    def __init__(self):
-        """Initialize the embeddings generator with appropriate OpenAI client."""
-        self.api_type = os.getenv('OPENAI_API_TYPE', 'azure')
-        self.batch_size = 100  # Report progress every 100 records
-        
-        if self.api_type == 'azure':
-            self._init_azure_client()
-        else:
-            self._init_openai_client()
-    
-    def _init_azure_client(self):
-        """Initialize Azure OpenAI client for embeddings."""
-        self.client = AzureOpenAI(
-            azure_endpoint=os.getenv('AZURE_OPENAI_EMBEDDING_ENDPOINT'),
-            api_key=os.getenv('AZURE_OPENAI_EMBEDDING_API_KEY'),
-            api_version=os.getenv('AZURE_OPENAI_EMBEDDING_API_VERSION', '2024-12-01-preview')
+    """Handles batch embedding generation with retries and progress logging."""
+
+    def __init__(self, batch_size: int = 100, dimensions: int = 2000):
+        """Init with a unified OpenAI client.
+
+        Args:
+            batch_size: Size of embedding batches.
+            dimensions: Target embedding dimension for compatibility.
+        """
+        self.client, self.model = _build_unified_openai_client()
+        self.batch_size = max(1, batch_size)
+        self.dimensions = dimensions
+        logger.info(
+            "Embeddings client ready (base_url=%s, model=%s)", getattr(self.client, "base_url", None), self.model
         )
-        self.model = os.getenv('AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME', 'text-embedding-3-large')
-        logger.info(f"Initialized Azure OpenAI client with model: {self.model} (2000 dimensions)")
-    
-    def _init_openai_client(self):
-        """Initialize OpenAI client for embeddings."""
-        self.client = OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
-        self.model = os.getenv('OPENAI_EMBEDDING_MODEL', 'text-embedding-3-large')
-        logger.info(f"Initialized OpenAI client with model: {self.model} (2000 dimensions)")
-    
+
     @retry(
-        stop=stop_after_attempt(5),
-        wait=wait_exponential(multiplier=1, min=4, max=60),
-        retry=retry_if_exception_type(Exception)
+        stop=stop_after_attempt(6),
+        wait=wait_exponential(multiplier=1, min=2, max=90),
+        retry=retry_if_exception(_is_retryable_error),
+        before_sleep=before_sleep_log(logger, logging.WARNING),
+        reraise=True,
     )
-    def _get_embedding(self, text: str) -> List[float]:
-        """
-        Get embedding for a single text with retry logic.
-        
-        Args:
-            text: Text to embed
-            
-        Returns:
-            List of embedding values (2000 dimensions for pgvector compatibility)
-            
-        Raises:
-            Exception: If embedding generation fails after retries
-        """
+    def _embed_batch(self, texts: Sequence[str]) -> List[List[float]]:
+        """Embed a batch of texts, honoring Retry-After when rate limited."""
         try:
-            response = self.client.embeddings.create(
-                input=text,
-                model=self.model,
-                dimensions=2000  # Limit to 2000 dimensions for pgvector HNSW index compatibility
+            resp = self.client.embeddings.create(
+                model=self.model, input=list(texts), dimensions=self.dimensions
             )
-            return response.data[0].embedding
-        except Exception as e:
-            # Check if it's a rate limit error (429)
-            if hasattr(e, 'status_code') and e.status_code == 429:
-                # Extract retry-after header if available
-                retry_after = getattr(e, 'retry_after', None)
-                if retry_after:
-                    logger.warning(f"Rate limited. Waiting {retry_after} seconds before retry.")
-                    time.sleep(float(retry_after))
-                else:
-                    logger.warning("Rate limited. Using exponential backoff.")
-            logger.error(f"Error generating embedding: {e}")
+            return [d.embedding for d in resp.data]
+        except APIStatusError as e:
+            if e.status_code == 429:
+                retry_after_s = 0
+                try:
+                    retry_after_s = int(e.response.headers.get("retry-after", "0")) if e.response else 0
+                except Exception:
+                    retry_after_s = 0
+                if retry_after_s > 0:
+                    logger.warning("429 received. Sleeping %s seconds per Retry-After", retry_after_s)
+                    time.sleep(retry_after_s)
             raise
-    
+        except RateLimitError:
+            raise
+
     def generate_embeddings(self, df: pd.DataFrame) -> pd.DataFrame:
+        """Generate embeddings for df['combinedText'] and return a new DataFrame.
+
+        Raises ValueError if combinedText column is missing.
         """
-        Generate embeddings for all rows in the dataframe using parallel processing.
-        
-        Args:
-            df: DataFrame with combinedText column
-            
-        Returns:
-            DataFrame with added embedding column
-        """
-        import concurrent.futures
-        import threading
-        
-        logger.info(f"Starting parallel embedding generation for {len(df)} records")
-        
-        # Prepare data for parallel processing
-        texts = df['combinedText'].tolist()
-        embeddings = [None] * len(texts)  # Pre-allocate list
-        
-        lock = threading.Lock()
-        completed = [0]  # Use list to make it mutable in nested function
-        
-        def process_embedding(args):
-            idx, text = args
-            try:
-                embedding = self._get_embedding(text)
-                with lock:
-                    embeddings[idx] = embedding
-                    completed[0] += 1
-                    # Report progress
-                    if completed[0] % self.batch_size == 0:
-                        logger.info(f"Processed {completed[0]}/{len(texts)} records")
-                return True
-            except Exception as e:
-                logger.error(f"Failed to generate embedding for row {idx}: {e}")
-                with lock:
-                    embeddings[idx] = []  # Empty embedding on failure
-                    completed[0] += 1
-                return False
-        
-        # Use ThreadPoolExecutor with 50 workers for parallel processing
-        with concurrent.futures.ThreadPoolExecutor(max_workers=50) as executor:
-            # Create list of (index, text) pairs
-            tasks = [(idx, text) for idx, text in enumerate(texts)]
-            logger.info(f"Submitting {len(tasks)} tasks to thread pool...")
-            
-            # Use executor.map to ensure all tasks complete
-            results = list(executor.map(process_embedding, tasks))
-            logger.info(f"All {len(results)} tasks completed")
-        
-        df['embedding'] = embeddings
-        successful_embeddings = len([e for e in embeddings if e is not None and len(e) > 0])
-        logger.info(f"Completed embedding generation: {successful_embeddings}/{len(df)} successful")
-        return df
+        if "combinedText" not in df.columns:
+            raise ValueError("DataFrame must contain 'combinedText' column")
+
+        total = len(df)
+        results: list[Optional[list[float]]] = [None] * total
+        logger.info("Generating embeddings for %d records (batch=%d)", total, self.batch_size)
+
+        for start in range(0, total, self.batch_size):
+            end = min(start + self.batch_size, total)
+            texts = df.loc[start : end - 1, "combinedText"].tolist()
+            vectors = self._embed_batch(texts)
+            for i, v in enumerate(vectors):
+                results[start + i] = v
+            if (end % 100 == 0) or (end == total):
+                logger.info("Progress: %d/%d", end, total)
+
+        out = df.copy()
+        out["embedding"] = results
+        missing = out["embedding"].isna().sum()
+        if missing:
+            logger.warning("%d missing embeddings; dropping those rows", missing)
+            out = out[out["embedding"].notna()].reset_index(drop=True)
+        return out
 
 
-def load_producers_data(file_path: Path) -> List[Dict[str, Any]]:
-    """
-    Load producers data from JSON file.
-    
-    Args:
-        file_path: Path to the producers.json file
-        
-    Returns:
-        List of producer dictionaries
-        
-    Raises:
-        FileNotFoundError: If the input file doesn't exist
-        json.JSONDecodeError: If the JSON is invalid
-    """
+def load_producers_data(file_path: Path) -> List[dict[str, Any]]:
+    """Load producers JSON; accept either list or {"producers": [...]}."""
     if not file_path.exists():
         raise FileNotFoundError(f"Input file not found: {file_path}")
-    
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, "r", encoding="utf-8") as f:
         data = json.load(f)
-    
-    logger.info(f"Loaded {len(data)} producers from {file_path}")
+    if isinstance(data, dict) and "producers" in data:
+        data = data["producers"]
+    if not isinstance(data, list):
+        raise ValueError("Invalid JSON: expected list or object with 'producers'")
+    logger.info("Loaded %d producers from %s", len(data), file_path)
     return data
 
 
-def create_products_dataframe(producers_data: List[Dict[str, Any]]) -> pd.DataFrame:
-    """
-    Create a flat DataFrame from nested producers data.
-    
-    Args:
-        producers_data: List of producer dictionaries
-        
-    Returns:
-        DataFrame with columns: producerName, productName, productDescription, productId
-    """
-    products = []
-    
+def create_products_dataframe(producers_data: List[dict[str, Any]]) -> pd.DataFrame:
+    """Flatten producers into a products DataFrame with required columns."""
+    rows: list[dict[str, Any]] = []
+    gen_id = 1
     for producer in producers_data:
-        producer_name = producer.get('name', '')
-        
-        for product in producer.get('products', []):
-            products.append({
-                'producerName': producer_name,
-                'productName': product.get('name', ''),
-                'productDescription': product.get('description', ''),
-                'productId': product.get('productId', '')
-            })
-    
-    df = pd.DataFrame(products)
-    logger.info(f"Created DataFrame with {len(df)} products")
+        pname = (producer or {}).get("name") or (producer or {}).get("producerName") or ""
+        for product in (producer or {}).get("products", []) or []:
+            name = (product or {}).get("name") or (product or {}).get("productName") or ""
+            desc = (product or {}).get("description") or (product or {}).get("productDescription") or ""
+            pid = (product or {}).get("id") or (product or {}).get("productId") or gen_id
+            rows.append(
+                {
+                    "producerName": str(pname),
+                    "productName": str(name),
+                    "productDescription": str(desc),
+                    "productId": pid,
+                }
+            )
+            gen_id += 1
+    df = pd.DataFrame(rows, columns=["producerName", "productName", "productDescription", "productId"])
+    logger.info("Created DataFrame with %d products", len(df))
     return df
 
 
 def add_combined_text_column(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Add combinedText column with formatted text for embeddings.
-    
-    Args:
-        df: DataFrame with product information
-        
-    Returns:
-        DataFrame with added combinedText column
-    """
-    df['combinedText'] = (
-        "PRODUCER: " + df['producerName'] + 
-        ", PRODUCT: " + df['productName'] + 
-        ", DESCRIPTION: " + df['productDescription']
+    """Add the combinedText column for embedding input."""
+    df = df.copy()
+    for c in ["producerName", "productName", "productDescription"]:
+        if c in df.columns:
+            df[c] = df[c].fillna("").astype(str)
+    df["combinedText"] = (
+        "PRODUCER: "
+        + df["producerName"].str.strip()
+        + ", PRODUCT: "
+        + df["productName"].str.strip()
+        + ", DESCRIPTION: "
+        + df["productDescription"].str.strip()
     )
-    
     logger.info("Added combinedText column")
     return df
 
 
 def save_to_parquet(df: pd.DataFrame, output_path: Path) -> None:
-    """
-    Save DataFrame to Parquet file.
-    
-    Args:
-        df: DataFrame to save
-        output_path: Path where to save the Parquet file
-    """
-    # Ensure output directory exists
+    """Save DataFrame to a Parquet file at output_path."""
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    
     df.to_parquet(output_path, index=False)
-    logger.info(f"Saved {len(df)} records to {output_path}")
+    logger.info("Saved %d records to %s", len(df), output_path)
 
 
-def main():
-    """Main function to orchestrate the embedding generation process."""
+def main() -> bool:
+    """Run the pipeline end-to-end; return True on success."""
     try:
-        # Define file paths
-        script_dir = Path(__file__).parent
-        input_file = script_dir.parent / 'source_json' / 'producers.json'
-        output_file = script_dir.parent / 'processed' / 'simple_products.parquet'
-        
-        logger.info("Starting embeddings generation process")
-        
-        # Load data
-        producers_data = load_producers_data(input_file)
-        
-        # Create DataFrame
-        df = create_products_dataframe(producers_data)
-        
-        # Add combined text column
+        base_dir = Path(__file__).parent
+        input_path = (base_dir / "../source_json/producers.json").resolve()
+        output_path = (base_dir / "../processed/simple_products.parquet").resolve()
+
+        producers = load_producers_data(input_path)
+        df = create_products_dataframe(producers)
+        if df.empty:
+            logger.warning("No products found; nothing to embed.")
+            save_to_parquet(df.assign(combinedText="", embedding=[]), output_path)
+            return True
+
         df = add_combined_text_column(df)
-        
-        # Generate embeddings
-        generator = EmbeddingsGenerator()
+        generator = EmbeddingsGenerator(batch_size=100, dimensions=2000)
         df = generator.generate_embeddings(df)
-        
-        # Save to Parquet
-        save_to_parquet(df, output_file)
-        
-        logger.info("Embeddings generation completed successfully")
-        
-        # Print summary statistics
-        logger.info("Summary:")
-        logger.info(f"  Total products processed: {len(df)}")
-        logger.info(f"  Embeddings generated: {len([e for e in df['embedding'] if len(e) > 0])}")
-        logger.info(f"  Failed embeddings: {len([e for e in df['embedding'] if len(e) == 0])}")
-        logger.info(f"  Output file: {output_file}")
-        
+        save_to_parquet(df, output_path)
+        return True
     except Exception as e:
-        logger.error(f"Error in main process: {e}")
-        raise
+        logger.exception("Embedding pipeline failed: %s", e)
+        return False
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(0 if main() else 1)

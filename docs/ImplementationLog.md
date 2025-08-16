@@ -1,3 +1,13 @@
+## 2025-08-16
+
+- Refactored `data/scripts/embeddings_simple_products.py` to use the unified OpenAI SDK configuration consistent with `agents/dreamfarm-agent`:
+   - Uses `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_API_VERSION`, and `OPENAI_EMBEDDING_MODEL` only (no legacy fallbacks).
+   - Implemented batching (100 items), retries with exponential backoff and respect for `Retry-After` on 429.
+   - Reduced third-party loggers to WARNING while keeping our logger at INFO.
+   - Saves output to `../processed/simple_products.parquet`.
+- Updated `data/scripts/.env.template` to include unified env variables and clarified legacy variables are not used by scripts.
+- Updated `data/scripts/README.md` quick start to reference `.env.template` and unified environment variables.
+
 # Implementation Log
 
 ## Responses API Migration & session API - 2025-08-16

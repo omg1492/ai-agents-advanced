@@ -11,7 +11,7 @@ The scripts work together to create a complete data pipeline from raw data gener
 1. **Python Environment**: Use `uv` to manage dependencies
 2. **PostgreSQL with pgvector**: Use Docker Compose setup in `deploy/local/`
 3. **OpenAI API**: Configure Azure OpenAI or OpenAI API credentials
-4. **Environment Configuration**: Copy `.env.example` to `.env` and configure
+4. **Environment Configuration**: Copy `.env.template` to `.env` and configure
 
 ## Quick Start
 
@@ -25,7 +25,8 @@ docker-compose up -d postgres
 cd ../../data/scripts
 
 # 3. Configure environment
-cp .env.example .env
+# Copy template and set unified OpenAI envs (OPENAI_API_KEY, OPENAI_BASE_URL, OPENAI_API_VERSION, OPENAI_EMBEDDING_MODEL)
+cp .env.template .env
 # Edit .env with your API keys and database settings
 
 # 4. Run the complete pipeline
