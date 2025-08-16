@@ -1,4 +1,4 @@
-"""Tests for the RAG service."""
+"""Tests for the RAG service (unit, mocked)."""
 
 import pytest
 import os
@@ -7,7 +7,9 @@ from unittest.mock import Mock, patch
 from src.services.rag_service import RAGService, SearchResult
 
 
-@pytest.mark.unit
+pytestmark = pytest.mark.unit
+
+
 class TestRAGService:
     """Test cases for RAGService."""
     
@@ -23,10 +25,10 @@ class TestRAGService:
             "PGDATABASE": "test_db",
             "PGUSER": "test_user",
             "PGPASSWORD": "test_password",
-            "OPENAI_API_TYPE": "azure",
-            "AZURE_OPENAI_EMBEDDING_ENDPOINT": "https://test.openai.azure.com/",
+            # Unified client: use base_url for Azure
+            "OPENAI_BASE_URL": "https://test.openai.azure.com/openai/v1/",
             "AZURE_OPENAI_EMBEDDING_API_KEY": "test-key",
-            "AZURE_OPENAI_EMBEDDING_API_VERSION": "2024-12-01-preview",
+            "AZURE_OPENAI_EMBEDDING_API_VERSION": "preview",
             "AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME": "text-embedding-3-large"
         })
         self.env_patcher.start()
@@ -36,8 +38,7 @@ class TestRAGService:
         self.env_patcher.stop()
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    def test_init_enabled(self, mock_azure_openai, mock_create_engine):
+    def test_init_enabled(self, mock_create_engine):
         """Test RAG service initialization when enabled."""
         # Create service
         service = RAGService()
@@ -47,7 +48,6 @@ class TestRAGService:
         assert service.similarity_threshold == 0.7
         assert service.max_results == 3
         mock_create_engine.assert_called_once()
-        mock_azure_openai.assert_called_once()
     
     def test_init_disabled(self):
         """Test RAG service initialization when disabled."""
@@ -57,11 +57,11 @@ class TestRAGService:
             assert service.enabled is False
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    def test_init_missing_db_config(self, mock_azure_openai, mock_create_engine):
+    def test_init_missing_db_config(self, mock_create_engine):
         """Test initialization with missing database configuration."""
         with patch.dict(os.environ, {"PGHOST": ""}, clear=False):
-            with pytest.raises(ValueError, match="Missing required PostgreSQL environment variables"):
+            # Config-only refactor: service now raises a generic DB config error
+            with pytest.raises(ValueError, match=r"Database configuration is incomplete"):
                 RAGService()
     
     @patch('src.services.rag_service.create_engine')
@@ -71,21 +71,18 @@ class TestRAGService:
         # Clear both primary and fallback OpenAI environment variables
         with patch.dict(os.environ, {
             "ENABLE_RAG": "true",
-            # Primary OpenAI embedding variables
-            "AZURE_OPENAI_EMBEDDING_ENDPOINT": "",
-            "AZURE_OPENAI_EMBEDDING_API_KEY": "",
-            "AZURE_OPENAI_EMBEDDING_API_VERSION": "",
-            # Fallback OpenAI variables
-            "AZURE_OPENAI_ENDPOINT": "",
+            # Remove all OpenAI/Azure keys so client init fails
+            "OPENAI_API_KEY": "",
             "AZURE_OPENAI_API_KEY": "",
-            "AZURE_OPENAI_API_VERSION": "",
+            "AZURE_OPENAI_EMBEDDING_API_KEY": "",
             # Ensure DB config is present
             "PGHOST": "localhost",
             "PGDATABASE": "testdb", 
             "PGUSER": "testuser",
             "PGPASSWORD": "testpass"
         }, clear=False):
-            with pytest.raises(ValueError, match="Missing required Azure OpenAI embedding environment variables"):
+            # Config-only refactor: error originates from ConfigService load
+            with pytest.raises(ValueError, match=r"Required environment variable OPENAI_API_KEY is not set"):
                 RAGService()
     
     @patch('src.services.rag_service.create_engine')
@@ -93,23 +90,20 @@ class TestRAGService:
     def test_init_openai_api(self, mock_openai, mock_create_engine):
         """Test initialization with OpenAI API instead of Azure."""
         with patch.dict(os.environ, {
-            "OPENAI_API_TYPE": "openai",
             "OPENAI_API_KEY": "test-openai-key"
         }, clear=False):
-            service = RAGService()
+            RAGService()
             
-            mock_openai.assert_called_once_with(api_key="test-openai-key")
+            mock_openai.assert_called_once()
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    async def test_generate_embedding_success(self, mock_azure_openai_class, mock_create_engine):
+    async def test_generate_embedding_success(self, mock_create_engine):
         """Test successful embedding generation."""
         # Mock OpenAI client (synchronous, not async)
         mock_client = Mock()
         mock_response = Mock()
         mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3])]
         mock_client.embeddings.create.return_value = mock_response
-        mock_azure_openai_class.return_value = mock_client
         
         # Create service and test
         service = RAGService()
@@ -126,8 +120,7 @@ class TestRAGService:
         )
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    async def test_generate_embedding_disabled(self, mock_azure_openai, mock_create_engine):
+    async def test_generate_embedding_disabled(self, mock_create_engine):
         """Test embedding generation when RAG is disabled."""
         with patch.dict(os.environ, {"ENABLE_RAG": "false"}):
             service = RAGService()
@@ -135,13 +128,11 @@ class TestRAGService:
             assert embedding == []
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    async def test_generate_embedding_failure(self, mock_azure_openai_class, mock_create_engine):
+    async def test_generate_embedding_failure(self, mock_create_engine):
         """Test embedding generation failure."""
         # Mock OpenAI client to raise exception (synchronous)
         mock_client = Mock()
         mock_client.embeddings.create.side_effect = Exception("API Error")
-        mock_azure_openai_class.return_value = mock_client
         
         # Create service and test
         service = RAGService()
@@ -151,8 +142,7 @@ class TestRAGService:
             await service.generate_embedding("test text")
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    async def test_vector_search_success(self, mock_azure_openai, mock_create_engine):
+    async def test_vector_search_success(self, mock_create_engine):
         """Test successful vector search."""
         # Mock database engine and connection
         mock_engine = Mock()
@@ -187,15 +177,13 @@ class TestRAGService:
         assert results[0].similarity_score == 0.85
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    async def test_semantic_search_integration(self, mock_azure_openai_class, mock_create_engine):
+    async def test_semantic_search_integration(self, mock_create_engine):
         """Test full semantic search integration."""
         # Mock OpenAI client (synchronous)
         mock_client = Mock()
         mock_response = Mock()
         mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3])]
         mock_client.embeddings.create.return_value = mock_response
-        mock_azure_openai_class.return_value = mock_client
         
         # Mock database
         mock_engine = Mock()
@@ -230,8 +218,7 @@ class TestRAGService:
         assert results[0].product_name == "Organic Tomatoes"
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    async def test_semantic_search_disabled(self, mock_azure_openai, mock_create_engine):
+    async def test_semantic_search_disabled(self, mock_create_engine):
         """Test semantic search when RAG is disabled."""
         with patch.dict(os.environ, {"ENABLE_RAG": "false"}):
             service = RAGService()
@@ -278,15 +265,13 @@ class TestRAGService:
         assert "Similarity: 0.80" in formatted
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    async def test_get_relevant_context_with_results(self, mock_azure_openai_class, mock_create_engine):
+    async def test_get_relevant_context_with_results(self, mock_create_engine):
         """Test getting relevant context when results are found."""
         # Setup mocks as in semantic search test (synchronous client)
         mock_client = Mock()
         mock_response = Mock()
         mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3])]
         mock_client.embeddings.create.return_value = mock_response
-        mock_azure_openai_class.return_value = mock_client
         
         mock_engine = Mock()
         mock_conn = Mock()
@@ -321,15 +306,13 @@ class TestRAGService:
         assert "Similarity: 0.75" in context
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    async def test_get_relevant_context_no_results(self, mock_azure_openai_class, mock_create_engine):
+    async def test_get_relevant_context_no_results(self, mock_create_engine):
         """Test getting relevant context when no results are found."""
         # Mock to return no results (synchronous client)
         mock_client = Mock()
         mock_response = Mock()
         mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3])]
         mock_client.embeddings.create.return_value = mock_response
-        mock_azure_openai_class.return_value = mock_client
         
         mock_engine = Mock()
         mock_conn = Mock()
@@ -350,8 +333,7 @@ class TestRAGService:
         assert context is None
     
     @patch('src.services.rag_service.create_engine')
-    @patch('src.services.rag_service.AzureOpenAI')
-    async def test_get_relevant_context_disabled(self, mock_azure_openai, mock_create_engine):
+    async def test_get_relevant_context_disabled(self, mock_create_engine):
         """Test getting relevant context when RAG is disabled."""
         with patch.dict(os.environ, {"ENABLE_RAG": "false"}):
             service = RAGService()

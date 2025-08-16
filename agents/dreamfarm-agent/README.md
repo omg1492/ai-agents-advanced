@@ -4,11 +4,11 @@ AI-powered assistant for the Dream Farm marketplace that connects local farmers 
 
 ## Overview
 
-This is the main AI agent for the Advanced AI Applications course. It provides a thread-based conversation system that allows customers to interact with an AI assistant about farm products and local produce.
+This is the main AI agent for the Advanced AI Applications course. It provides a simple /chat endpoint powered by OpenAI Responses API with server-side conversation state.
 
 ## Features
 
-- **Thread-based Conversations**: Each conversation is managed as a separate thread with message history
+- **Server-side Conversation State**: Uses Responses API with `store` and `previous_response_id` for continuity
 - **Dual OpenAI Support**: Works with both Azure OpenAI Service and OpenAI API
 - **RAG Capabilities**: Semantic search over farm product database using PostgreSQL + pgvector
 - **Jinja2 Template System**: Flexible prompt templating for different scenarios
@@ -41,43 +41,38 @@ This is the main AI agent for the Advanced AI Applications course. It provides a
    ```
 
 3. **Configure environment variables:**
-   Copy and edit the `.env` file with your OpenAI credentials:
+   Copy and edit the `.env` file with your OpenAI credentials using the unified scheme:
 
-   **For Azure OpenAI:**
+   **OpenAI (hosted by OpenAI):**
    ```env
-   OPENAI_API_TYPE=azure
-   AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-   AZURE_OPENAI_API_KEY=your-api-key
-   AZURE_OPENAI_API_VERSION=2024-02-15-preview
-   AZURE_OPENAI_DEPLOYMENT_NAME=your-deployment-name
+   OPENAI_API_KEY=your-openai-api-key
+   OPENAI_MODEL=gpt-5
    CORS_ORIGINS=http://localhost:3000
-   
+
    # RAG Configuration (requires PostgreSQL + pgvector)
    ENABLE_RAG=true
    PGHOST=localhost
    PGDATABASE=your-database
    PGUSER=your-username
    PGPASSWORD=your-password
-   AZURE_OPENAI_EMBEDDING_ENDPOINT=https://your-resource.openai.azure.com/
-   AZURE_OPENAI_EMBEDDING_API_KEY=your-embedding-api-key
-   AZURE_OPENAI_EMBEDDING_API_VERSION=2024-12-01-preview
-   AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME=text-embedding-3-large
+   OPENAI_EMBEDDING_MODEL=text-embedding-3-large
    ```
 
-   **For OpenAI API:**
+   **Azure OpenAI (next‑gen v1):**
    ```env
-   OPENAI_API_TYPE=openai
-   OPENAI_API_KEY=your-openai-api-key
-   OPENAI_MODEL=gpt-4o
+   OPENAI_API_KEY=your-azure-api-key
+   OPENAI_BASE_URL=https://your-resource.openai.azure.com/openai/v1/
+   OPENAI_API_VERSION=preview
+   OPENAI_MODEL=your-deployment-name  # use your Azure deployment name
    CORS_ORIGINS=http://localhost:3000
-   
-   # RAG Configuration (requires PostgreSQL + pgvector)  
+
+   # RAG Configuration (requires PostgreSQL + pgvector)
    ENABLE_RAG=true
    PGHOST=localhost
    PGDATABASE=your-database
    PGUSER=your-username
    PGPASSWORD=your-password
-   # For OpenAI API, use the same key for embeddings
+   OPENAI_EMBEDDING_MODEL=text-embedding-3-large  # Azure deployment name for embeddings
    ```
 
 4. **Run the agent:**
@@ -102,13 +97,13 @@ uv sync --dev
 
 **Industry Standard Testing (Recommended):**
 ```bash
-# Run all tests
+# By default, only unit tests run (see pytest.ini addopts)
 uv run pytest
 
-# Run only unit tests (fast, with mocks)
+# Explicit: run only unit tests (fast, with mocks)
 uv run pytest -m unit
 
-# Run only integration tests (slower, requires real database and API)
+# Run integration tests (slower, requires real database and/or API)
 uv run pytest -m integration
 
 # Run integration tests for RAG functionality (requires database + OpenAI API)
@@ -140,16 +135,56 @@ uv run pytest tests/test_rag_integration.py  # Integration tests with real servi
 
 **See `tests/README.md` for detailed testing strategy and best practices.**
 
+### Running Real-API Integration Tests (Optional)
+
+RAG integration tests call real OpenAI embeddings and a real PostgreSQL database. They are skipped unless you explicitly run the integration suite. Use pytest markers to select suites:
+
+```powershell
+# OpenAI hosted:
+$env:OPENAI_API_KEY = "<openai-key>"
+$env:OPENAI_MODEL = "gpt-5"
+$env:OPENAI_EMBEDDING_MODEL = "text-embedding-3-large"
+
+# Azure OpenAI (next-gen v1):
+$env:OPENAI_API_KEY = "<azure-key>"
+$env:OPENAI_BASE_URL = "https://<your-azure-openai>.openai.azure.com/openai/v1/"
+$env:OPENAI_API_VERSION = "preview"
+$env:OPENAI_MODEL = "<chat-deployment-name>"
+$env:OPENAI_EMBEDDING_MODEL = "text-embedding-3-large"  # embedding deployment name
+
+# PostgreSQL
+$env:PGHOST = "localhost"; $env:PGPORT = "5432"; $env:PGDATABASE = "aidb"; $env:PGUSER = "admin"; $env:PGPASSWORD = "<password>"
+
+# Run RAG integration tests (database + embeddings)
+uv run pytest -m "integration and requires_api" tests/test_rag_integration.py -v
+
+# Live API test for /threads (non-RAG):
+uv run pytest -m integration tests/test_api_live_integration.py -v -k live
+```
+
 ## API Endpoints
 
 ### Health Check
 - `GET /health` - Check service health
 
-### Thread Management  
-- `POST /threads` - Create a new conversation thread
-- `GET /threads/{thread_id}` - Get thread information
-- `POST /threads/{thread_id}/messages` - Send a message and get AI response  
-- `GET /threads/{thread_id}/messages` - Get conversation history
+### Chat
+- `POST /chat` - Send a message and get AI response
+   - Request body: `{ "message": string, "previous_response_id"?: string }`
+   - Response body: `{ "response_id": string, "message": string, "timestamp": string }`
+   - Use the returned `response_id` as `previous_response_id` on the next request to continue the conversation on the server side.
+
+### Sessions (Lightweight Thread API)
+- `POST /threads` - Create a new session handle (thread)
+   - Request body: `{ "title"?: string }`
+   - Response body: `{ "thread_id": string, "title": string, "created_at": string, "updated_at": string }`
+- `GET /threads/{thread_id}` - Get session metadata
+- `POST /threads/{thread_id}/messages` - Send a message and get AI response
+   - Request body: `{ "message": string }`
+   - Response body: `{ "message_id": string, "thread_id": string, "user_message": string, "assistant_response": string, "timestamp": string }`
+- `GET /threads/{thread_id}/messages` - Get a lightweight, in-memory message history for UI display (not used for generation)
+
+Notes:
+- The backend keeps only the last `response_id` per `thread_id` and passes it as `previous_response_id` to the Responses API to preserve server-side conversation state.
 
 ## Example Usage
 
@@ -175,7 +210,7 @@ curl -X POST http://localhost:8001/threads/{thread_id}/messages \
 - **PostgreSQL + pgvector**: Vector database for semantic search (RAG)
 - **SQLAlchemy**: Database ORM for vector operations
 - **Jinja2**: Template engine for dynamic prompt generation
-- **In-memory storage**: Thread and message persistence (Lesson 1 only)
+- **Responses API**: /chat endpoint using server-managed state; lightweight `/threads` for session handles and UI-only history
 
 ## Development
 
@@ -190,10 +225,8 @@ src/
 │   └── thread.py        # Thread and message models
 └── services/
     ├── __init__.py
-    ├── openai_service.py # OpenAI/Azure OpenAI integration
-    └── thread_service.py # Thread management
+   └── openai_service.py # OpenAI/Azure OpenAI integration via Responses API
 tests/
-├── test_thread_service.py    # Unit tests (with mocks)
 ├── test_api_integration.py   # Integration tests (FastAPI TestClient) ⭐
 ├── api_manual_tests.http     # REST Client test file
 ├── test_api_manual.py        # Manual testing script

@@ -1,14 +1,16 @@
-"""Integration tests for RAG service - tests real functionality with actual database and OpenAI API."""
+"""Integration tests for RAG service - real DB and OpenAI API.
+
+Run these by selecting `-m integration`. Tests skip at runtime if required database
+or provider credentials are not available.
+"""
 
 import pytest
 import os
 import asyncio
-from dotenv import load_dotenv
 
 from src.services.rag_service import RAGService, SearchResult
 
-# Load environment variables from .env file
-load_dotenv()
+pytestmark = pytest.mark.integration
 
 
 class TestRAGServiceIntegration:
@@ -17,7 +19,6 @@ class TestRAGServiceIntegration:
     These tests require:
     1. PostgreSQL database running with product data and embeddings
     2. Valid OpenAI API credentials in environment
-    3. ENABLE_RAG=true in environment
     
     Run with: pytest -m integration tests/test_rag_integration.py
     """
@@ -25,15 +26,18 @@ class TestRAGServiceIntegration:
     @classmethod
     def setup_class(cls):
         """Set up class-level fixtures."""
-        # Check if we have the required environment for integration tests
+        # Check env for integration readiness (skip gracefully if missing)
         required_env_vars = [
             'PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER', 'PGPASSWORD',
-            'AZURE_OPENAI_EMBEDDING_ENDPOINT', 'AZURE_OPENAI_EMBEDDING_API_KEY'
+            # unified: any of these keys must exist for embeddings
+            # Prefer unified OPENAI_* with optional base URL for Azure
         ]
-        
-        missing_vars = [var for var in required_env_vars if not os.getenv(var)]
-        if missing_vars:
-            pytest.skip(f"Integration tests require environment variables: {missing_vars}")
+        missing_db = [var for var in required_env_vars if not os.getenv(var)]
+        has_api_key = any(os.getenv(k) for k in (
+            'OPENAI_API_KEY', 'AZURE_OPENAI_API_KEY', 'AZURE_OPENAI_EMBEDDING_API_KEY'
+        ))
+        if missing_db or not has_api_key:
+            pytest.skip("RAG integration requires PostgreSQL env and OpenAI/Azure API key")
         
         # Ensure RAG is enabled for integration tests
         os.environ['ENABLE_RAG'] = 'true'
@@ -227,21 +231,5 @@ class TestRAGServiceIntegration:
             for result in results:
                 assert isinstance(result, SearchResult)
 
-
-# Helper function to check if integration tests can run
-def can_run_integration_tests() -> bool:
-    """Check if integration tests can run (all required env vars present)."""
-    required_vars = [
-        'PGHOST', 'PGPORT', 'PGDATABASE', 'PGUSER', 'PGPASSWORD',
-        'AZURE_OPENAI_EMBEDDING_ENDPOINT', 'AZURE_OPENAI_EMBEDDING_API_KEY'
-    ]
-    return all(os.getenv(var) for var in required_vars)
-
-
 if __name__ == "__main__":
-    """Allow running integration tests directly."""
-    if can_run_integration_tests():
-        pytest.main([__file__, "-v", "-m", "integration"])
-    else:
-        print("Integration tests require database and OpenAI API configuration.")
-        print("Please set up environment variables and try again.")
+    pytest.main([__file__, "-v", "-m", "integration"])  # requires envs set

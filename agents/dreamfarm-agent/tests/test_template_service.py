@@ -7,6 +7,9 @@ import tempfile
 from src.services.template_service import TemplateService
 
 
+pytestmark = pytest.mark.unit
+
+
 class TestTemplateService:
     """Test cases for TemplateService."""
     

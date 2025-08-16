@@ -1,4 +1,4 @@
-"""DreamFarm Agent - FastAPI application for Dream Farm marketplace AI assistant."""
+"""DreamFarm Agent - FastAPI application using Responses API and server-side state."""
 
 import os
 import logging
@@ -10,13 +10,20 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 
 from src.models.health import HealthResponse
+from src.models.chat import ChatRequest, ChatResponse
 from src.models.thread import (
-    CreateThreadRequest, CreateThreadResponse,
-    SendMessageRequest, SendMessageResponse,
-    GetMessagesResponse
+    CreateThreadRequest,
+    CreateThreadResponse,
+    Thread as ThreadModel,
+    SendMessageRequest,
+    SendMessageResponse,
+    GetMessagesResponse,
+    Message as MessageModel,
 )
 from src.services.openai_service import OpenAIService
-from src.services.thread_service import ThreadService
+from src.services.config_service import ConfigService
+from src.services.rag_service import RAGService
+from src.services.template_service import TemplateService
 
 
 # Load environment variables
@@ -32,26 +39,54 @@ logger = logging.getLogger(__name__)
 
 # Global services
 openai_service: OpenAIService = None
-thread_service: ThreadService = None
+config_service: ConfigService = None
+rag_service: RAGService | None = None
+template_service: TemplateService | None = None
+# Minimal session and history stores (state remains in Responses API)
+_threads: dict[str, ThreadModel] = {}
+_history: dict[str, list[MessageModel]] = {}
+_last_response_id: dict[str, str] = {}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan - startup and shutdown."""
-    global openai_service, thread_service
-    
+    global openai_service, config_service, rag_service, template_service
+
     # Startup
     logger.info("Starting DreamFarm Agent...")
     try:
-        openai_service = OpenAIService()
-        thread_service = ThreadService(openai_service)
+        # Load and validate configuration (unified OpenAI/Azure envs)
+        config_service = ConfigService()
+        cfg = config_service.config
+        # Apply log level from config if different
+        logger.setLevel(getattr(logging, cfg.log_level.upper(), logging.INFO))
+        logger.info(
+            "Config loaded: environment=%s, openai.base_url=%s, openai.model=%s",
+            cfg.environment,
+            cfg.openai.base_url,
+            cfg.openai.model_name,
+        )
+        openai_service = OpenAIService(config_service.get_openai_config())
+        # Initialize template service
+        template_service = TemplateService()
+        if not template_service.template_exists("system_prompt.j2"):
+            raise RuntimeError("Required template 'system_prompt.j2' not found in src/templates")
+        # Initialize RAG (optional)
+        rag_service = None
+        if cfg.rag.enabled:
+            try:
+                rag_service = RAGService(cfg)
+                logger.info("RAG service initialized and enabled")
+            except Exception as re:
+                logger.warning(f"RAG initialization failed, continuing without RAG: {re}")
         logger.info("Services initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         raise
-    
+
     yield
-    
+
     # Shutdown
     logger.info("Shutting down DreamFarm Agent...")
 
@@ -88,89 +123,165 @@ async def health_check():
     )
 
 
-@app.post("/threads", response_model=CreateThreadResponse)
-async def create_thread(request: CreateThreadRequest):
-    """Create a new conversation thread.
-    
-    Args:
-        request: Thread creation request with optional title
-        
-    Returns:
-        Created thread details
+@app.post("/chat", response_model=ChatResponse)
+async def chat(request: ChatRequest):
+    """Single endpoint chat using server-side conversation state.
+
+    Uses Responses API with store=True and previous_response_id for continuity.
     """
     try:
-        return thread_service.create_thread(request.title)
+        # Build system prompt from template and optional RAG context
+        rag_context = None
+        if 'rag_service' in globals() and rag_service is not None and getattr(rag_service, 'enabled', False):
+            try:
+                rag_context = await rag_service.get_relevant_context(request.message)
+            except Exception as re:
+                logger.warning(f"RAG context fetch failed; proceeding without context: {re}")
+
+        system_prompt = template_service.render_template(
+            "system_prompt.j2",
+            {
+                "user_location": None,
+                "seasonal_products": [],
+                "user_preferences": [],
+                "simple_rag": rag_context or "",
+            },
+        )
+        logger.debug(f"Rendered system prompt for /chat:\n{system_prompt}")
+
+        text, response_id = await openai_service.generate_response(
+            user_text=request.message,
+            system_prompt=system_prompt,
+            previous_response_id=request.previous_response_id,
+        )
+        return ChatResponse(
+            response_id=response_id,
+            message=text,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
     except Exception as e:
-        logger.error(f"Failed to create thread: {e}")
-        raise HTTPException(status_code=500, detail="Failed to create thread")
+        logger.error(f"Chat processing failed: {e}")
+        raise HTTPException(status_code=500, detail="Failed to process chat request")
 
 
-@app.get("/threads/{thread_id}")
+# Removed thread-based endpoints in favor of /chat with server-side state
+
+# Lightweight /threads endpoints to satisfy frontend session handling
+
+@app.post("/threads", response_model=CreateThreadResponse)
+async def create_thread(payload: CreateThreadRequest):
+    now = datetime.now(timezone.utc).isoformat()
+    thread_id = os.urandom(8).hex()
+    title = payload.title or f"Dream Farm Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
+    thread = ThreadModel(
+        thread_id=thread_id,
+        title=title,
+        created_at=now,
+        updated_at=now,
+        message_count=0,
+    )
+    _threads[thread_id] = thread
+    _history[thread_id] = []
+    return CreateThreadResponse(
+        thread_id=thread_id,
+        title=title,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+@app.get("/threads/{thread_id}", response_model=ThreadModel)
 async def get_thread(thread_id: str):
-    """Get thread information by ID.
-    
-    Args:
-        thread_id: ID of the thread to retrieve
-        
-    Returns:
-        Thread information
-        
-    Raises:
-        HTTPException: If thread not found
-    """
-    thread = thread_service.get_thread(thread_id)
+    thread = _threads.get(thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
     return thread
 
 
 @app.post("/threads/{thread_id}/messages", response_model=SendMessageResponse)
-async def send_message(thread_id: str, request: SendMessageRequest):
-    """Send a message in a conversation thread.
-    
-    Args:
-        thread_id: ID of the thread
-        request: Message content to send
-        
-    Returns:
-        Response containing user message and AI response
-        
-    Raises:
-        HTTPException: If thread not found or processing fails
-    """
+async def send_message(thread_id: str, payload: SendMessageRequest):
+    thread = _threads.get(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    now = datetime.now(timezone.utc).isoformat()
+    message_id = os.urandom(8).hex()
+
+    # Add user message to lightweight history
+    user_msg = MessageModel(
+        message_id=message_id,
+        thread_id=thread_id,
+        role="user",
+        content=payload.message,
+        timestamp=now,
+    )
+    _history[thread_id].append(user_msg)
+
+    # Use provider state via Responses API
+    prev_resp_id = _last_response_id.get(thread_id)
+    # Build system prompt from template and optional RAG context
+    rag_context = None
+    if 'rag_service' in globals() and rag_service is not None and getattr(rag_service, 'enabled', False):
+        try:
+            rag_context = await rag_service.get_relevant_context(payload.message)
+        except Exception as re:
+            logger.warning(f"RAG context fetch failed; proceeding without context: {re}")
+
+    system_prompt = template_service.render_template(
+        "system_prompt.j2",
+        {
+            "user_location": None,
+            "seasonal_products": [],
+            "user_preferences": [],
+            "simple_rag": rag_context or "",
+        },
+    )
+    logger.debug(f"Rendered system prompt for /threads/{thread_id}/messages:\n{system_prompt}")
     try:
-        return await thread_service.send_message(thread_id, request.message)
-    except ValueError as e:
-        logger.warning(f"Invalid request: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
+        text, response_id = await openai_service.generate_response(
+            user_text=payload.message,
+            system_prompt=system_prompt,
+            previous_response_id=prev_resp_id,
+        )
     except Exception as e:
-        logger.error(f"Failed to send message: {e}")
+        logger.error(f"Failed to generate AI response: {e}")
         raise HTTPException(status_code=500, detail="Failed to process message")
+
+    # Track last response_id for this thread to maintain continuity
+    if response_id:
+        _last_response_id[thread_id] = response_id
+
+    # Add assistant message to lightweight history
+    assistant_msg = MessageModel(
+        message_id=os.urandom(8).hex(),
+        thread_id=thread_id,
+        role="assistant",
+        content=text,
+        timestamp=now,
+    )
+    _history[thread_id].append(assistant_msg)
+
+    # Update thread metadata
+    thread.message_count = len(_history[thread_id])
+    thread.updated_at = now
+
+    return SendMessageResponse(
+        message_id=message_id,
+        thread_id=thread_id,
+        user_message=payload.message,
+        assistant_response=text,
+        timestamp=now,
+    )
 
 
 @app.get("/threads/{thread_id}/messages", response_model=GetMessagesResponse)
 async def get_messages(thread_id: str, limit: int = 50, offset: int = 0):
-    """Get conversation history for a thread.
-    
-    Args:
-        thread_id: ID of the thread
-        limit: Maximum number of messages to return (default: 50)
-        offset: Number of messages to skip (default: 0)
-        
-    Returns:
-        Messages and total count
-        
-    Raises:
-        HTTPException: If thread not found
-    """
-    try:
-        return thread_service.get_messages(thread_id, limit, offset)
-    except ValueError as e:
-        logger.warning(f"Invalid request: {e}")
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.error(f"Failed to get messages: {e}")
-        raise HTTPException(status_code=500, detail="Failed to retrieve messages")
+    if thread_id not in _threads:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    msgs = _history.get(thread_id, [])
+    total = len(msgs)
+    paginated = msgs[offset : offset + limit]
+    return GetMessagesResponse(thread_id=thread_id, messages=paginated, total_count=total)
 
 
 def main():

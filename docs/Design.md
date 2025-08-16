@@ -76,40 +76,18 @@ For production deployment, you can add nginx or Envoy for load balancing, SSL, a
 - **Environment**: `.env` file for DreamFarm agent
 
 #### Environment Variables
-**DreamFarm Agent (.env) - Azure OpenAI:**
+**DreamFarm Agent (.env) - Unified:**
 ```
-OPENAI_API_TYPE=azure
-AZURE_OPENAI_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_API_KEY=your-api-key
-AZURE_OPENAI_API_VERSION=2024-12-01-preview
-AZURE_OPENAI_DEPLOYMENT_NAME=your-deployment-name
-CORS_ORIGINS=http://localhost:3000
-
-# RAG Configuration
-ENABLE_RAG=true
-RAG_SIMILARITY_THRESHOLD=0.7
-RAG_MAX_RESULTS=3
-
-# PostgreSQL Configuration
-PGHOST=localhost
-PGPORT=5432
-PGDATABASE=aidb
-PGUSER=admin
-PGPASSWORD=Admin12345678
-
-# Azure OpenAI Embeddings (for RAG)
-AZURE_OPENAI_EMBEDDING_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_EMBEDDING_API_KEY=your-api-key
-AZURE_OPENAI_EMBEDDING_API_VERSION=2024-12-01-preview
-AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME=text-embedding-3-large
-```
-
-**DreamFarm Agent (.env) - OpenAI:**
-```
-OPENAI_API_TYPE=openai
+# OpenAI (hosted by OpenAI)
 OPENAI_API_KEY=your-openai-api-key
-OPENAI_MODEL=gpt-4o
+OPENAI_MODEL=gpt-5
 CORS_ORIGINS=http://localhost:3000
+
+# Azure OpenAI (next-gen v1)
+# OPENAI_API_KEY=your-azure-api-key
+# OPENAI_BASE_URL=https://your-resource.openai.azure.com/openai/v1/
+# OPENAI_API_VERSION=preview
+# OPENAI_MODEL=your-azure-deployment-name
 
 # RAG Configuration
 ENABLE_RAG=true
@@ -123,7 +101,7 @@ PGDATABASE=aidb
 PGUSER=admin
 PGPASSWORD=Admin12345678
 
-# OpenAI Embeddings (for RAG)
+# Embeddings (use same unified scheme)
 OPENAI_EMBEDDING_MODEL=text-embedding-3-large
 ```
 
@@ -146,42 +124,23 @@ REACT_APP_API_VERSION=v1
 
 The Dockerfile includes a startup script that generates `public/config.js` from environment variables.
 
-### OpenAI Provider Configuration
+### OpenAI Provider Configuration (Unified)
 
-The system supports both Azure OpenAI and OpenAI API through environment variable configuration:
-
-#### Provider Selection
-Set `OPENAI_API_TYPE` to choose the provider:
-- `azure` - Use Azure OpenAI Service
-- `openai` - Use OpenAI API directly
-
-#### Implementation Pattern
+The system supports both Azure OpenAI and OpenAI API with a single client.
+Use ``OPENAI_BASE_URL`` and ``OPENAI_API_VERSION`` when talking to Azure; omit them for OpenAI-hosted.
 ```python
-# services/openai_service.py
+# services/openai_service.py (concept)
 import os
-from openai import OpenAI, AzureOpenAI
+from openai import OpenAI
 
 def get_openai_client():
-    api_type = os.getenv("OPENAI_API_TYPE", "azure")
-    
-    if api_type == "azure":
-        return AzureOpenAI(
-            azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT"),
-            api_key=os.getenv("AZURE_OPENAI_API_KEY"),
-            api_version=os.getenv("AZURE_OPENAI_API_VERSION")
-        )
-    else:
-        return OpenAI(
-            api_key=os.getenv("OPENAI_API_KEY")
-        )
+  api_key = os.getenv("OPENAI_API_KEY")
+  base_url = os.getenv("OPENAI_BASE_URL")  # e.g., https://<resource>.openai.azure.com/openai/v1/
+  default_query = {"api-version": os.getenv("OPENAI_API_VERSION", "preview")} if base_url else None
+  return OpenAI(api_key=api_key, base_url=base_url, default_query=default_query)
 
 def get_model_name():
-    api_type = os.getenv("OPENAI_API_TYPE", "azure")
-    
-    if api_type == "azure":
-        return os.getenv("AZURE_OPENAI_DEPLOYMENT_NAME")
-    else:
-        return os.getenv("OPENAI_MODEL", "gpt-4o")
+  return os.getenv("OPENAI_MODEL", "gpt-5")
 ```
 
 This abstraction allows the same codebase to work with both providers seamlessly.
@@ -243,21 +202,23 @@ USING hnsw (embedding vector_cosine_ops);
 - **Configurable**: Can be enabled/disabled and tuned via environment variables
 - **Scalable**: Uses PostgreSQL with proper indexing for performance
 
-### Thread Management Strategy
+### Thread/Session Management Strategy
 
-For Lesson 1, we implement a simple thread-based conversation system:
+For Lesson 1, we implement a simple session API consumed by the frontend while keeping conversation state on the provider via the Responses API:
 
-#### Thread Lifecycle
-1. **Create Thread**: Frontend calls `POST /threads` to start new conversation
+#### Session Lifecycle
+1. **Create Session**: Frontend calls `POST /threads` to get a session handle (`thread_id`)
 2. **Send Messages**: Frontend sends messages via `POST /threads/{thread_id}/messages`
-3. **Get History**: Frontend can retrieve conversation history if needed
-4. **Thread Persistence**: Threads are stored in memory for Lesson 1 (later lessons will add database)
+3. **Server-side State**: Backend calls OpenAI Responses API with `store=True` and remembers only the last `response_id` per `thread_id` to continue with `previous_response_id` on the next turn
+4. **History (Optional)**: Backend maintains a lightweight in-memory message list for UI display only; content is not used to generate responses
+5. **Persistence**: In-memory for Lesson 1; later lessons may add DB/Redis for durability
 
 #### Data Storage (Lesson 1)
 ```python
 # In-memory storage for simplicity
 threads: Dict[str, Thread] = {}
-messages: Dict[str, List[Message]] = {}  # thread_id -> messages
+messages: Dict[str, List[Message]] = {}  # thread_id -> messages (display only)
+last_response_id: Dict[str, str] = {}    # thread_id -> last response_id for Responses API continuity
 
 # Later lessons will replace with:
 # - PostgreSQL for persistent storage
@@ -265,9 +226,10 @@ messages: Dict[str, List[Message]] = {}  # thread_id -> messages
 # - User authentication and authorization
 ```
 
-#### Benefits of Thread API
+#### Benefits of Hybrid Session API
 - **Stateless**: Each request is independent, easier to scale
-- **OpenAI Compatible**: Similar to OpenAI's thread API pattern
+- **Provider State**: Uses Responses API server-side state via `previous_response_id`
+- **OpenAI Compatible**: Aligns with Responses API conversation model
 - **Frontend Friendly**: Easy for React to manage conversation state
 - **Future Ready**: Can easily add user sessions, persistence, sharing
 - **Debugging**: Easy to inspect conversation history
@@ -488,7 +450,7 @@ advanced-ai-applications/
 #### DreamFarm Agent (Port 8001)
 **Purpose**: Main AI agent for the Dream Farm marketplace
 - **LLM Integration**: Azure OpenAI Service or OpenAI API communication
-- **Thread Management**: Conversation threads and message history
+- **Session API**: Lightweight `/threads` endpoints for session handles; Responses API maintains conversation state
 - **Business Logic**: Dream Farm marketplace domain logic
 - **MCP Integration**: Tool calling and coordination (Lesson 2+)
 - **CORS Handling**: Frontend communication

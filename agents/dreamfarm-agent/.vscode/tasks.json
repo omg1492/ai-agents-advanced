@@ -1,0 +1,17 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Run tests for dreamfarm-agent",
+			"type": "shell",
+			"command": "uv run -q pytest -q",
+			"args": []
+		},
+		{
+			"label": "Run unit tests for DreamFarm Agent",
+			"type": "shell",
+			"command": "uv run pytest -q",
+			"args": []
+		}
+	]
+}

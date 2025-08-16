@@ -1,5 +1,52 @@
 # Implementation Log
 
+## Responses API Migration & session API - 2025-08-16
+
+- Migrated DreamFarm Agent from Chat Completions to Responses API.
+   - Async clients (AsyncOpenAI/AsyncAzureOpenAI)
+   - Server-side state via `store=True` and `previous_response_id`
+   - Enable GPT-5 minimal reasoning `reasoning={"effort": "minimal"}` when model starts with `gpt-5`.
+- Added `POST /chat` endpoint using Responses API.
+- Reintroduced lightweight `/threads` endpoints to manage client session handles while keeping conversation state in the provider via `previous_response_id`.
+- Removed deprecated `ThreadService`; replaced with minimal session handling directly in `main.py`. `models/thread.py` now provides minimal Pydantic models used by the endpoints.
+- Updated tests:
+   - Added mocked integration tests for `/chat` using FastAPI TestClient.
+   - Skipped old ThreadService tests.
+   - Marked any real-API integration tests as skipped by default.
+- Upgraded `openai` package to `>=1.99.0,<2.0.0` in `pyproject.toml`.
+- Updated README to reflect new API and usage.
+
+## Unified OpenAI/Azure client via Responses API - 2025-08-16
+
+- Refactored OpenAI integration to a single client setup using the next‑gen v1 API style.
+   - Use OpenAI SDK with optional `base_url` and `default_query={"api-version": "preview"}` for Azure.
+   - Works for both OpenAI-hosted and Azure OpenAI without branching on provider type.
+- Updated environment variables to a unified scheme:
+   - Required: `OPENAI_API_KEY`, `OPENAI_MODEL`.
+   - Azure-specific: `OPENAI_BASE_URL`, `OPENAI_API_VERSION`.
+   - Embeddings: `OPENAI_EMBEDDING_MODEL` (deployment name on Azure).
+- Maintained backward compatibility by reading legacy Azure envs if unified ones are missing.
+- Updated docs (`README.md`, `docs/Design.md`) and `.env.template` accordingly.
+- Adjusted tests to the unified configuration.
+   - Removed reliance on OPENAI_API_TYPE in tests and config, favoring OPENAI_BASE_URL detection.
+
+## Test simplification and config injection - 2025-08-16
+
+## Template wiring for Responses API - 2025-08-16
+
+- Initialized `TemplateService` during app startup in `src/main.py`.
+- Replaced hardcoded instruction strings with rendering of `src/templates/system_prompt.j2` in both `/chat` and `/threads/{id}/messages` endpoints.
+- Passed optional RAG context from `RAGService.get_relevant_context` into the template as `simple_rag`, so it appears under `<relevant_products>`.
+- Added DEBUG logs to output the rendered system prompt for verification when `LOG_LEVEL=DEBUG`.
+
+- Simplified test selection: removed RUN_* env gates (e.g., RUN_RAG_INTEGRATION, RUN_API_INTEGRATION).
+   - Default: unit tests selected via pytest marker in pytest.ini (`-m unit`).
+   - Integration tests are explicitly selected with `-m integration` and self‑skip only when required env/infra is missing.
+- OpenAI configuration injection:
+   - `OpenAIService` now accepts `OpenAIConfig` from `ConfigService` (env fallback preserved).
+   - `main.py` injects the config: `OpenAIService(config_service.get_openai_config())`.
+   - Tests that patch `OpenAIService` continue to work unchanged.
+
 ## RAG System Integration & Testing Success - 2025-08-01
 
 ### RAG System Implementation Complete

@@ -16,17 +16,15 @@ This project follows industry best practices for API testing with multiple layer
 
 ### Test Types
 
-1. **Unit Tests** (`test_*_service.py`)
+1. **Unit Tests** (`test_*_service.py`, API tests with mocks)
    - Fast, isolated tests with mocks
    - Test business logic without external dependencies
    - Run frequently during development
-   - Examples: `test_thread_service.py`, `test_rag_service.py`, `test_template_service.py`
+  - Examples: `test_rag_service.py`, `test_template_service.py`, `test_api_integration.py`, `test_threads_api_integration.py`
 
-2. **Integration Tests** (`test_*_integration.py`) 
-   - Test API endpoints using FastAPI TestClient
-   - Test real functionality with external services
-   - **This is the industry standard for API testing**
-   - Examples: `test_api_integration.py`, `test_rag_integration.py`
+2. **Integration Tests** (`test_*_integration.py`, explicitly marked)
+  - Hit real services and infrastructure (OpenAI, PostgreSQL)
+  - Examples: `test_api_live_integration.py`, `test_rag_integration.py`
 
 ### RAG Testing Strategy
 
@@ -34,22 +32,16 @@ This project follows industry best practices for API testing with multiple layer
 - ✅ Mock OpenAI API calls and database connections
 - ✅ Fast execution, no external dependencies
 - ✅ Test error handling and business logic
-- Run with: `pytest -m unit tests/test_rag_service.py`
+- Run with: `uv run -q pytest -m unit tests/test_rag_service.py`
 
-**Integration Tests** (`test_rag_integration.py`):
-- ✅ Real OpenAI API calls for embeddings
-- ✅ Real PostgreSQL database with pgvector
-- ✅ End-to-end RAG functionality verification
-- ⚠️ Requires environment setup (database, API keys)
-- ⚠️ Slower execution, costs money (OpenAI API calls)
-- Run with: `pytest -m integration tests/test_rag_integration.py`
+**Integration Tests**
+- `tests/test_api_live_integration.py`: hits real OpenAI/Azure via backend (/threads)
+- `tests/test_rag_integration.py`: hits real embeddings + real PostgreSQL (RAG)
+- Select with `-m integration`. Tests self‑skip if required env/infra is not available.
 
 ## Running Tests
 
-### All Tests
-```bash
-uv run pytest
-```
+By default, only unit tests run (configured via `pytest.ini: addopts = ... -m unit`). .env is auto‑loaded for all tests.
 
 ### Test Categories
 ```bash
@@ -59,8 +51,8 @@ uv run pytest -m unit -v
 # Integration tests only (requires database + API keys)
 uv run pytest -m integration -v
 
-# Skip slow/expensive tests
-uv run pytest -m "not integration" -v
+# Run everything (unit + integration)
+uv run pytest -m "unit or integration" -v
 ```
 
 ### Specific Services
@@ -71,11 +63,24 @@ uv run pytest tests/test_rag_service.py -v
 # RAG service integration tests (real API/DB)
 uv run pytest tests/test_rag_integration.py -v
 
-# API integration tests
+# API tests (mocked)
 uv run pytest tests/test_api_integration.py -v
 
-# Thread service unit tests
-uv run pytest tests/test_thread_service.py -v
+# Live API test (real provider)
+uv run pytest tests/test_api_live_integration.py -v
+```
+
+Azure configuration tips for live test:
+- Use OPENAI_BASE_URL with '/openai/v1/' suffix and OPENAI_API_VERSION='preview' (next-gen v1)
+
+PowerShell example to enable and run:
+```powershell
+$env:RUN_API_INTEGRATION = "true"
+$env:OPENAI_API_KEY = "<azure-key>"
+$env:OPENAI_BASE_URL = "https://your-resource-name.openai.azure.com/openai/v1/"
+$env:OPENAI_API_VERSION = "preview"
+$env:OPENAI_MODEL = "gpt-5"
+uv run pytest tests/test_api_live_integration.py -v -k live
 ```
 
 ### Test Coverage
@@ -84,13 +89,7 @@ uv run pytest --cov=src --cov-report=html
 ```
 
 ### Test with different environments
-```bash
-# Test with Azure OpenAI
-OPENAI_API_TYPE=azure uv run pytest
-
-# Test with OpenAI API
-OPENAI_API_TYPE=openai uv run pytest
-```
+Environment setup is documented in the project README; tests automatically load .env.
 
 ## Industry Standards This Follows
 
@@ -114,7 +113,7 @@ OPENAI_API_TYPE=openai uv run pytest
 - **Benefits**: Run different test suites in different environments
 - **Standard**: CI/CD pipelines use this approach
 
-## Continuous Integration Integration
+## Continuous Integration
 
 ### GitHub Actions Example
 ```yaml
@@ -124,11 +123,7 @@ OPENAI_API_TYPE=openai uv run pytest
 - name: Run Integration Tests  
   run: uv run pytest tests/test_api_integration.py
 
-- name: Run Manual API Tests (optional)
-  run: |
-    uv run dreamfarm-agent &
-    sleep 5
-    uv run python tests/test_api_manual.py
+  # Integration tests can be run in a separate job or workflow when envs are available.
 ```
 
 ### Test Data Management
