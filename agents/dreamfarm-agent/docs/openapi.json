@@ -25,10 +25,48 @@
         }
       }
     },
+    "/chat": {
+      "post": {
+        "summary": "Chat",
+        "description": "Single endpoint chat using server-side conversation state.\n\nUses Responses API with store=True and previous_response_id for continuity.",
+        "operationId": "chat_chat_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/threads": {
       "post": {
         "summary": "Create Thread",
-        "description": "Create a new conversation thread.\n\nArgs:\n    request: Thread creation request with optional title\n    \nReturns:\n    Created thread details",
         "operationId": "create_thread_threads_post",
         "requestBody": {
           "content": {
@@ -67,7 +105,6 @@
     "/threads/{thread_id}": {
       "get": {
         "summary": "Get Thread",
-        "description": "Get thread information by ID.\n\nArgs:\n    thread_id: ID of the thread to retrieve\n    \nReturns:\n    Thread information\n    \nRaises:\n    HTTPException: If thread not found",
         "operationId": "get_thread_threads__thread_id__get",
         "parameters": [
           {
@@ -85,7 +122,9 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": {
+                  "$ref": "#/components/schemas/Thread"
+                }
               }
             }
           },
@@ -105,7 +144,6 @@
     "/threads/{thread_id}/messages": {
       "post": {
         "summary": "Send Message",
-        "description": "Send a message in a conversation thread.\n\nArgs:\n    thread_id: ID of the thread\n    request: Message content to send\n    \nReturns:\n    Response containing user message and AI response\n    \nRaises:\n    HTTPException: If thread not found or processing fails",
         "operationId": "send_message_threads__thread_id__messages_post",
         "parameters": [
           {
@@ -153,7 +191,6 @@
       },
       "get": {
         "summary": "Get Messages",
-        "description": "Get conversation history for a thread.\n\nArgs:\n    thread_id: ID of the thread\n    limit: Maximum number of messages to return (default: 50)\n    offset: Number of messages to skip (default: 0)\n    \nReturns:\n    Messages and total count\n    \nRaises:\n    HTTPException: If thread not found",
         "operationId": "get_messages_threads__thread_id__messages_get",
         "parameters": [
           {
@@ -209,10 +246,107 @@
           }
         }
       }
+    },
+    "/threads/{thread_id}/messages/stream": {
+      "post": {
+        "summary": "Send Message Stream",
+        "description": "Stream assistant response tokens for a user message in a thread.\n\nStreams raw text chunks so the frontend can progressively render tokens.\nAlso updates lightweight history and server-side state once completed.",
+        "operationId": "send_message_stream_threads__thread_id__messages_stream_post",
+        "parameters": [
+          {
+            "name": "thread_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Thread Id"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendMessageRequest"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "ChatRequest": {
+        "properties": {
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "previous_response_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Previous Response Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "message"
+        ],
+        "title": "ChatRequest",
+        "description": "Request model for chat interaction.\n\nAttributes:\n    message: The user's input message\n    previous_response_id: Optional previous response ID to continue server-side state"
+      },
+      "ChatResponse": {
+        "properties": {
+          "response_id": {
+            "type": "string",
+            "title": "Response Id"
+          },
+          "message": {
+            "type": "string",
+            "title": "Message"
+          },
+          "timestamp": {
+            "type": "string",
+            "title": "Timestamp"
+          }
+        },
+        "type": "object",
+        "required": [
+          "response_id",
+          "message",
+          "timestamp"
+        ],
+        "title": "ChatResponse",
+        "description": "Response model for chat interaction.\n\nAttributes:\n    response_id: The ID of the response created by the API\n    message: Assistant's generated message\n    timestamp: ISO 8601 timestamp when the response was generated"
+      },
       "CreateThreadRequest": {
         "properties": {
           "title": {
@@ -229,7 +363,7 @@
         },
         "type": "object",
         "title": "CreateThreadRequest",
-        "description": "Request model for creating a new thread.\n\nAttributes:\n    title: Optional title for the thread"
+        "description": "Request to create a new thread/session."
       },
       "CreateThreadResponse": {
         "properties": {
@@ -258,7 +392,7 @@
           "updated_at"
         ],
         "title": "CreateThreadResponse",
-        "description": "Response model for thread creation.\n\nAttributes:\n    thread_id: Unique identifier for the created thread\n    title: Title of the created thread\n    created_at: ISO 8601 timestamp when thread was created\n    updated_at: ISO 8601 timestamp when thread was last updated"
+        "description": "Response with created thread info."
       },
       "GetMessagesResponse": {
         "properties": {
@@ -285,7 +419,7 @@
           "total_count"
         ],
         "title": "GetMessagesResponse",
-        "description": "Response model for retrieving messages.\n\nAttributes:\n    thread_id: ID of the thread\n    messages: List of messages in the thread\n    total_count: Total number of messages in the thread"
+        "description": "Paginated message history for a thread."
       },
       "HTTPValidationError": {
         "properties": {
@@ -331,10 +465,6 @@
           },
           "role": {
             "type": "string",
-            "enum": [
-              "user",
-              "assistant"
-            ],
             "title": "Role"
           },
           "content": {
@@ -355,7 +485,7 @@
           "timestamp"
         ],
         "title": "Message",
-        "description": "Message model representing a single message in a conversation.\n\nAttributes:\n    message_id: Unique identifier for the message\n    thread_id: ID of the thread this message belongs to\n    role: Role of the message sender (user or assistant)\n    content: Content of the message\n    timestamp: ISO 8601 timestamp when message was created"
+        "description": "Minimal message for history listing."
       },
       "SendMessageRequest": {
         "properties": {
@@ -369,7 +499,7 @@
           "message"
         ],
         "title": "SendMessageRequest",
-        "description": "Request model for sending a message.\n\nAttributes:\n    message: Content of the message to send"
+        "description": "Request to send a new user message."
       },
       "SendMessageResponse": {
         "properties": {
@@ -403,7 +533,41 @@
           "timestamp"
         ],
         "title": "SendMessageResponse",
-        "description": "Response model for sending a message.\n\nAttributes:\n    message_id: Unique identifier for the user message\n    thread_id: ID of the thread\n    user_message: Content of the user's message\n    assistant_response: Content of the assistant's response\n    timestamp: ISO 8601 timestamp when the interaction occurred"
+        "description": "Response containing the assistant reply."
+      },
+      "Thread": {
+        "properties": {
+          "thread_id": {
+            "type": "string",
+            "title": "Thread Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "created_at": {
+            "type": "string",
+            "title": "Created At"
+          },
+          "updated_at": {
+            "type": "string",
+            "title": "Updated At"
+          },
+          "message_count": {
+            "type": "integer",
+            "title": "Message Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "thread_id",
+          "title",
+          "created_at",
+          "updated_at",
+          "message_count"
+        ],
+        "title": "Thread",
+        "description": "Thread metadata returned by GET /threads/{thread_id}."
       },
       "ValidationError": {
         "properties": {

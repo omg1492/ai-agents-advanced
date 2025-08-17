@@ -163,24 +163,23 @@ The DreamFarm Agent includes a simple RAG system for semantic product search:
 - Formats search results for system prompt injection
 - Feature flag support via `ENABLE_RAG` environment variable
 
-**Database Schema**:
-```sql
--- simple_products table with pgvector extension
-CREATE TABLE simple_products (
-    id SERIAL PRIMARY KEY,
-    product_id UUID NOT NULL UNIQUE,
-    producer_name VARCHAR(255) NOT NULL,
-    product_name VARCHAR(255) NOT NULL,
-    product_description TEXT NOT NULL,
-    combined_text TEXT NOT NULL,
-    embedding vector(2000)  -- 2000-dimensional embeddings
-);
+**Database Schema (brief):**
 
--- HNSW index for fast cosine similarity search
-CREATE INDEX idx_simple_products_embedding_cosine 
-ON simple_products 
-USING hnsw (embedding vector_cosine_ops);
-```
+simple_products
+
+| Column             | Type          | Constraints           | Description                                      |
+|--------------------|---------------|-----------------------|--------------------------------------------------|
+| id                 | integer       | primary key           |                                                  |
+| product_id         | UUID          | unique, not null      | Product identifier                               |
+| producer_name      | varchar(255)  | not null              | Producer name                                    |
+| product_name       | varchar(255)  | not null              | Product name                                     |
+| product_description| text          | not null              | Product description                              |
+| combined_text      | text          | not null              | Preformatted text used for embedding generation  |
+| embedding          | vector(2000)  |                       | 2000-d embedding (pgvector)                      |
+
+Notes
+- Vector similarity optimized with an HNSW index on embedding (cosine similarity).
+- Additional btree indexes on product_id, producer_name, and product_name for lookups.
 
 #### RAG Configuration
 
@@ -237,6 +236,28 @@ last_response_id: Dict[str, str] = {}    # thread_id -> last response_id for Res
 #### API Endpoints
 
 **Base URL**: `http://localhost:8001`
+
+##### POST /chat
+Single-endpoint chat using server-side conversation state.
+
+Uses Responses API with `store=true` and `previous_response_id` for continuity.
+
+**Request Body:**
+```json
+{
+  "message": "string",
+  "previous_response_id": "string (optional)"
+}
+```
+
+**Response:**
+```json
+{
+  "response_id": "string",
+  "message": "string",
+  "timestamp": "string (ISO 8601)"
+}
+```
 
 ##### POST /threads
 Create a new conversation thread.
@@ -317,6 +338,7 @@ Get conversation history for a thread.
   "messages": [
     {
       "message_id": "string (UUID)",
+  "thread_id": "string (UUID)",
       "role": "user|assistant",
       "content": "string",
       "timestamp": "string (ISO 8601)"
@@ -339,6 +361,18 @@ Health check endpoint.
 
 ### Data Models
 
+#### Chat (Pydantic)
+```python
+class ChatRequest(BaseModel):
+  message: str
+  previous_response_id: Optional[str] = None
+
+class ChatResponse(BaseModel):
+  response_id: str
+  message: str
+  timestamp: str
+```
+
 #### Thread (Pydantic)
 ```python
 class Thread(BaseModel):
@@ -346,7 +380,7 @@ class Thread(BaseModel):
     title: str
     created_at: str
     updated_at: str
-    message_count: int = 0
+    message_count: int
 
 class CreateThreadRequest(BaseModel):
     title: Optional[str] = None
@@ -363,7 +397,7 @@ class CreateThreadResponse(BaseModel):
 class Message(BaseModel):
     message_id: str
     thread_id: str
-    role: Literal["user", "assistant"]
+  role: str  # "user" | "assistant"
     content: str
     timestamp: str
 
@@ -395,64 +429,32 @@ class HealthResponse(BaseModel):
 ```
 advanced-ai-applications/
 ├── agents/
-│   ├── dreamfarm-agent/         # Main DreamFarm marketplace agent
-│   │   ├── src/
-│   │   │   ├── __init__.py
-│   │   │   ├── main.py          # FastAPI agent application (includes routes & CORS)
-│   │   │   ├── models/
-│   │   │   │   ├── __init__.py
-│   │   │   │   ├── thread.py    # Thread and message Pydantic models
-│   │   │   │   └── health.py    # Health check models
-│   │   │   └── services/
-│   │   │       ├── __init__.py
-│   │   │       ├── openai_service.py # OpenAI/Azure OpenAI integration
-│   │   │       ├── thread_service.py # Thread/conversation management
-│   │   │       └── mcp_client.py    # MCP client (added in lesson 2)
-│   │   ├── tests/
-│   │   ├── .env
-│   │   ├── pyproject.toml
-│   │   └── README.md
-│   └── chef-agent/              # Cooking/catering agent (added in lesson 8)
+│   └── dreamfarm-agent/            # Main DreamFarm marketplace agent
 │       ├── src/
-│       │   ├── __init__.py
-│       │   ├── main.py          # FastAPI agent application
-│       │   ├── models/
-│       │   └── services/
+│       │   ├── main.py             # FastAPI app (routes, CORS)
+│       │   ├── models/             # Pydantic models (chat, thread, health)
+│       │   ├── services/           # OpenAI, RAG, config, templates
+│       │   ├── templates/          # Jinja2 prompts
+│       │   └── utils/
 │       ├── tests/
-│       ├── .env
-│       ├── pyproject.toml
-│       └── README.md
-├── tools/                       # MCP servers (added in lesson 2+)
-│   ├── rag-mcp-server/         # RAG and knowledge base (lesson 3+)
-│   ├── web-search-mcp-server/  # Web search integration (lesson 2)
-│   ├── knowledge-graph-mcp-server/ # Knowledge graph (lesson 4)
-│   └── shared/
-│       └── mcp-utils/          # Common MCP utilities
+│       ├── docs/
+│       └── scripts/
+├── data/
+│   ├── processed/                  # Generated data (e.g., Parquet)
+│   ├── scripts/                    # ETL, embeddings, import
+│   └── source_json/                # Sample source data
+├── deploy/
+│   ├── azure/
+│   ├── kubernetes/
+│   └── local/                      # docker-compose and local setup
 ├── frontend/
-│   ├── public/
-│   │   ├── config.js           # Runtime configuration (generated)
-│   │   └── config.js.template  # Template for Docker generation
-│   ├── src/
-│   │   ├── components/
-│   │   │   └── ChatInterface.tsx
-│   │   ├── services/
-│   │   │   └── api.ts          # DreamFarm Agent calls
-│   │   ├── App.tsx
-│   │   └── main.tsx
-│   ├── scripts/
-│   │   └── generate-config.sh  # Docker startup script
-│   ├── package.json
-│   ├── vite.config.ts
-│   ├── Dockerfile
-│   └── README.md
-├── infrastructure/             # Added in lesson 10
-│   ├── terraform/
-│   ├── k8s/
-│   └── nginx.conf              # Optional: nginx config for production
-├── docs/
-│   ├── Design.md               # This document
-│   └── ImplementationLog.md    # Implementation progress
-└── README.md                   # Project overview
+│   ├── public/                     # Runtime config (config.js), assets
+│   ├── src/                        # React app (components, services)
+│   └── scripts/
+├── docs/                           # Design and project docs (contents not listed)
+├── lessons/                        # Instructions for individual lessons
+├── scripts/
+└── (root files not listed)
 ```
 
 ### Service Responsibilities

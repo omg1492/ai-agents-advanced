@@ -265,3 +265,43 @@ agents/dreamfarm-agent/
 - Backend: added `POST /threads/{thread_id}/messages/stream` which streams plain text tokens using OpenAI Responses streaming context manager. It builds the same Jinja2 system prompt and optional RAG context as non-streaming, yields deltas, and updates in-memory history and `previous_response_id` at completion.
 - Frontend: added `dreamFarmAPI.sendMessageStream()` returning a ReadableStream and updated `DreamFarmChatAdapter.run` to be an async generator that reads from the stream and yields progressively to assistant-ui, so tokens appear as they arrive.
 - Kept existing non-streaming endpoint for compatibility. No breaking API changes.
+
+## 2025-08-17 - Design doc API/schema alignment
+
+- Updated `docs/Design.md` to fully reflect current API and models:
+   - Added missing `POST /chat` endpoint section with `ChatRequest`/`ChatResponse` shapes.
+   - Fixed `GET /threads/{thread_id}/messages` response example to include required `thread_id` inside each message item.
+   - Aligned Pydantic snippets with code: `Thread.message_count` required, `Message.role` as `str` union, added Chat models section.
+   - Kept environment and RAG sections unchanged, only clarified SQL schema fields already present in data scripts.
+
+   ## 2025-08-17 - Design doc project structure alignment
+
+   - Updated `docs/Design.md` Project Structure section to match current repository layout:
+      - Reflected top-level folders: agents, data, deploy, docs, frontend, lessons, scripts.
+      - Expanded `agents/dreamfarm-agent` key subfolders: src/{models, services, templates, utils}, tests, docs, scripts.
+      - Added `data/processed`, `data/scripts`, and `data/source_json`.
+      - Included `deploy/{azure,kubernetes,local}` and `frontend/{public,src,scripts}`.
+
+   ## 2025-08-17 - Design doc structure simplification
+
+   - Simplified `Project Structure` section per guidance:
+      - Do not list files or root-level files; only main folders and key subfolders.
+      - Do not enumerate lesson subfolders; added a comment that lessons contain instructions for individual lessons.
+      - Kept docs listed as a main folder without enumerating contents.
+
+      ## 2025-08-17 - Design doc database schema simplification
+
+      - Replaced raw SQL in `Database Schema` with a concise description of the `simple_products` table and its columns.
+      - Added notes about HNSW vector index (cosine) and supporting btree indexes for lookups.
+      - Ensured column names and types match the `data/scripts/sql/tables/01_create_simple_products.sql` script.
+
+      ## 2025-08-17 - Design doc DB schema table formatting
+
+      - Reformatted the brief `simple_products` schema into a Markdown table for readability while retaining index notes.
+
+      ## 2025-08-17 - Dev utility: lesson branches cherry-pick helper
+
+      - Added `scripts/cherry_pick.py` and documented it in `scripts/README.md`.
+      - Automates cherry-picking the latest commit from main into all lesson branches matching `Lxx-teacher`, `Lxx-student-starter`, `Lxx-student-end`.
+      - Uses git CLI via subprocess for reliability; no extra dependencies added.
+      - Provides interactive confirmation, progress output, conflict abort/continue behavior, and a summary report.
