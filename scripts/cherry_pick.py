@@ -91,13 +91,15 @@ def get_latest_commit_info(repo: str, branch: str) -> CommitInfo:
 	return CommitInfo(sha=sha, subject=subject, files=files)
 
 
-def prompt_confirm(commit: CommitInfo, main_branch: str) -> None:
+def prompt_confirm(commit: CommitInfo, main_branch: str, assume_yes: bool = False) -> None:
 	"""Print commit details and ask for confirmation to continue."""
 	print(f"Detected main branch: {main_branch}")
 	print(f"Latest commit: {commit.sha} - {commit.subject}")
 	print("Changed files:")
 	for f in commit.files:
 		print(f"  - {f}")
+	if assume_yes:
+		return
 	ans = input("Continue to cherry-pick this commit into lesson branches? [y/N]: ").strip().lower()
 	if ans not in ("y", "yes"):
 		print("Aborted by user.")
@@ -220,6 +222,40 @@ def cherry_pick_into_branch(repo: str, branch: str, sha: str) -> Tuple[bool, Opt
 		return False, err
 
 
+def get_branch_remote(repo: str, branch: str) -> Tuple[Optional[str], bool]:
+	"""Return (remote_name, has_upstream) for the given branch based on git config."""
+	try:
+		remote = git(["config", "--get", f"branch.{branch}.remote"], cwd=repo, check=False).stdout.strip()
+	except subprocess.CalledProcessError:
+		remote = ""
+	has_upstream = bool(remote)
+	if not remote:
+		# Fallback to origin if present
+		remotes = git(["remote"], cwd=repo, check=False).stdout.splitlines()
+		remote = "origin" if "origin" in [r.strip() for r in remotes] else None
+	return remote, has_upstream
+
+
+def push_branch(repo: str, branch: str) -> Tuple[bool, Optional[str]]:
+	"""Push branch to its upstream or origin; sets upstream if missing."""
+	remote, has_upstream = get_branch_remote(repo, branch)
+	if not remote:
+		return False, "no-remote"
+	args = ["push"]
+	if not has_upstream:
+		args.append("-u")
+	args.extend([remote, f"{branch}:{branch}"])
+	try:
+		print(f"Pushing {branch} to {remote}...")
+		git(args, cwd=repo)
+		print(f"Pushed {branch}.")
+		return True, None
+	except subprocess.CalledProcessError as e:
+		err = e.stderr.strip() or e.stdout.strip() or "unknown push error"
+		print(f"Push failed for {branch}: {err}")
+		return False, err
+
+
 def main() -> None:
 	repo = ensure_repo_root()
 	os.chdir(repo)
@@ -234,7 +270,7 @@ def main() -> None:
 	checkout(repo, main_branch)
 	fetch_all(repo)
 	commit = get_latest_commit_info(repo, main_branch)
-	prompt_confirm(commit, main_branch)
+	prompt_confirm(commit, main_branch, assume_yes=False)
 
 	# Gather lesson branches
 	lessons = gather_lesson_branches(repo)
@@ -248,18 +284,25 @@ def main() -> None:
 		print(f" - {b}")
 
 	# Process each branch
-	successes = []
-	skipped = []
-	failures = []
+	successes: List[str] = []
+	skipped: List[str] = []
+	failures: List[Tuple[str, str]] = []
+	push_failures: List[Tuple[str, str]] = []
 
 	for b in lessons:
 		ok, err = cherry_pick_into_branch(repo, b, commit.sha)
 		if ok and err is None:
 			successes.append(b)
+			pok, perr = push_branch(repo, b)
+			if not pok and perr:
+				push_failures.append((b, perr))
 		elif err == "branch_missing":
 			skipped.append(b)
-		elif ok:  # already contained
+		elif ok:  # already contained (this branch isn't used because err is None when ok)
 			skipped.append(b)
+			pok, perr = push_branch(repo, b)
+			if not pok and perr:
+				push_failures.append((b, perr))
 		else:
 			failures.append((b, err))
 
@@ -278,6 +321,10 @@ def main() -> None:
 	print(f"  Failed: {len(failures)}")
 	for b, err in failures:
 		print(f"    - {b}: {err}")
+	if push_failures:
+		print(f"  Push failures: {len(push_failures)}")
+		for b, err in push_failures:
+			print(f"    - {b}: {err}")
 
 
 if __name__ == "__main__":

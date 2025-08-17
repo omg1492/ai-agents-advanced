@@ -11,7 +11,7 @@ What it does (briefly)
 - Shows the latest main commit and changed files, asks to continue
 - Finds lesson branches (local + remote) by pattern
 - Cherry-picks into each branch, aborts on conflict, prints a summary
-- Does not push changes
+- Automatically pushes updated branches to the remote (sets upstream if missing)
 
 Usage
 - Prerequisites: git installed and a clean working tree
@@ -19,4 +19,12 @@ Usage
 
 ```powershell
 uv run python .\scripts\cherry_pick.py
+```
+
+Optional:
+- Auto-confirm: add `-y`
+- Auto-push updated branches: add `--push`
+
+```powershell
+uv run python .\scripts\cherry_pick.py -y --push
 ```

@@ -305,3 +305,4 @@ agents/dreamfarm-agent/
       - Automates cherry-picking the latest commit from main into all lesson branches matching `Lxx-teacher`, `Lxx-student-starter`, `Lxx-student-end`.
       - Uses git CLI via subprocess for reliability; no extra dependencies added.
       - Provides interactive confirmation, progress output, conflict abort/continue behavior, and a summary report.
+      - Enhancement: script now automatically pushes updated branches to the remote (sets upstream when missing) — no flags required.
