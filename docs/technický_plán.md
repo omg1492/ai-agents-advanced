@@ -39,7 +39,7 @@ Základní chatbot zpřístupní popisy produktů z farmy v přirozeném jazyce,
 Rychlé a přesné odpovědi snižují zátěž podpory a zvyšují míru dokončených objednávek.
 
 #### Technické aspekty plné verze
-- CSV ingest → PostgreSQL (pgvector) + embeddings  
+- JSON ingest → PostgreSQL (pgvector) + embeddings  
 - Backend (FastAPI) + RAG  
 - UI (React – assistant-ui)
   
@@ -47,11 +47,10 @@ Rychlé a přesné odpovědi snižují zátěž podpory a zvyšují míru dokon�
 - Backend + UI bez RAG → přidání RAG
 
 #### Použité technologie a nástroje
-- OpenAI API  
+- OpenAI API  (Responses API - GPT-5)
 - PostgreSQL (pgvector)  
 - Python (backend, FastAPI)  
 - React UI (assistant-ui)  
-- LangGraph (RAG)
 
 ### Lekce 02 – Používání nástrojů: Web search, API, MCP
 

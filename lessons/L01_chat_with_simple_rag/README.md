@@ -1,4 +1,6 @@
 # Lekce 01 – Business požadavky, architektura & základní chatbot nad dokumenty
+Dream Farm je virtuální farmářské tržiště, které propojuje malé lokální farmáře se zákazníky.
+
 Základní chatbot zpřístupní popisy produktů z farmy v přirozeném jazyce, takže zákazník ihned zjistí původ, kvalitu i dostupnost zboží. Rychlé a přesné odpovědi snižují zátěž podpory a zvyšují míru dokončených objednávek.  
 
 **Koncepty:**
@@ -18,7 +20,9 @@ Backend je v adresáři `agents/dreamfarm-agent/src/`, spuští se příklazem `
 
 Databázi PostgreSQL spustíte přes Docker Compose v adresáři `deploy/local` příkazem `docker-compose up -d`. Bude potřeba nainstalovat extensions a vytvořit schéma jednoduché tabulky, což najdete v `data/scripts/sql` buď ručně nebo použijte skript `data/scripts/configurepostgresql.py`.
 
-Spusťte celé řešení - backend i frontend. Chatbot by měl fungovat a reagovat na otázky, ale pokud se zeptáte například `Who is producing vanilla-infused milk` nebude znát správnou odpověď - n
+Spusťte celé řešení - backend i frontend. Chatbot by měl fungovat a reagovat na otázky, ale pokud se zeptáte například `Who is producing vanilla-infused milk` nebude znát správnou odpověď.
+
+Pokud budete dělat změny v kódu, využijte testů pro rychlé ověření funkčnosti - popis je v `agents/dreamfarm-agent/tests/README.md`.
 
 ## Příprava dat
 Data jsou pro vás už vygenerovaná a uložená v `data/source_json/`. Pokud byste chtěli generovat vlastní data, použijte skript `data/scripts/gen_basic_data.py`, který vytvoří JSON soubory s produkty, producenty a dalšími informacemi.
@@ -35,4 +39,5 @@ Vytvořte testovací skript, který bude vyhledávat top 5 nejpodobnějších z�
 Pokud skript funguje, zapněte RAG v připraveném kódu v .env souboru a vyzkoušejte
 
 ## Myšlenky navíc, pokud zbývá čas
-- Přidejte streamování odpovědí
+- Přidejte do chatu informaci kolik dokumentů v rámci své odpovědi systém prozkoumal.
+- Změňte prompt tak, aby chat pro jednotlivé části své odpovědi citoval odkud to má - nejprve zkuste jednoduše přidat ID produktu do závorky, pak zkuste přidat jen číslo citace a na konci odpovědi vypsat tabulku citací (například 1 - Butter, product ID xyz).
