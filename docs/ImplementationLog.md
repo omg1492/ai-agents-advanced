@@ -306,3 +306,43 @@ agents/dreamfarm-agent/
       - Uses git CLI via subprocess for reliability; no extra dependencies added.
       - Provides interactive confirmation, progress output, conflict abort/continue behavior, and a summary report.
       - Enhancement: script now automatically pushes updated branches to the remote (sets upstream when missing) — no flags required.
+
+## 2025-08-17 - Design doc database & graph schema for production
+
+- Added a production schema section to `docs/Design.md`:
+   - `products` table for hybrid search: embeddings (vector(2000)), FTS (tsvector), and BTREE indexes; `producer_id` included.
+   - `stock` table as standard PostgreSQL table with composite PK `(producer_id, product_id)` matching generator output.
+   - AGE knowledge graph modeling: lightweight Product vertices (carry `productId` + `name`) and rich relations (PRODUCES, HAS_CERTIFICATION, CONTAINS_ALLERGEN, HAS_CATEGORY, RELATED).
+   - Documented the recommended integration pattern: retrieve candidates in SQL (pgvector + FTS), then traverse/enrich in graph via AGE using shared IDs, with optional relational join for final rendering.
+- Rationale:
+   - Keep content/embedding/FTS in relational for performance and operational simplicity.
+   - Use graph for multi-hop reasoning, explanations, and relationship-centric queries.
+   - Bridge via stable external IDs (`productId`, `producerId`) stored on vertices.
+
+### 2025-08-17 - Docs formatting improvement
+
+- Reformatted `docs/Design.md` products and stock field lists into Markdown tables for clarity and consistency.
+
+## 2025-08-17 - SQL: stock, products (hybrid), and AGE graph init
+
+- Added PostgreSQL SQL scripts to set up extensions and schemas in order consumed by `configure_postgresql.py`:
+   - `data/scripts/sql/extensions/02_install_age.sql` – installs and loads Apache AGE, sets search_path for sessions.
+   - `data/scripts/sql/tables/02_create_stock.sql` – creates `stock` table with composite primary key `(producer_id, product_id)` and helpful comments.
+   - `data/scripts/sql/tables/03_create_products.sql` – creates `products` table with pgvector `embedding`, `fts_document` tsvector, HNSW and GIN indexes, and a trigger to maintain FTS.
+   - `data/scripts/sql/tables/04_init_age_graph.sql` – initializes the `dreamfarm` AGE graph (idempotent drop/create) and documents intended labels/edges.
+- Notes:
+   - These scripts assume PostgreSQL with pgvector and Apache AGE available (e.g., our Docker Compose Postgres or Azure PG Flexible Server with AGE enabled).
+   - AGE labels are created implicitly upon first use via `cypher(...)`; the init script creates the graph and documents labels/edges expected by ETL.
+
+## 2025-08-17 - Data import: stock
+
+- Added `data/scripts/import_stock.py` to import `data/source_json/stock.json` into the `stock` table.
+   - Truncates `stock` (overwrite) before import.
+   - Validates records, logs skipped items, batches inserts, and logs progress and totals.
+   - Uses env-based PostgreSQL connection (PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD).
+
+## 2025-08-17 - Postgres image with pgvector + Apache AGE, and GHCR workflow
+
+- Added `postgresql/Dockerfile` building from `pgvector/pgvector:pg17` and compiling Apache AGE from source.
+- Created GitHub Actions workflow `.github/workflows/build-postgres-image.yml` to build and push the image to GHCR on manual trigger (`workflow_dispatch`).
+- Updated `postgresql/README.md` with usage instructions, GHCR tags, and Docker Compose tips.

@@ -180,6 +180,113 @@ simple_products
 Notes
 - Vector similarity optimized with an HNSW index on embedding (cosine similarity).
 - Additional btree indexes on product_id, producer_name, and product_name for lookups.
+ - Additional btree indexes on product_id, producer_name, and product_name for lookups.
+
+### Database and Knowledge Graph Schema (production-ready)
+
+This section specifies the target schema for production, extending the Lesson 1 "simple_products" with a richer `products` table for hybrid search, a `stock` table, and a knowledge graph using Apache AGE.
+
+#### Products (relational, hybrid search)
+
+Purpose: primary product catalog optimized for hybrid retrieval (semantic + keyword) and downstream reranking.
+
+Columns
+
+| Column             | Type          | Constraints                | Description                                                                 |
+|--------------------|---------------|----------------------------|-----------------------------------------------------------------------------|
+| id                 | serial        | primary key                | Surrogate key                                                               |
+| product_id         | UUID          | unique, not null           | Stable external product identifier                                          |
+| producer_id        | UUID          | not null                   | External producer identifier; correlates with Producer vertex (producerId)  |
+| producer_name      | varchar(255)  | not null                   | Redundant for search/sorting                                                |
+| product_name       | varchar(255)  | not null                   | Product display name                                                        |
+| product_description| text          | not null                   | Rich description                                                            |
+| combined_text      | text          | not null                   | Concatenated fields used for embeddings                                     |
+| embedding          | vector(2000)  |                            | 2000‑d pgvector embedding (text-embedding-3-large)                          |
+| fts_document       | tsvector      | not null                   | Generated from name/producer/description for FTS                            |
+| created_at         | timestamptz   | default now()              | Row creation timestamp                                                      |
+| updated_at         | timestamptz   | default now()              | Row update timestamp                                                        |
+
+Indexes
+
+- HNSW index on embedding using cosine ops for fast vector similarity
+- GIN index on fts_document for full‑text search
+- BTREE indexes on product_id, producer_id, producer_name, product_name
+
+Notes
+
+- Maintain `fts_document` via trigger (e.g., to_tsvector('english', ...)).
+- Use hybrid scoring for candidate retrieval:
+  score = 0.6 * (1 - cosine_distance(embedding, :query_vec)) + 0.4 * ts_rank_cd(fts_document, plainto_tsquery(:q))
+- Keep `simple_products` as a minimal seed/training/lesson table; `products` supersedes it for production use.
+
+#### Stock (relational)
+
+Purpose: current stock quantity per product (and producer for provenance).
+
+Columns
+
+| Column       | Type        | Constraints       | Description                              |
+|--------------|-------------|-------------------|------------------------------------------|
+| producer_id  | UUID        | not null          | Producer that owns the stock entry        |
+| product_id   | UUID        | not null          | Product this stock refers to              |
+| on_stock     | integer     | not null, default 0 | Current available quantity               |
+| updated_at   | timestamptz | default now()     | Last update timestamp                     |
+
+Constraints & Indexes
+
+- Primary key: (producer_id, product_id)
+- BTREE indexes on product_id and producer_id (if not covered by PK)
+
+Notes
+
+- Matches generator output in `data/source_json/stock.json` (producerId, productId, onStock).
+- If products are unique to a producer, (product_id) could be unique; we keep a composite PK for generality.
+
+#### Knowledge graph (Apache AGE)
+
+Purpose: model rich relationships (producer → product, certifications, allergens, categories) and enable graph traversals for recommendations, explanations, and exploration.
+
+- Graph name: dreamfarm
+- Query language: openCypher via AGE’s cypher() SQL function
+
+Vertices (labels and representative properties)
+
+- Producer { producerId: UUID, name: text, description: text }
+- Product { productId: UUID, name: text }
+- Certification { certificationId: UUID, name: text, description: text }
+- Allergen { allergenId: UUID, name: text }
+- Category { name: text }
+
+Edges (relationship types)
+
+- PRODUCES (Producer → Product)
+- HAS_CERTIFICATION (Producer → Certification)
+- CONTAINS_ALLERGEN (Product → Allergen)
+- HAS_CATEGORY (Product → Category)
+- RELATED (Product ↔ Product) optional, for curated similarity/co‑purchase signals
+
+Relational ↔ Graph integration (recommended pattern)
+
+- Keep `products` as the system of record for product content, embeddings, and FTS.
+- Create lightweight Product vertices that carry only a stable external key `productId` (and `name`) to reference relational rows.
+- Mirror producer/certification/allergen entities as vertices with their stable IDs from the JSON/ETL.
+- Synchronization: populate/refresh the graph from the relational/JSON sources via ETL jobs; only a small subset of product attributes lives in the graph.
+- Query pattern:
+  1) Do hybrid retrieval in SQL on `products` to get top-N product_ids with scores.
+  2) Use those IDs as parameters to a Cypher query for traversals/enrichment (e.g., producers, certifications, similar products) and optionally re‑rank.
+  3) Join the `cypher(...)` results with relational tables on the `productId`/`producerId` properties.
+
+Why this split?
+
+- Relational tables excel at hybrid search (pgvector + FTS) and filtering/pagination.
+- Graph excels at multi‑hop relationships and explanations (e.g., why is this product recommended?).
+- Using `productId`/`producerId` as shared keys keeps the models decoupled but interoperable.
+
+AGE operational notes
+
+- Enable AGE extension and set `search_path = ag_catalog, "$user", public` in sessions that run Cypher.
+- Use `SELECT create_graph('dreamfarm');` once, then `cypher('dreamfarm', $$ ... $$)` for DML/queries.
+- Store external IDs as vertex properties (e.g., `Product {productId: '...'}`) to bridge to relational tables.
 
 #### RAG Configuration
 

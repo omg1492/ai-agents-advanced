@@ -66,9 +66,13 @@ uv run gen_basic_data.py
 uv run configure_postgresql.py
 ```
 
-**SQL Scripts Executed**:
+**SQL Scripts Executed** (in order):
 - `sql/extensions/01_install_pgvector.sql` - Installs pgvector extension
-- `sql/tables/01_create_simple_products.sql` - Creates main table with indexes
+- `sql/extensions/02_install_age.sql` - Installs and loads Apache AGE
+- `sql/tables/01_create_simple_products.sql` - Creates simple seed table with vector index (lesson 1)
+- `sql/tables/02_create_stock.sql` - Creates stock table
+- `sql/tables/03_create_products.sql` - Creates production products table (hybrid: pgvector + FTS)
+- `sql/tables/04_init_age_graph.sql` - Initializes the AGE graph `dreamfarm`
 
 ### 3. `embeddings_simple_products.py`
 **Purpose**: Processes product data and generates vector embeddings using OpenAI models.
@@ -100,6 +104,18 @@ uv run embeddings_simple_products.py
 **Usage**:
 ```bash
 uv run import_simple_products.py
+```
+
+### 5. `import_stock.py`
+**Purpose**: Imports stock levels from `../source_json/stock.json` into the `stock` table.
+
+**Features**:
+- Truncates `stock` table (overwrite existing) before import
+- Validates inputs, batches inserts, and logs progress/summary
+
+**Usage**:
+```bash
+uv run import_stock.py
 ```
 
 ## Data Flow
@@ -205,6 +221,10 @@ data/scripts/
     ├── README.md                      # SQL documentation
     ├── extensions/                    # Database extensions
     │   └── 01_install_pgvector.sql
+   │   └── 02_install_age.sql
     └── tables/                        # Table definitions
-        └── 01_create_simple_products.sql
+      ├── 01_create_simple_products.sql
+      ├── 02_create_stock.sql
+      ├── 03_create_products.sql
+      └── 04_init_age_graph.sql
 ```
