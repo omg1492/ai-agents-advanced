@@ -18,7 +18,6 @@ Základní chatbot zpřístupní popisy produktů z farmy v přirozeném jazyce,
 - PostgreSQL (pgvector)
 - Python (backend, FastAPI)
 - React UI (assistant-ui)
-- LangGraph
 
 ### Lekce 02 – Používání nástrojů: Web search, API, MCP
 Asistent kombinuje interní API s web-search, aby ukázal aktuální ceny, zásoby a recepty k vybranému produktu. Tím pomáhá zákazníkovi lépe plánovat nákup a zvyšuje průměrnou hodnotu košíku i konverzní poměr.  
