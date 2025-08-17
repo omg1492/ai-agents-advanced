@@ -11,6 +11,10 @@ on:
         description: "Apache AGE git ref (tag/branch/commit). Use a tagged release for stability."
         required: false
         default: "master"
+      platforms:
+        description: "Target platforms (comma-separated)"
+        required: false
+        default: "linux/amd64"
 
 permissions:
   contents: read
@@ -45,6 +49,7 @@ jobs:
           push: true
           build-args: |
             AGE_REF=${{ github.event.inputs.age_ref }}
+          platforms: ${{ github.event.inputs.platforms }}
           tags: |
             ghcr.io/${{ env.IMAGE_NAME }}:${{ github.event.inputs.image_tag }}
           cache-from: type=gha

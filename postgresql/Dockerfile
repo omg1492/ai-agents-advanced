@@ -18,6 +18,8 @@ RUN set -eux; \
         ca-certificates \
         git \
         build-essential \
+        flex \
+        bison \
         postgresql-server-dev-17; \
     update-ca-certificates; \
     \
@@ -31,7 +33,7 @@ RUN set -eux; \
     rm -rf /tmp/age; \
     \
     # Remove build deps to keep image small
-    apt-get purge -y --auto-remove git build-essential postgresql-server-dev-17; \
+    apt-get purge -y --auto-remove git build-essential flex bison postgresql-server-dev-17; \
     rm -rf /var/lib/apt/lists/*
 
 # Optional: document where AGE installs its files on Debian-based images
