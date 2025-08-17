@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 
 from src.models.health import HealthResponse
@@ -272,6 +273,100 @@ async def send_message(thread_id: str, payload: SendMessageRequest):
         assistant_response=text,
         timestamp=now,
     )
+
+
+@app.post("/threads/{thread_id}/messages/stream")
+async def send_message_stream(thread_id: str, payload: SendMessageRequest):
+    """Stream assistant response tokens for a user message in a thread.
+
+    Streams raw text chunks so the frontend can progressively render tokens.
+    Also updates lightweight history and server-side state once completed.
+    """
+    thread = _threads.get(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+
+    # Record the user message immediately
+    now_iso = datetime.now(timezone.utc).isoformat()
+    user_message_id = os.urandom(8).hex()
+    user_msg = MessageModel(
+        message_id=user_message_id,
+        thread_id=thread_id,
+        role="user",
+        content=payload.message,
+        timestamp=now_iso,
+    )
+    _history.setdefault(thread_id, []).append(user_msg)
+
+    prev_resp_id = _last_response_id.get(thread_id)
+
+    # Build system prompt with optional RAG context
+    rag_context = None
+    if 'rag_service' in globals() and rag_service is not None and getattr(rag_service, 'enabled', False):
+        try:
+            rag_context = await rag_service.get_relevant_context(payload.message)
+        except Exception as re:
+            logger.warning(f"RAG context fetch failed; proceeding without context: {re}")
+
+    system_prompt = template_service.render_template(
+        "system_prompt.j2",
+        {
+            "user_location": None,
+            "seasonal_products": [],
+            "user_preferences": [],
+            "simple_rag": rag_context or "",
+        },
+    )
+
+    async def token_generator():
+        """Internal async generator that yields text chunks and updates state on finish."""
+        full_text = ""
+        response_id_local = None
+        try:
+            # Stream from OpenAI Responses API (unified OpenAI/Azure client)
+            async with openai_service.client.responses.stream(
+                model=openai_service.model_name,
+                instructions=system_prompt or None,
+                input=payload.message,
+                store=True,
+                previous_response_id=prev_resp_id or None,
+                reasoning={"effort": "minimal"},
+            ) as stream:
+                async for event in stream:
+                    # Collect plain text deltas
+                    et = getattr(event, "type", "")
+                    if et.endswith("response.output_text.delta") or et == "response.output_text.delta":
+                        delta = getattr(event, "delta", "")
+                        if delta:
+                            full_text += delta
+                            yield delta
+                    elif et.endswith("response.error") or et == "response.error":
+                        err = getattr(event, "error", None)
+                        logger.error(f"OpenAI stream error: {err}")
+                # Get final response to retrieve response_id
+                final = await stream.get_final_response()
+                response_id_local = getattr(final, "id", None)
+        except Exception as e:
+            logger.error(f"Streaming failed: {e}")
+            # Stop streaming; client will handle partial content
+        finally:
+            # Update server-side state/history when stream completes
+            if response_id_local:
+                _last_response_id[thread_id] = response_id_local
+            # Append assistant message to history
+            assistant_msg = MessageModel(
+                message_id=os.urandom(8).hex(),
+                thread_id=thread_id,
+                role="assistant",
+                content=full_text,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
+            _history[thread_id].append(assistant_msg)
+            # Update thread metadata
+            thread.message_count = len(_history[thread_id])
+            thread.updated_at = datetime.now(timezone.utc).isoformat()
+
+    return StreamingResponse(token_generator(), media_type="text/plain; charset=utf-8")
 
 
 @app.get("/threads/{thread_id}/messages", response_model=GetMessagesResponse)

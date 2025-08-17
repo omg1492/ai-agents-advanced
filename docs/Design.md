@@ -293,6 +293,16 @@ Send a message in a conversation thread.
 }
 ```
 
+##### POST /threads/{thread_id}/messages/stream
+Send a message and stream the assistant response tokens progressively.
+
+Response is a streamed text/plain body with chunks of assistant text as they arrive.
+
+Notes:
+- Maintains server-side conversation state using Responses API (store + previous_response_id)
+- Uses the same prompt template and optional RAG context as the non-streaming route
+- Appends final assistant message to in-memory history when stream completes
+
 ##### GET /threads/{thread_id}/messages
 Get conversation history for a thread.
 

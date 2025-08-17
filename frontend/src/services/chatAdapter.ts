@@ -37,52 +37,47 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
   /**
    * Run method required by ChatModelAdapter
    */
-  async run({ messages, abortSignal }: { messages: readonly ThreadMessage[]; abortSignal: AbortSignal }) {
-    try {
-      // Ensure we have a thread
-      const threadId = await this.ensureThread();
+  async *run({ messages, abortSignal }: { messages: readonly ThreadMessage[]; abortSignal: AbortSignal }) {
+    // Ensure we have a thread
+    const threadId = await this.ensureThread();
 
-      // Get the last user message (the one we need to respond to)
-      const lastMessage = messages[messages.length - 1];
-      if (!lastMessage || lastMessage.role !== 'user') {
-        throw new Error('No user message to respond to');
-      }
-
-      // Convert to our backend format
-      const userMessage = convertMessage(lastMessage);
-
-      // Send the message and get the response
-      const response = await dreamFarmAPI.sendMessage(
-        threadId,
-        userMessage.content,
-        abortSignal
-      );
-
-      // Return in the format expected by assistant-ui
-      return {
-        content: [
-          {
-            type: 'text' as const,
-            text: response.assistant_response,
-          },
-        ],
-      };
-    } catch (error) {
-      // Handle abort errors gracefully
-      if (error instanceof Error && error.name === 'AbortError') {
-        return {
-          content: [
-            {
-              type: 'text' as const,
-              text: '',
-            },
-          ],
-        };
-      }
-      
-      // Re-throw other errors for the UI to handle
-      throw error;
+    // Find the last user message
+    const lastMessage = messages[messages.length - 1];
+    if (!lastMessage || lastMessage.role !== 'user') {
+      throw new Error('No user message to respond to');
     }
+
+    const userMessage = convertMessage(lastMessage);
+
+    // Request a streaming response
+    const stream = await dreamFarmAPI.sendMessageStream(threadId, userMessage.content, abortSignal);
+    const reader = stream.getReader();
+    const decoder = new TextDecoder();
+
+  let fullText = '';
+    try {
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const chunk = decoder.decode(value, { stream: true });
+        if (!chunk) continue;
+        fullText += chunk;
+    yield { content: [{ type: 'text' as const, text: fullText }] };
+      }
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        // Graceful abort: yield what we have so far
+    yield { content: [{ type: 'text' as const, text: fullText }] };
+    return; // end generator
+      }
+      throw err;
+    } finally {
+      reader.releaseLock();
+    }
+
+  // Final content to ensure completion state, then end generator
+  yield { content: [{ type: 'text' as const, text: fullText }] };
+  return; // end generator
   }
 
   /**

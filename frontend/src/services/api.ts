@@ -78,6 +78,31 @@ export class DreamFarmAPI {
   }
 
   /**
+   * Send a message and receive a streaming text response
+   */
+  async sendMessageStream(threadId: string, message: string, abortSignal?: AbortSignal) {
+    const response = await fetch(`${this.baseUrl}/threads/${threadId}/messages/stream`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'text/plain',
+      },
+      body: JSON.stringify({ message }),
+      signal: abortSignal,
+    });
+
+    if (!response.ok) {
+      throw new Error(`Failed to send message (stream): ${response.statusText}`);
+    }
+
+    if (!response.body) {
+      throw new Error('Streaming not supported by the browser or no response body');
+    }
+
+    return response.body; // ReadableStream<Uint8Array>
+  }
+
+  /**
    * Get conversation history for a thread
    */
   async getMessages(threadId: string, limit = 50, offset = 0) {

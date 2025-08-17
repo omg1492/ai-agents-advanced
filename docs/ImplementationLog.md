@@ -259,3 +259,9 @@ agents/dreamfarm-agent/
 **Why FastAPI TestClient > Manual HTTP Testing:**
 - ❌ Manual HTTP tests: Require server startup, slower, flaky, hard to debug
 - ✅ TestClient: Fast, consistent, better error messages, no network dependencies
+
+## 2025-08-17 - Streaming responses end-to-end
+
+- Backend: added `POST /threads/{thread_id}/messages/stream` which streams plain text tokens using OpenAI Responses streaming context manager. It builds the same Jinja2 system prompt and optional RAG context as non-streaming, yields deltas, and updates in-memory history and `previous_response_id` at completion.
+- Frontend: added `dreamFarmAPI.sendMessageStream()` returning a ReadableStream and updated `DreamFarmChatAdapter.run` to be an async generator that reads from the stream and yields progressively to assistant-ui, so tokens appear as they arrive.
+- Kept existing non-streaming endpoint for compatibility. No breaking API changes.
