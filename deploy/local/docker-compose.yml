@@ -18,6 +18,28 @@ services:
       retries: 3
       start_period: 60s
 
+  api-stock:
+    image: ghcr.io/tkubica12/advanced-ai-applications/api-stock:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - PGDATABASE=${PGDATABASE}
+      - PGUSER=${PGUSER}
+      - PGPASSWORD=${PGPASSWORD}
+      - PGHOST=${PGHOST}
+      - PGPORT=${PGPORT}
+      - LOG_LEVEL=${LOG_LEVEL}
+    ports:
+      - "8011:8011"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8011/health || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
   dreamfarm-agent:
     image: dreamfarm-agent
     profiles:
