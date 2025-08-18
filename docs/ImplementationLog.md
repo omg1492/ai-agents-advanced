@@ -31,6 +31,8 @@ Why it matters: production-ready retrieval stack with clear schema, reproducible
 - `tools/api_stock` service (2025-08-18): FastAPI with `POST /stock`, `GET /health`; psycopg2 pool, UUID array filter; integration tests included.
 - Consolidation (2025-08-18): simplified to a single `main.py`; fixed prior syntax issues; health endpoint is tz-aware.
 - Containerization & CI (2025-08-18): Added `tools/api_stock/Dockerfile`; GH Actions workflow `build-api-stock.yml` builds and publishes GHCR image on dispatch and changes under `tools/api_stock/**`; local `docker-compose.yml` includes `api-stock` service referencing `ghcr.io/<repo>/api-stock:latest`.
+- MCP tools (2025-08-18): Added `tools/mcp_public_farmer_tools` using FastMCP 2.0 with minimal tools (`echo`, `list_produce`, `server_time`), single-file server, Dockerfile, and GH Actions workflow to publish `mcp-public-farmer-tools` image.
+      - Testing approach revised (2025-08-18): Removed low-level pytest/httpx harness. We'll adopt a higher-level MCP testing framework (e.g., pytest-mcp or MCP Testing Framework) in CI to validate protocol and tool behavior without bespoke HTTP code.
 - Dev utility (2025-08-17): `scripts/cherry_pick.py` to sync lesson branches; interactive flow and auto-push.
 
 Why it matters: stable read-only stock API for demos/integration; maintenance scripts reduce branch drift.
