@@ -42,6 +42,18 @@ class RagConfig:
     max_results: int
     embedding_model: str = "text-embedding-3-large"
 
+@dataclass
+class FarmerToolsConfig:
+    """Configuration for the Farmer Tools MCP server.
+
+    The DreamFarm Agent connects to a remote MCP server exposed over HTTP
+    and authenticates using a simple Bearer token header. These settings
+    allow wiring that server into the OpenAI Responses API as a remote tool.
+    """
+    enabled: bool
+    mcp_url: str | None
+    mcp_api_key: str | None
+
 
 @dataclass
 class AppConfig:
@@ -52,6 +64,7 @@ class AppConfig:
     openai: OpenAIConfig
     db: DatabaseConfig
     rag: RagConfig
+    farmer_tools: FarmerToolsConfig | None
 
 
 class ConfigService:
@@ -120,6 +133,25 @@ class ConfigService:
             ),
         )
 
+        # Farmer Tools MCP configuration (remote MCP tool)
+        farmer_tools_url = os.getenv("FARMER_TOOLS_MCP_URL") or os.getenv("MCP_URL")
+        # Fallback to legacy MCP_API_KEY if present, but prefer namespaced env var
+        farmer_tools_api_key = os.getenv("FARMER_TOOLS_MCP_API_KEY") or os.getenv("MCP_API_KEY")
+        farmer_tools_enabled = (
+            os.getenv("FARMER_TOOLS_ENABLED", "true").lower() in ["true", "1", "yes", "on"]
+            and bool(farmer_tools_url)
+            and bool(farmer_tools_api_key)
+        )
+        farmer_tools_config = (
+            FarmerToolsConfig(
+                enabled=farmer_tools_enabled,
+                mcp_url=farmer_tools_url,
+                mcp_api_key=farmer_tools_api_key,
+            )
+            if (farmer_tools_url or farmer_tools_api_key)
+            else None
+        )
+
         return AppConfig(
             environment=os.getenv("ENVIRONMENT", "development"),
             cors_origins=cors_origins,
@@ -127,6 +159,7 @@ class ConfigService:
             openai=openai_config,
             db=db_config,
             rag=rag_config,
+            farmer_tools=farmer_tools_config,
         )
     
     def _get_required_env(self, key: str) -> str:

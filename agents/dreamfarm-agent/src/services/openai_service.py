@@ -46,7 +46,10 @@ class OpenAIService:
             config: Optional OpenAI configuration (preferred). If not provided,
                 configuration will be loaded via ConfigService.
         """
-        self._config = config or ConfigService().get_openai_config()
+        cfg_service = ConfigService()
+        self._config = config or cfg_service.get_openai_config()
+        # Optional remote MCP server (Farmer Tools)
+        self._farmer_tools = getattr(cfg_service.config, "farmer_tools", None)
         self.client = self._get_openai_client()
         self.model_name = self._get_model_name()
         logger.info(
@@ -54,6 +57,26 @@ class OpenAIService:
             getattr(self.client, "base_url", None),
             self.model_name,
         )
+
+    def get_tools(self) -> Optional[list[dict]]:
+        """Return configured remote MCP tools for the Responses API.
+
+        Currently exposes the Farmer Tools MCP server when enabled.
+        """
+        if self._farmer_tools and getattr(self._farmer_tools, "enabled", False):
+            if self._farmer_tools.mcp_url and self._farmer_tools.mcp_api_key:
+                return [
+                    {
+                        "type": "mcp",
+                        "server_label": "farmer-tools",
+                        "server_url": self._farmer_tools.mcp_url,
+                        "require_approval": "never",
+                        "headers": {
+                            "Authorization": f"Bearer {self._farmer_tools.mcp_api_key}",
+                        },
+                    }
+                ]
+        return None
 
     def _get_openai_client(self) -> AsyncOpenAI:
         """Create a unified async OpenAI client for OpenAI or Azure OpenAI.
@@ -96,7 +119,7 @@ class OpenAIService:
         previous_response_id: Optional[str] = None,
     ) -> tuple[str, str]:
         """Generate a response using the Responses API.
-
+        
         Args:
             user_text: The user message input text
             system_prompt: Optional system instructions/preamble
@@ -109,6 +132,11 @@ class OpenAIService:
             Exception: If the API call fails
         """
         try:
+            tools = self.get_tools()
+
+            kwargs = {}
+            if tools:
+                kwargs["tools"] = tools
             response = await self.client.responses.create(
                 model=self.model_name,
                 instructions=system_prompt or None,
@@ -116,6 +144,7 @@ class OpenAIService:
                 store=True,
                 previous_response_id=previous_response_id or None,
                 reasoning = {"effort": "minimal"},
+                **kwargs,
             )
 
             text = getattr(response, "output_text", None) or ""

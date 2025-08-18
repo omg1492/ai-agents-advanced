@@ -35,6 +35,10 @@ Why it matters: production-ready retrieval stack with clear schema, reproducible
       - Testing approach revised (2025-08-18): Removed low-level pytest/httpx harness. We'll adopt a higher-level MCP testing framework (e.g., pytest-mcp or MCP Testing Framework) in CI to validate protocol and tool behavior without bespoke HTTP code.
    - Auth fix (2025-08-18): Adjusted custom TokenVerifier to construct `AccessToken` with required fields (`token`, `client_id`, `scopes`) and made `verify_token` async to satisfy FastMCP bearer middleware awaiting behavior.
    - Tool alignment (2025-08-18): Renamed tools to match design spec: `server_time` → `get_current_time`, `list_produce` → `get_seasonal_tips`; added `get_weather(country, city)` mocked endpoint with deterministic daily values.
+    - Remote tool integration (2025-08-18): DreamFarm Agent now passes Farmer Tools as a remote MCP tool to Responses API.
+       - Config: `FARMER_TOOLS_ENABLED`, `FARMER_TOOLS_MCP_URL`, `FARMER_TOOLS_MCP_API_KEY` (fallback to `MCP_API_KEY`).
+       - Auth: HTTP Authorization header `Bearer <FARMER_TOOLS_MCP_API_KEY>`.
+       - Applied to both normal and streaming calls.
 - Dev utility (2025-08-17): `scripts/cherry_pick.py` to sync lesson branches; interactive flow and auto-push.
 
 Why it matters: stable read-only stock API for demos/integration; maintenance scripts reduce branch drift.

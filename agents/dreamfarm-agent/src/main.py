@@ -324,6 +324,14 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
         response_id_local = None
         try:
             # Stream from OpenAI Responses API (unified OpenAI/Azure client)
+            # Tools are optional; test fakes may not implement get_tools
+            tools = None
+            if hasattr(openai_service, "get_tools"):
+                try:
+                    tools = openai_service.get_tools()
+                except Exception as e:
+                    logger.warning(f"Fetching tools failed; continuing without tools: {e}")
+            stream_kwargs = {"tools": tools} if tools else {}
             async with openai_service.client.responses.stream(
                 model=openai_service.model_name,
                 instructions=system_prompt or None,
@@ -331,6 +339,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
                 store=True,
                 previous_response_id=prev_resp_id or None,
                 reasoning={"effort": "minimal"},
+                **stream_kwargs,
             ) as stream:
                 async for event in stream:
                     # Collect plain text deltas

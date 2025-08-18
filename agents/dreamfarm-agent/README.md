@@ -87,6 +87,23 @@ This is the main AI agent for the Advanced AI Applications course. It provides a
 
    The agent will be available at `http://localhost:8001`
 
+### Optional: Remote MCP Tools (Farmer Tools)
+
+Enable a public MCP server as a tool for the model via the Responses API. Configure in `.env`:
+
+```env
+# Enable and point to your MCP server URL
+FARMER_TOOLS_ENABLED=true
+FARMER_TOOLS_MCP_URL=https://farmer-tools.tomasdemo.org/mcp
+
+# Bearer token used as HTTP Authorization header for the MCP server
+FARMER_TOOLS_MCP_API_KEY=advancedaiapps2025
+# Note: legacy MCP_API_KEY is also accepted as a fallback.
+```
+
+When enabled, the backend passes a remote MCP tool named `farmer-tools` to the model with:
+`Authorization: Bearer <FARMER_TOOLS_MCP_API_KEY>`.
+
 ### Testing
 
 **Prerequisites for Testing:**
