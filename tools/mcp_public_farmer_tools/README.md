@@ -49,7 +49,17 @@ GitHub Actions workflow `build-mcp-public-farmer-tools.yml` builds and publishes
 
 ### Testing
 
-This service intentionally avoids low-level tests. For protocol/tool coverage we plan to use a higher-level MCP testing harness (e.g., an MCP client or pytest plugin tailored for MCP). Until then, validate manually or via integration that lists tools and calls them over the MCP HTTP endpoint.
+You can add this MCP server for example to GitHub Copilot and test it. Here is configuration:
+
+```json
+"farmer-tools": {
+	"url": "https://farmer-tools.tomasdemo.org/mcp",
+	"type": "http",
+	"headers": {
+		"Authorization": "Bearer yourkey"
+	}
+}
+```
 
 ### Tool Notes
 
