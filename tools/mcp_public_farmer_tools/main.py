@@ -18,7 +18,9 @@ from __future__ import annotations
 import os
 import sys
 from datetime import datetime
-from typing import List, Optional
+import hashlib
+import random
+from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
@@ -79,20 +81,107 @@ def build_server() -> tuple[FastMCP, object]:
         return text
 
     @mcp.tool
-    def list_produce() -> List[str]:
-        """Return a static demo list of seasonal produce."""
-        return [
-            "Tomatoes",
-            "Cucumbers",
-            "Zucchini",
-            "Bell peppers",
-            "Basil",
-        ]
+    def get_seasonal_tips() -> List[str]:
+        """Return up to 10 typical seasonal products for the current period (mocked)."""
+        month = datetime.utcnow().month
+        # Simple northern-hemisphere season mapping
+        if month in (12, 1, 2):
+            items = [
+                "Citrus (oranges, mandarins)",
+                "Kale",
+                "Brussels sprouts",
+                "Leeks",
+                "Cabbage",
+                "Parsnips",
+                "Beets",
+                "Winter squash",
+                "Turnips",
+                "Swiss chard",
+            ]
+        elif month in (3, 4, 5):
+            items = [
+                "Asparagus",
+                "Radishes",
+                "Spinach",
+                "Spring onions",
+                "Peas",
+                "Rhubarb",
+                "Lettuce",
+                "Strawberries",
+                "New potatoes",
+            ]
+        elif month in (6, 7, 8):
+            items = [
+                "Strawberries",
+                "Tomatoes",
+                "Cucumbers",
+                "Zucchini",
+                "Bell peppers",
+                "Green beans",
+                "Basil",
+                "Sweet corn",
+                "Blueberries",
+                "Peaches",
+            ]
+        else:  # 9,10,11
+            items = [
+                "Apples",
+                "Pears",
+                "Pumpkin",
+                "Butternut squash",
+                "Carrots",
+                "Broccoli",
+                "Cauliflower",
+                "Mushrooms",
+                "Cranberries",
+            ]
+        return items[:10]
 
     @mcp.tool
-    def server_time() -> str:
+    def get_current_time() -> str:
         """Return server time in ISO 8601 format (UTC)."""
         return datetime.utcnow().isoformat() + "Z"
+
+    def _daily_rng(key: str) -> random.Random:
+        """Create a deterministic RNG seeded by key and current UTC date for stable daily mocks."""
+        seed_src = f"{key}-{datetime.utcnow().date()}"
+        seed = int(hashlib.sha256(seed_src.encode("utf-8")).hexdigest()[:16], 16)
+        return random.Random(seed)
+
+    @mcp.tool
+    def get_weather(country: str, city: str) -> Dict[str, float | int | str]:
+        """Return mocked current weather for the given location.
+
+        Values are randomized within reasonable ranges and stable for a given
+        day/location (deterministic per UTC date).
+        """
+        month = datetime.utcnow().month
+        rng = _daily_rng(f"{country}:{city}")
+
+        # Very simple seasonal temperature bands (Celsius), northern hemisphere
+        if month in (12, 1, 2):
+            t_min, t_max = (-8.0, 8.0)
+        elif month in (3, 4, 5):
+            t_min, t_max = (4.0, 20.0)
+        elif month in (6, 7, 8):
+            t_min, t_max = (18.0, 34.0)
+        else:  # 9,10,11
+            t_min, t_max = (5.0, 22.0)
+
+        temperature_c = round(rng.uniform(t_min, t_max), 1)
+        humidity_pct = int(rng.uniform(35, 90))
+        wind_kmh = round(rng.uniform(0, 40), 1)
+        precipitation_mm = round(rng.uniform(0, 15), 1)
+
+        return {
+            "country": country,
+            "city": city,
+            "temperature_c": temperature_c,
+            "humidity_pct": humidity_pct,
+            "wind_kmh": wind_kmh,
+            "precipitation_mm": precipitation_mm,
+            "timestamp": datetime.utcnow().isoformat() + "Z",
+        }
 
     # Health check route at "/health"
     @mcp.custom_route("/health", methods=["GET"])

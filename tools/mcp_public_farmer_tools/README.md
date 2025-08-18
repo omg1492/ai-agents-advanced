@@ -6,7 +6,11 @@ A minimal MCP server implemented with FastMCP. It exposes a few demo tools to va
 
 - Single-file server (`main.py`) using FastMCP 2.0
 - HTTP transport (streamable) by default; MCP endpoint at `/mcp/`
-- Tools: `echo`, `list_produce`, `server_time`
+- Tools:
+	- `echo(text: string)` → echoes text back
+	- `get_current_time()` → string UTC time ISO 8601
+	- `get_seasonal_tips()` → up to 10 typical seasonal products (mocked by month)
+	- `get_weather(country: string, city: string)` → mocked JSON weather
 - Wildcard CORS enabled by default (override via `MCP_CORS_ORIGINS`)
 - Simple Bearer token auth using `MCP_API_KEY`
 - Runs locally with uv; Dockerfile and GHCR publishing workflow included
@@ -46,3 +50,9 @@ GitHub Actions workflow `build-mcp-public-farmer-tools.yml` builds and publishes
 ### Testing
 
 This service intentionally avoids low-level tests. For protocol/tool coverage we plan to use a higher-level MCP testing harness (e.g., an MCP client or pytest plugin tailored for MCP). Until then, validate manually or via integration that lists tools and calls them over the MCP HTTP endpoint.
+
+### Tool Notes
+
+- `get_seasonal_tips` is a mocked, northern-hemisphere seasonal list.
+- `get_weather` returns deterministic random values per (country, city) per day, with reasonable seasonal ranges:
+	- temperature_c, humidity_pct, wind_kmh, precipitation_mm, timestamp
