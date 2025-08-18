@@ -1,10 +1,10 @@
 -- Create stock table to track per-producer product quantities
 
 -- Drop table if it exists (for development convenience)
-DROP TABLE IF EXISTS stock;
+DROP TABLE IF EXISTS public.stock;
 
 -- Create stock table
-CREATE TABLE stock (
+CREATE TABLE public.stock (
     producer_id UUID NOT NULL,
     product_id  UUID NOT NULL,
     on_stock    INTEGER NOT NULL DEFAULT 0,
@@ -13,8 +13,8 @@ CREATE TABLE stock (
 );
 
 -- Comments for documentation
-COMMENT ON TABLE stock IS 'Tracks current stock levels for each (producer, product).';
-COMMENT ON COLUMN stock.on_stock IS 'Current available quantity for the given producer/product.';
+COMMENT ON TABLE public.stock IS 'Tracks current stock levels for each (producer, product).';
+COMMENT ON COLUMN public.stock.on_stock IS 'Current available quantity for the given producer/product.';
 
 -- Verify table creation
 SELECT 

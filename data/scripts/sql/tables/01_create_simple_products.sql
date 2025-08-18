@@ -2,10 +2,10 @@
 -- This table stores product information from producers along with their vector embeddings
 
 -- Drop table if it exists (for development)
-DROP TABLE IF EXISTS simple_products;
+DROP TABLE IF EXISTS public.simple_products;
 
 -- Create simple_products table
-CREATE TABLE simple_products (
+CREATE TABLE public.simple_products (
     -- Primary key
     id SERIAL PRIMARY KEY,
     
@@ -28,20 +28,20 @@ CREATE TABLE simple_products (
 );
 
 -- Create indexes for better performance
-CREATE INDEX idx_simple_products_product_id ON simple_products(product_id);
-CREATE INDEX idx_simple_products_producer_name ON simple_products(producer_name);
-CREATE INDEX idx_simple_products_product_name ON simple_products(product_name);
+CREATE INDEX idx_simple_products_product_id ON public.simple_products(product_id);
+CREATE INDEX idx_simple_products_producer_name ON public.simple_products(producer_name);
+CREATE INDEX idx_simple_products_product_name ON public.simple_products(product_name);
 
 -- Create HNSW index for fast cosine similarity search
 CREATE INDEX idx_simple_products_embedding_cosine 
-ON simple_products 
+ON public.simple_products 
 USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
 
 -- Add table comment
-COMMENT ON TABLE simple_products IS 'Stores product information with vector embeddings for similarity search';
-COMMENT ON COLUMN simple_products.embedding IS 'Vector embedding generated using text-embedding-3-large model (2000 dimensions)';
-COMMENT ON COLUMN simple_products.combined_text IS 'Formatted text used for embedding generation: PRODUCER: [name], PRODUCT: [name], DESCRIPTION: [description]';
+COMMENT ON TABLE public.simple_products IS 'Stores product information with vector embeddings for similarity search';
+COMMENT ON COLUMN public.simple_products.embedding IS 'Vector embedding generated using text-embedding-3-large model (2000 dimensions)';
+COMMENT ON COLUMN public.simple_products.combined_text IS 'Formatted text used for embedding generation: PRODUCER: [name], PRODUCT: [name], DESCRIPTION: [description]';
 
 -- Verify table creation
 SELECT 

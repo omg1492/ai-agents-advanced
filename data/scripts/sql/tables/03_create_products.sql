@@ -1,10 +1,10 @@
 -- Create products table for hybrid search (pgvector + FTS)
 
 -- Drop table if it exists (for development convenience)
-DROP TABLE IF EXISTS products;
+DROP TABLE IF EXISTS public.products;
 
 -- Create products table
-CREATE TABLE products (
+CREATE TABLE public.products (
     id                  SERIAL PRIMARY KEY,
     product_id          UUID NOT NULL UNIQUE,
     producer_id         UUID NOT NULL,
@@ -19,22 +19,22 @@ CREATE TABLE products (
 );
 
 -- Indexes for lookups
-CREATE INDEX idx_products_product_id ON products(product_id);
-CREATE INDEX idx_products_producer_id ON products(producer_id);
-CREATE INDEX idx_products_producer_name ON products(producer_name);
-CREATE INDEX idx_products_product_name ON products(product_name);
+CREATE INDEX idx_products_product_id ON public.products(product_id);
+CREATE INDEX idx_products_producer_id ON public.products(producer_id);
+CREATE INDEX idx_products_producer_name ON public.products(producer_name);
+CREATE INDEX idx_products_product_name ON public.products(product_name);
 
 -- HNSW index for vector similarity
 CREATE INDEX idx_products_embedding_cosine 
-ON products 
+ON public.products 
 USING hnsw (embedding vector_cosine_ops)
 WITH (m = 16, ef_construction = 64);
 
 -- GIN index for full-text search
-CREATE INDEX idx_products_fts ON products USING GIN (fts_document);
+CREATE INDEX idx_products_fts ON public.products USING GIN (fts_document);
 
 -- Trigger to keep fts_document up to date
-CREATE OR REPLACE FUNCTION products_update_fts()
+CREATE OR REPLACE FUNCTION public.products_update_fts()
 RETURNS TRIGGER AS $$
 BEGIN
   NEW.fts_document :=
@@ -47,14 +47,14 @@ $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER trg_products_update_fts
 BEFORE INSERT OR UPDATE OF product_name, producer_name, product_description
-ON products
+ON public.products
 FOR EACH ROW
-EXECUTE FUNCTION products_update_fts();
+EXECUTE FUNCTION public.products_update_fts();
 
 -- Comments for documentation
-COMMENT ON TABLE products IS 'Rich product catalog with embeddings and full-text search for hybrid retrieval.';
-COMMENT ON COLUMN products.embedding IS 'Vector embedding (2000 dims) generated via text-embedding-3-large.';
-COMMENT ON COLUMN products.fts_document IS 'FTS document built from product/producer/description.';
+COMMENT ON TABLE public.products IS 'Rich product catalog with embeddings and full-text search for hybrid retrieval.';
+COMMENT ON COLUMN public.products.embedding IS 'Vector embedding (2000 dims) generated via text-embedding-3-large.';
+COMMENT ON COLUMN public.products.fts_document IS 'FTS document built from product/producer/description.';
 
 -- Verify table creation
 SELECT 

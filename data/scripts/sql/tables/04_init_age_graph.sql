@@ -1,17 +1,16 @@
 -- Initialize Apache AGE graph for DreamFarm
 -- Requires AGE extension to be installed (see extensions/02_install_age.sql)
 
--- Ensure AGE is loaded and catalog is on search path for this session
+-- Ensure AGE is loaded for this session only
 LOAD 'age';
-SET search_path = ag_catalog, "$user", public;
 
 -- Recreate the graph for idempotent development runs
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM ag_catalog.ag_graph WHERE name = 'dreamfarm') THEN
-    PERFORM drop_graph('dreamfarm', true);
+    PERFORM ag_catalog.drop_graph('dreamfarm', true);
   END IF;
-  PERFORM create_graph('dreamfarm');
+  PERFORM ag_catalog.create_graph('dreamfarm');
 END
 $$ LANGUAGE plpgsql;
 
