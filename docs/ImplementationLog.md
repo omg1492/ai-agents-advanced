@@ -33,6 +33,7 @@ Why it matters: production-ready retrieval stack with clear schema, reproducible
 - Containerization & CI (2025-08-18): Added `tools/api_stock/Dockerfile`; GH Actions workflow `build-api-stock.yml` builds and publishes GHCR image on dispatch and changes under `tools/api_stock/**`; local `docker-compose.yml` includes `api-stock` service referencing `ghcr.io/<repo>/api-stock:latest`.
 - MCP tools (2025-08-18): Added `tools/mcp_public_farmer_tools` using FastMCP 2.0 with minimal tools (`echo`, `list_produce`, `server_time`), single-file server, Dockerfile, and GH Actions workflow to publish `mcp-public-farmer-tools` image.
       - Testing approach revised (2025-08-18): Removed low-level pytest/httpx harness. We'll adopt a higher-level MCP testing framework (e.g., pytest-mcp or MCP Testing Framework) in CI to validate protocol and tool behavior without bespoke HTTP code.
+   - Auth fix (2025-08-18): Adjusted custom TokenVerifier to construct `AccessToken` with required fields (`token`, `client_id`, `scopes`) and made `verify_token` async to satisfy FastMCP bearer middleware awaiting behavior.
 - Dev utility (2025-08-17): `scripts/cherry_pick.py` to sync lesson branches; interactive flow and auto-push.
 
 Why it matters: stable read-only stock API for demos/integration; maintenance scripts reduce branch drift.

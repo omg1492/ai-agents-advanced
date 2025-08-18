@@ -40,10 +40,18 @@ class EnvAPIKeyVerifier(TokenVerifier):
         # FastMCP expects this attribute on AuthProviders for HTTP metadata; keep None
         self.resource_server_url: Optional[str] = None
 
-    def verify_token(self, token: str) -> Optional[AccessToken]:
+    async def verify_token(self, token: str) -> Optional[AccessToken]:
+        """Validate a static bearer token from env and return an access token.
+
+        Returns an AccessToken instance with minimal claims required by
+        FastMCP's auth middleware: token, client_id, and scopes.
+        """
         if token and token == self._token:
-            # Minimal access token; add claims as needed
-            return AccessToken(subject="api-key-user")
+            return AccessToken(
+                token=token,
+                client_id="api-key-user",
+                scopes=["read:tools"],
+            )
         return None
 
 
