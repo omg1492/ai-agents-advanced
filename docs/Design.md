@@ -560,7 +560,9 @@ advanced-ai-applications/
 │   └── scripts/
 ├── docs/                           # Design and project docs (contents not listed)
 ├── lessons/                        # Instructions for individual lessons
-├── scripts/
+├── scripts/                        # Miscellaneous scripts such as cherry pick script
+├── postgresql/                     # PostgreSQL database Dockerfile for creating image with extensions binaries
+├── tools/                          # AI tools such as MCP servers and APIs
 └── (root files not listed)
 ```
 
@@ -614,6 +616,31 @@ advanced-ai-applications/
 6. **Future-Proof**: Aligns with emerging AI tooling standards
 
 This approach allows the API Gateway to remain focused on core business logic while delegating specialized tasks to dedicated MCP servers.
+
+### Planned AI Tools (tools/)
+
+This project will ship a small, focused set of AI tools located in the `tools/` folder. They are designed to be plugged into the DreamFarm Agent either directly (HTTP) or via MCP. Initial scope:
+
+- mcp_public_farmer_tools (MCP, Python)
+  - Purpose: simple utility/tooling for the assistant without external dependencies.
+  - Implementation: Python using the MCP server library; exposed over stdio for local development and pluggable into the agent (Lesson 2+).
+  - Tools
+    - get_current_time() -> string current time in ISO 8601
+    - get_seasonal_tips() -> list of up to 10 typical seasonal products for the current period (mocked, e.g., strawberries in summer)
+    - get_weather(country: string, city: string) -> JSON mock with fields: temperature, humidity, wind, precipitation
+  - Notes: returns mock data (no network calls); great for demos and deterministic testing.
+
+- api_stock (HTTP API)
+  - Purpose: read-only facade over the relational `stock` table for quick lookups from the assistant or other services.
+  - Request: accepts an array of productIds; Response: JSON map/array with each productId’s current on-stock quantity and timestamp.
+  - Integration: direct HTTP calls from the DreamFarm Agent. Optionally wrapped as an MCP tool later.
+  - Notes: read-only; aligns with `data/source_json/stock.json` shapes (producerId, productId, onStock).
+
+- Tavily Remote MCP (SaaS web search)
+  - Purpose: real-time internet search and extraction to augment answers beyond local data.
+  - Integration: connect to Tavily’s remote MCP server as an MCP tool in the LLM call. Server URL: `https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>` (requires a Tavily API key).
+  - Capabilities: search, extract, map, crawl (we primarily use `tavily-search` and `tavily-extract`).
+  - Notes: used only when web context is needed; disabled by default in early lessons to keep flows deterministic.
 
 ### Runtime Configuration Pattern
 

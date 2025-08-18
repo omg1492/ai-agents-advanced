@@ -1,0 +1,86 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "api-stock",
+    "version": "0.1.0",
+    "description": "Read-only API to query stock by productIds"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string" },
+                    "timestamp": { "type": "string", "format": "date-time" }
+                  },
+                  "required": ["status", "timestamp"]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/stock": {
+      "post": {
+        "summary": "Get stock for productIds",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "productIds": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "uuid" },
+                    "minItems": 1,
+                    "maxItems": 500
+                  }
+                },
+                "required": ["productIds"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Stock items",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "productId": { "type": "string" },
+                          "producerId": { "oneOf": [ { "type": "string" }, { "type": "null" } ] },
+                          "onStock": { "type": "integer" },
+                          "updatedAt": { "oneOf": [ { "type": "string", "format": "date-time" }, { "type": "null" } ] }
+                        },
+                        "required": ["productId", "onStock"]
+                      }
+                    }
+                  },
+                  "required": ["items"]
+                }
+              }
+            }
+          },
+          "400": { "description": "Too many productIds" },
+          "503": { "description": "Database unavailable" }
+        }
+      }
+    }
+  }
+}
