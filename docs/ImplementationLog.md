@@ -83,6 +83,22 @@ Why it matters: makes tool usage and reasoning transparent during streaming whil
 
 Why it matters: cleaner Activity panel and correctly formatted answers.
 
+## 8) Strict RAG grounding for product mentions (2025-08-19)
+
+- System prompt updated (`agents/dreamfarm-agent/src/templates/system_prompt.j2`) with a STRICT grounding policy:
+   - Any product-related claims (availability, price, farmer, certification) must be grounded in `<relevant_products>`.
+   - Zero-hit behavior: do not invent products; state unavailability, offer alternatives only from RAG, or switch to general non-stock info.
+   - Clear decision flow for product vs. general queries; response style tightened to avoid implicit availability claims.
+
+Why it matters: prevents hallucinated inventory when RAG returns no results (e.g., “peaches” case) and keeps recommendations trustworthy.
+
+### 8.1) Prompt tools overview (2025-08-19)
+- Added a concise "Available tools & data" section to the system prompt to orient the model about:
+   - RAG catalog as sole source for concrete product info
+   - Read-only stock API usage
+   - Mocked Farmer Tools for general guidance (non-inventory)
+   - Web search for recipes/facts without implying availability
+
 ## Milestones (timeline)
 
 - 2025-08-18: Planned AI tools; `api_stock` released and consolidated.
