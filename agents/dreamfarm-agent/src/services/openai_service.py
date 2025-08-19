@@ -65,17 +65,27 @@ class OpenAIService:
         """
         if self._farmer_tools and getattr(self._farmer_tools, "enabled", False):
             if self._farmer_tools.mcp_url and self._farmer_tools.mcp_api_key:
-                return [
-                    {
-                        "type": "mcp",
-                        "server_label": "farmer-tools",
-                        "server_url": self._farmer_tools.mcp_url,
-                        "require_approval": "never",
-                        "headers": {
-                            "Authorization": f"Bearer {self._farmer_tools.mcp_api_key}",
-                        },
-                    }
-                ]
+                tool = {
+                    "type": "mcp",
+                    "server_label": "farmer-tools",
+                    "server_url": self._farmer_tools.mcp_url,
+                    "require_approval": "never",
+                    "headers": {
+                        "Authorization": f"Bearer {self._farmer_tools.mcp_api_key}",
+                    },
+                }
+                # Log minimal diagnostics to aid troubleshooting (mask key)
+                try:
+                    masked = self._farmer_tools.mcp_api_key[:4] + "***" if self._farmer_tools.mcp_api_key else ""
+                    logger.info(
+                        "Configured MCP tool: label=%s url=%s auth=%s",
+                        tool.get("server_label"),
+                        tool.get("server_url"),
+                        f"Bearer {masked}",
+                    )
+                except Exception:
+                    pass
+                return [tool]
         return None
 
     def _get_openai_client(self) -> AsyncOpenAI:

@@ -190,6 +190,10 @@ This section specifies the target schema for production, extending the Lesson 1 
 
 Purpose: primary product catalog optimized for hybrid retrieval (semantic + keyword) and downstream reranking.
 
+Reasoning/tool telemetry (streamed):
+- Backend streams model events from the Responses API (semantic event types such as response.output_text.delta, response.web_search_call.*, response.file_search_call.*, response.function_call_arguments.*, and reasoning-related events).
+- Non-answer events are emitted as text lines prefixed with `DF_META:` followed by JSON (e.g., `{kind: "tool_event" | "reasoning", event_type: "...", ...}`), and logged at INFO for observability.
+- Frontend parses `DF_META:` lines from the stream and renders them in a separate meta panel, clearly distinguished from the assistant answer body.
 Columns
 
 | Column             | Type          | Constraints                | Description                                                                 |
@@ -356,6 +360,7 @@ Uses Responses API with `store=true` and `previous_response_id` for continuity.
   "previous_response_id": "string (optional)"
 }
 ```
+- The stream may include meta lines prefixed with `DF_META:` containing JSON entries that describe tool usage or reasoning summaries. Clients should treat those as telemetry, not as assistant text, and display them separately if desired.
 
 **Response:**
 ```json

@@ -3,12 +3,14 @@
 import os
 import logging
 from datetime import datetime, timezone
+import json
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
+import warnings
 
 from src.models.health import HealthResponse
 from src.models.chat import ChatRequest, ChatResponse
@@ -29,6 +31,15 @@ from src.services.template_service import TemplateService
 
 # Load environment variables
 load_dotenv()
+
+# Suppress noisy Pydantic serializer warnings emitted by OpenAI SDK when streaming
+# MCP/tool events that don't match strict unions. These are benign and clutter logs.
+warnings.filterwarnings(
+    "ignore",
+    message=r"^Pydantic serializer warnings:",
+    category=UserWarning,
+    module=r"pydantic\.main",
+)
 
 # Configure logging level from environment (default to INFO)
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -318,19 +329,27 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
         },
     )
 
+    # Resolve tools once (tests may use a fake service without get_tools)
+    tools = None
+    try:
+        if hasattr(openai_service, "get_tools"):
+            tools = openai_service.get_tools()
+    except Exception as e:
+        logger.warning(f"Fetching tools failed; continuing without tools: {e}")
+
+    # Server label no longer included in DF_META payload; skip computing it
+
     async def token_generator():
         """Internal async generator that yields text chunks and updates state on finish."""
         full_text = ""
         response_id_local = None
+        last_tool_name: str | None = None
+        # Track args and mapping by item_id to enrich subsequent events
+        args_by_item_id: dict[str, str] = {}
+        name_by_item_id: dict[str, str] = {}
         try:
             # Stream from OpenAI Responses API (unified OpenAI/Azure client)
-            # Tools are optional; test fakes may not implement get_tools
-            tools = None
-            if hasattr(openai_service, "get_tools"):
-                try:
-                    tools = openai_service.get_tools()
-                except Exception as e:
-                    logger.warning(f"Fetching tools failed; continuing without tools: {e}")
+            # Tools are optional; already resolved above
             stream_kwargs = {"tools": tools} if tools else {}
             async with openai_service.client.responses.stream(
                 model=openai_service.model_name,
@@ -342,14 +361,108 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
                 **stream_kwargs,
             ) as stream:
                 async for event in stream:
-                    # Collect plain text deltas
                     et = getattr(event, "type", "")
-                    if et.endswith("response.output_text.delta") or et == "response.output_text.delta":
+                    # Collect plain text deltas
+                    if et == "response.output_text.delta" or et.endswith("response.output_text.delta"):
                         delta = getattr(event, "delta", "")
                         if delta:
                             full_text += delta
                             yield delta
-                    elif et.endswith("response.error") or et == "response.error":
+                    # Capture output items where the function/MCP call name is available
+                    elif et in ("response.output_item.added", "response.output_item.done"):
+                        item = getattr(event, "item", None)
+                        if item is not None:
+                            item_type = getattr(item, "type", None)
+                            if item_type in ("function_call", "mcp_call", "web_search_call", "file_search_call"):
+                                # Build simplified payload
+                                meta = {"kind": "tool_event", "event_type": et}
+                                i_name = getattr(item, "name", None)
+                                if i_name:
+                                    meta["tool_name"] = i_name
+                                    last_tool_name = i_name
+                                i_id = getattr(item, "id", None)
+                                if i_id and i_name:
+                                    name_by_item_id[i_id] = i_name
+                                i_args = getattr(item, "arguments", None)
+                                if isinstance(i_args, (str, bytes)) and i_args:
+                                    meta["arguments"] = str(i_args)
+                                    if i_id:
+                                        args_by_item_id[i_id] = str(i_args)
+                                logger.info(f"Tool event: {meta}")
+                                yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
+                    # Stream reasoning summaries (do not include in answer text)
+                    elif "reasoning" in et:
+                        delta = getattr(event, "delta", None) or getattr(event, "text", None)
+                        if delta:
+                            meta = {"kind": "reasoning", "event_type": et, "delta": delta}
+                            logger.info(f"Reasoning event: {et} :: {delta}")
+                            yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
+                    # Stream tool-related events (MCP/web/file-search/function args)
+                    elif ("tool" in et) or ("web_search_call" in et) or ("file_search_call" in et) or ("function_call" in et) or ("mcp" in et) or ("call." in et):
+                        # Build simplified payload
+                        meta = {"kind": "tool_event", "event_type": et}
+                        # Pick up a name directly if present
+                        direct_name = getattr(event, "tool_name", None) or getattr(event, "name", None)
+                        if direct_name:
+                            meta["tool_name"] = direct_name
+                        # Use item_id correlations if available
+                        item_id = getattr(event, "item_id", None)
+                        if item_id:
+                            if hasattr(event, "delta") and isinstance(getattr(event, "delta"), str):
+                                d = getattr(event, "delta")
+                                if d:
+                                    args_by_item_id[item_id] = args_by_item_id.get(item_id, "") + d
+                            if et.endswith(".done"):
+                                final_args = getattr(event, "arguments", None)
+                                if isinstance(final_args, (str, bytes)) and final_args:
+                                    args_by_item_id[item_id] = str(final_args)
+                            agg = args_by_item_id.get(item_id)
+                            if agg:
+                                meta["arguments"] = agg
+                            known_name = name_by_item_id.get(item_id)
+                            if known_name:
+                                meta.setdefault("tool_name", known_name)
+                        # Nested call object may carry name/args
+                        for nested in (getattr(event, "call", None), getattr(event, "mcp_call", None), getattr(event, "tool", None)):
+                            if nested is None:
+                                continue
+                            n_name = getattr(nested, "name", None)
+                            if n_name:
+                                meta.setdefault("tool_name", n_name)
+                                last_tool_name = n_name
+                            n_args = getattr(nested, "arguments", None)
+                            if isinstance(n_args, (str, bytes)):
+                                meta.setdefault("arguments", str(n_args))
+                        # Some deltas carry args text directly
+                        if hasattr(event, "delta") and isinstance(getattr(event, "delta"), str):
+                            d = getattr(event, "delta")
+                            if d and "arguments" not in meta:
+                                meta["arguments"] = d
+                        # Include error detail when a call fails
+                        if et.endswith(".failed") or et.endswith("response.error"):
+                            item_id = getattr(event, "item_id", None)
+                            if item_id:
+                                agg = args_by_item_id.get(item_id)
+                                if agg and "arguments" not in meta:
+                                    meta["arguments"] = agg
+                                known_name = name_by_item_id.get(item_id)
+                                if known_name and "tool_name" not in meta:
+                                    meta["tool_name"] = known_name
+                            # Capture error message if available for diagnostics
+                            err_obj = getattr(event, "error", None)
+                            if err_obj is not None:
+                                try:
+                                    # Try common shapes: str or object with message
+                                    err_text = getattr(err_obj, "message", None) or str(err_obj)
+                                    if err_text:
+                                        meta["error"] = err_text
+                                except Exception:
+                                    pass
+                        if last_tool_name:
+                            meta.setdefault("tool_name", last_tool_name)
+                        logger.info(f"Tool event: {meta}")
+                        yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
+                    elif et == "response.error" or et.endswith("response.error"):
                         err = getattr(event, "error", None)
                         logger.error(f"OpenAI stream error: {err}")
                 # Get final response to retrieve response_id

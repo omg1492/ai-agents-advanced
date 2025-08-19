@@ -61,6 +61,28 @@ Why it matters: the docs now reflect reality and guide contributors with compact
 
 Why it matters: faster, clearer CI runs and fewer environment surprises.
 
+## 6) MCP meta streaming UX and bugfixes (2025-08-18)
+
+- Backend: Fixed a scoping error in `agents/dreamfarm-agent/src/main.py` where `tools` was referenced before assignment in the streaming endpoint. Tools are now resolved once prior to opening the stream and passed into the generator. Also enriches DF_META with `server_label`, `tool_name`, and an `arguments_preview` (truncated to 200 chars).
+- Frontend: Improved meta events UI in `frontend/src/components/thread.tsx`.
+   - Meta panel moved above assistant text.
+   - Collapsible with a Show/Hide toggle and total count.
+   - Scrollable container (auto-scroll to bottom) so the latest ~5 items stay visible; older entries available via scrolling.
+   - Clear titles like `Tool: <name> (farmer-tools)` when available.
+
+Why it matters: makes tool usage and reasoning transparent during streaming while keeping the primary answer readable.
+
+## 7) Streaming markdown formatting + simplified DF_META (2025-08-18)
+
+- Frontend: Fixed loss of newlines in streamed text in `frontend/src/services/chatAdapter.ts`.
+   - When splitting the stream by lines to detect `DF_META:`, we now re-insert `\n` for non-meta lines and preserve blank lines.
+   - Result: final assistant output renders Markdown correctly (headings, lists, paragraphs).
+- Backend: Simplified DF_META for tool events to only include `{ kind, event_type, tool_name, arguments }`.
+   - Removed IDs (id, item_id, call_id), server_label, and internal fields; arguments are aggregated from deltas.
+   - Failures still include the same minimal fields and thus remain readable.
+
+Why it matters: cleaner Activity panel and correctly formatted answers.
+
 ## Milestones (timeline)
 
 - 2025-08-18: Planned AI tools; `api_stock` released and consolidated.

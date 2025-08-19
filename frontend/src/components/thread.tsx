@@ -16,12 +16,14 @@ import {
   PencilIcon,
   RefreshCwIcon,
   SendHorizontalIcon,
+  ChevronDownIcon,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/markdown-text";
 import { TooltipIconButton } from "@/components/tooltip-icon-button";
+import { useEffect, useState } from "react";
 
 export const Thread: FC = () => {
   return (
@@ -215,9 +217,67 @@ const EditComposer: FC = () => {
 };
 
 const AssistantMessage: FC = () => {
+  const [metaEvents, setMetaEvents] = useState<any[]>([]);
+  const [metaExpanded, setMetaExpanded] = useState<boolean>(true);
+  const [metaContainerEl, setMetaContainerEl] = useState<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent;
+      setMetaEvents((prev) => [...prev, ce.detail]);
+    };
+    window.addEventListener("df-meta", handler as EventListener);
+    return () => window.removeEventListener("df-meta", handler as EventListener);
+  }, []);
+  // Auto-scroll to bottom so newest ~5 events remain visible
+  useEffect(() => {
+    if (metaExpanded && metaContainerEl) {
+      metaContainerEl.scrollTop = metaContainerEl.scrollHeight;
+    }
+  }, [metaEvents, metaExpanded, metaContainerEl]);
   return (
     <MessagePrimitive.Root className="grid grid-cols-[auto_auto_1fr] grid-rows-[auto_1fr] relative w-full max-w-[var(--thread-max-width)] py-4">
       <div className="text-foreground max-w-[calc(var(--thread-max-width)*0.8)] break-words leading-7 col-span-2 col-start-2 row-start-1 my-1.5">
+        {metaEvents.length > 0 && (
+          <div className="mb-3">
+            <div className="flex items-center justify-between text-xs text-muted-foreground">
+              <div className="font-semibold">Activity</div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-1 rounded-md border px-2 py-1 hover:bg-muted/60"
+                onClick={() => setMetaExpanded((v) => !v)}
+                aria-expanded={metaExpanded}
+                aria-label={metaExpanded ? 'Hide activity' : 'Show activity'}
+              >
+                <ChevronDownIcon className={`transition-transform ${metaExpanded ? '' : '-rotate-90'}`} size={14} />
+                {metaExpanded ? 'Hide' : 'Show'} ({metaEvents.length})
+              </button>
+            </div>
+            {metaExpanded && (
+              <div
+                ref={setMetaContainerEl}
+                className="mt-2 space-y-1 text-xs text-muted-foreground border rounded-md bg-muted/30 p-2 max-h-48 overflow-y-auto"
+              >
+                {metaEvents.map((m, idx) => {
+                  const isReasoning = m?.kind === 'reasoning';
+                  const toolName = m?.tool_name || m?.name;
+                  const serverLabel = m?.server_label;
+                  const title = isReasoning
+                    ? 'Thinking'
+                    : toolName
+                      ? `Tool: ${toolName}${serverLabel ? ` (${serverLabel})` : ''}`
+                      : 'Tool event';
+                  const body = typeof m === 'string' ? m : JSON.stringify(m);
+                  return (
+                    <div key={idx} className="border rounded-md p-2 bg-muted/50">
+                      <div className="font-medium">{title}</div>
+                      <pre className="whitespace-pre-wrap break-words">{body}</pre>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
         <MessagePrimitive.Parts components={{ Text: MarkdownText }} />
         <MessageError />
       </div>

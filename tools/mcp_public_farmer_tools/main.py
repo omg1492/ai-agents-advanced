@@ -52,7 +52,10 @@ class EnvAPIKeyVerifier(TokenVerifier):
             return AccessToken(
                 token=token,
                 client_id="api-key-user",
-                scopes=["read:tools"],
+                # Grant broad tool permissions so both discovery and invocation work.
+                # Some FastMCP auth policies expect specific scopes (e.g., call/execute).
+                # Using a wildcard keeps it simple for this public demo server.
+                scopes=["*"],
             )
         return None
 
