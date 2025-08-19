@@ -28,6 +28,101 @@ from fastmcp import FastMCP
 from fastmcp.server.auth.auth import AccessToken, TokenVerifier
 from starlette.requests import Request
 from starlette.responses import PlainTextResponse
+from typing import Callable, Awaitable
+import asyncio
+
+
+class DeferDeleteMiddleware:
+    """ASGI middleware that intercepts DELETE /mcp and responds 200 immediately.
+
+    This is a pragmatic workaround for clients that may prematurely close MCP
+    sessions. By short-circuiting DELETE, we keep FastMCP's in-memory session
+    alive so follow-up POSTs within a short window can still succeed.
+
+    Note: This does not currently re-issue a delayed DELETE later; sessions
+    will be cleaned up by FastMCP's own idle timeouts. You can configure the
+    behavior using MCP_DEFER_DELETE_SECONDS (non-zero enables interception).
+    """
+
+    def __init__(self, app: Callable[..., Awaitable], target_path: str = "/mcp"):
+        self.app = app
+        self._target_path = target_path.rstrip("/")
+        # Non-zero enables interception; default 60 seconds as a signal in logs
+        try:
+            self._defer_seconds = int(os.getenv("MCP_DEFER_DELETE_SECONDS", "60"))
+        except ValueError:
+            self._defer_seconds = 60
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") == "http" and self._defer_seconds > 0:
+            path = (scope.get("path") or "").rstrip("/")
+            method = scope.get("method") or ""
+            if method.upper() == "DELETE" and path == self._target_path:
+                # Log minimal info; avoid header dumps in production
+                print(
+                    f"MCP DELETE intercepted at {scope.get('path')}; deferring close for {self._defer_seconds}s"
+                )
+                # Capture relevant request metadata for delayed internal call
+                orig_headers = scope.get("headers") or []
+                scheme = scope.get("scheme", "http")
+                server = scope.get("server")
+                client = scope.get("client")
+                http_version = scope.get("http_version", "1.1")
+                # Read and buffer body from upstream request
+                body_chunks: list[bytes] = []
+                more = True
+                try:
+                    while more:
+                        msg = await receive()
+                        if msg.get("type") != "http.request":
+                            break
+                        data = msg.get("body") or b""
+                        if data:
+                            body_chunks.append(data)
+                        more = msg.get("more_body", False)
+                except Exception:
+                    # If body cannot be read, continue with empty
+                    body_chunks = []
+                buffered_body = b"".join(body_chunks)
+
+                async def _drain_send(_message):
+                    # Ignore downstream response of the delayed delete
+                    return
+
+                async def _body_receive():
+                    # Replay the captured body once
+                    nonlocal buffered_body
+                    b = buffered_body
+                    buffered_body = b""
+                    return {"type": "http.request", "body": b, "more_body": False}
+
+                async def _delayed_invoke():
+                    try:
+                        await asyncio.sleep(self._defer_seconds)
+                        delayed_scope = {
+                            "type": "http",
+                            "asgi": {"version": "3.0"},
+                            "http_version": http_version,
+                            "method": "DELETE",
+                            "scheme": scheme,
+                            "path": self._target_path,
+                            "raw_path": self._target_path.encode("utf-8"),
+                            "query_string": b"",
+                            "headers": orig_headers,
+                            "server": server,
+                            "client": client,
+                        }
+                        await self.app(delayed_scope, _body_receive, _drain_send)
+                    except Exception as ex:
+                        print(f"Deferred MCP DELETE failed: {ex}")
+
+                asyncio.create_task(_delayed_invoke())
+                headers = [(b"content-type", b"text/plain; charset=utf-8")]
+                await send({"type": "http.response.start", "status": 200, "headers": headers})
+                await send({"type": "http.response.body", "body": b"OK"})
+                return
+        # Pass-through for all other requests
+        await self.app(scope, receive, send)
 
 
 class EnvAPIKeyVerifier(TokenVerifier):
@@ -202,6 +297,8 @@ def build_server() -> tuple[FastMCP, object]:
         allow_headers=["*"],
         expose_headers=["*"],
     )
+    # Intercept DELETE /mcp to keep sessions alive briefly (workaround for early close)
+    app = DeferDeleteMiddleware(app, target_path="/mcp")
     return mcp, app
 
 
