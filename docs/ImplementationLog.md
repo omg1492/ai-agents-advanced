@@ -1,3 +1,7 @@
+## 2025-08-19
+
+- agents/dreamfarm-agent: Updated `RAGService.format_search_results` to a clearer block format and included `product_id` in the output. Adjusted unit and integration tests to match the new labels and headers. Added docstring to the method.
+
 ## Implementation Log (consolidated)
 
 This log is streamlined to capture key decisions, architecture changes, and durable insights. Details that don’t inform future work have been removed.

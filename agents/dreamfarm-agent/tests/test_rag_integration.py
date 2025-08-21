@@ -181,11 +181,13 @@ class TestRAGServiceIntegration:
             assert isinstance(formatted, str)
             assert len(formatted) > 0
             
-            # Should contain numbered list format
-            assert "1." in formatted
-            
-            # Should contain similarity scores
-            assert "Similarity:" in formatted
+            # Should contain new block header and labels
+            assert "--- Product 1 ----" in formatted
+            assert "Producer name:" in formatted
+            assert "Product name:" in formatted
+            assert "Product id:" in formatted
+            assert "Product description:" in formatted
+            assert "Similarity score:" in formatted
             
             # Should contain product names from results
             for result in results[:2]:  # Check first 2 results

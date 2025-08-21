@@ -131,14 +131,24 @@ class RAGService:
             ]
 
     def format_search_results(self, results: List[SearchResult]) -> str:
+        """Render search results as a readable block list.
+
+        Each product is presented in a dedicated block that includes producer
+        name, product name, product id, description, and similarity score.
+
+        Returns an empty string when no results are provided.
+        """
         if not results:
             return ""
         lines: list[str] = []
         for i, r in enumerate(results, 1):
             lines.append(
-                f"{i}. {r.producer_name} - {r.product_name}\n"
-                f"   Description: {r.product_description}\n"
-                f"   Similarity: {r.similarity_score:.2f}"
+                f"--- Product {i} ----\n"
+                f"Producer name: {r.producer_name}\n"
+                f"Product name: {r.product_name}\n"
+                f"Product id: {r.product_id}\n"
+                f"Product description: {r.product_description}\n"
+                f"Similarity score: {r.similarity_score:.2f}"
             )
         return "\n\n".join(lines)
 

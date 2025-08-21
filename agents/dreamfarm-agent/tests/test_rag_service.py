@@ -257,12 +257,18 @@ class TestRAGService:
         
         formatted = service.format_search_results(results)
         
-        assert "1. Farm A - Product A" in formatted
-        assert "Description A" in formatted
-        assert "Similarity: 0.90" in formatted
-        assert "2. Farm B - Product B" in formatted
-        assert "Description B" in formatted
-        assert "Similarity: 0.80" in formatted
+        assert "--- Product 1 ----" in formatted
+        assert "Producer name: Farm A" in formatted
+        assert "Product name: Product A" in formatted
+        assert "Product id: uuid-1" in formatted
+        assert "Product description: Description A" in formatted
+        assert "Similarity score: 0.90" in formatted
+        assert "--- Product 2 ----" in formatted
+        assert "Producer name: Farm B" in formatted
+        assert "Product name: Product B" in formatted
+        assert "Product id: uuid-2" in formatted
+        assert "Product description: Description B" in formatted
+        assert "Similarity score: 0.80" in formatted
     
     @patch('src.services.rag_service.create_engine')
     async def test_get_relevant_context_with_results(self, mock_create_engine):
@@ -301,9 +307,10 @@ class TestRAGService:
         context = await service.get_relevant_context("I need some vegetables")
         
         assert context is not None
-        assert "Local Farm - Fresh Carrots" in context
-        assert "Crispy orange carrots" in context
-        assert "Similarity: 0.75" in context
+        assert "Producer name: Local Farm" in context
+        assert "Product name: Fresh Carrots" in context
+        assert "Product description: Crispy orange carrots" in context
+        assert "Similarity score: 0.75" in context
     
     @patch('src.services.rag_service.create_engine')
     async def test_get_relevant_context_no_results(self, mock_create_engine):
