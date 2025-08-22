@@ -62,6 +62,8 @@ class OpenAIService:
         self._app_config: AppConfig = app_config or cfg_service.config
         # Remote MCP server (Farmer Tools)
         self._farmer_tools = getattr(self._app_config, "farmer_tools", None)
+        # Remote MCP server (Tavily Search)
+        self._tavily = getattr(self._app_config, "tavily", None)
         # Local stock custom tool
         self._stock_service: StockService | None = stock_service
         if self._stock_service is None:
@@ -72,10 +74,11 @@ class OpenAIService:
         self.client = self._get_openai_client()
         self.model_name = self._get_model_name()
         logger.info(
-            "Initialized OpenAI service with base_url=%s, model=%s, stock_tool_enabled=%s",
+            "Initialized OpenAI service with base_url=%s, model=%s, stock_tool_enabled=%s, tavily_enabled=%s",
             getattr(self.client, "base_url", None),
             self.model_name,
             bool(self._stock_service and self._stock_service.enabled),
+            bool(self._tavily and self._tavily.enabled),
         )
 
     def get_tools(self) -> Optional[list[dict]]:
@@ -83,11 +86,12 @@ class OpenAIService:
 
         Includes (when enabled):
         - Remote MCP Farmer Tools server
+        - Remote MCP Tavily Search server
         - Local function tool ``get_stock`` for the stock custom tool
         """
         tools: list[dict] = []
 
-        # Remote MCP tool
+        # Remote MCP tool - Farmer Tools
         if self._farmer_tools and getattr(self._farmer_tools, "enabled", False):
             if self._farmer_tools.mcp_url and self._farmer_tools.mcp_api_key:
                 try:
@@ -111,6 +115,31 @@ class OpenAIService:
                         "headers": {
                             "Authorization": f"Bearer {self._farmer_tools.mcp_api_key}",
                         },
+                    }
+                )
+
+        # Remote MCP tool - Tavily Search
+        if self._tavily and getattr(self._tavily, "enabled", False):
+            if self._tavily.api_key:
+                try:
+                    masked = (
+                        self._tavily.api_key[:4] + "***" if self._tavily.api_key else ""
+                    )
+                    # Construct the full URL with API key parameter
+                    tavily_url = f"{self._tavily.mcp_url}?tavilyApiKey={self._tavily.api_key}"
+                    logger.info(
+                        "Configured MCP tool: label=%s url=%s",
+                        "tavily",
+                        f"{self._tavily.mcp_url}?tavilyApiKey={masked}",
+                    )
+                except Exception:
+                    pass
+                tools.append(
+                    {
+                        "type": "mcp",
+                        "server_label": "tavily",
+                        "server_url": tavily_url,
+                        "require_approval": "never",
                     }
                 )
 

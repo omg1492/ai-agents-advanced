@@ -55,6 +55,18 @@ class FarmerToolsConfig:
     mcp_api_key: str | None
 
 @dataclass
+class TavilyConfig:
+    """Configuration for the Tavily MCP server.
+
+    The DreamFarm Agent connects to Tavily's remote MCP server for web search
+    capabilities. Tavily provides real-time web search, news search, and data
+    extraction tools via their remote MCP endpoint.
+    """
+    enabled: bool
+    api_key: str | None
+    mcp_url: str = "https://mcp.tavily.com/mcp/"
+
+@dataclass
 class StockToolConfig:
     """Configuration for local Stock API custom tool.
 
@@ -77,6 +89,7 @@ class AppConfig:
     db: DatabaseConfig
     rag: RagConfig
     farmer_tools: FarmerToolsConfig | None
+    tavily: TavilyConfig | None
     stock_tool: StockToolConfig | None
 
 
@@ -165,6 +178,21 @@ class ConfigService:
             else None
         )
 
+        # Tavily MCP configuration (remote search tool)
+        tavily_api_key = os.getenv("TAVILY_API_KEY")
+        tavily_enabled = (
+            os.getenv("TAVILY_ENABLED", "true").lower() in ["true", "1", "yes", "on"]
+            and bool(tavily_api_key)
+        )
+        tavily_config = (
+            TavilyConfig(
+                enabled=tavily_enabled,
+                api_key=tavily_api_key,
+            )
+            if tavily_api_key
+            else None
+        )
+
         # Local Stock Tool configuration (custom function tool)
         stock_tool_url = os.getenv("STOCK_API_URL") or os.getenv("STOCK_TOOL_URL")
         stock_tool_enabled = (
@@ -188,6 +216,7 @@ class ConfigService:
             db=db_config,
             rag=rag_config,
             farmer_tools=farmer_tools_config,
+            tavily=tavily_config,
             stock_tool=stock_tool_config,
         )
     
