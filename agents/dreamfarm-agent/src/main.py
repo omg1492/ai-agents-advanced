@@ -27,6 +27,7 @@ from src.services.openai_service import OpenAIService
 from src.services.config_service import ConfigService
 from src.services.rag_service import RAGService
 from src.services.template_service import TemplateService
+from src.services.stock_service import StockService
 
 
 # Load environment variables
@@ -54,6 +55,7 @@ openai_service: OpenAIService = None
 config_service: ConfigService = None
 rag_service: RAGService | None = None
 template_service: TemplateService | None = None
+stock_service: StockService | None = None
 # Minimal session and history stores (state remains in Responses API)
 _threads: dict[str, ThreadModel] = {}
 _history: dict[str, list[MessageModel]] = {}
@@ -63,7 +65,7 @@ _last_response_id: dict[str, str] = {}
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan - startup and shutdown."""
-    global openai_service, config_service, rag_service, template_service
+    global openai_service, config_service, rag_service, template_service, stock_service
 
     # Startup
     logger.info("Starting DreamFarm Agent...")
@@ -92,6 +94,12 @@ async def lifespan(app: FastAPI):
                 logger.info("RAG service initialized and enabled")
             except Exception as re:
                 logger.warning(f"RAG initialization failed, continuing without RAG: {re}")
+        # Initialize Stock custom tool
+        stock_service = StockService(cfg)
+        if stock_service.enabled:
+            logger.info("Stock service (custom tool) enabled")
+        else:
+            logger.info("Stock service (custom tool) disabled")
         logger.info("Services initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
@@ -157,6 +165,7 @@ async def chat(request: ChatRequest):
                 "seasonal_products": [],
                 "user_preferences": [],
                 "simple_rag": rag_context or "",
+                # Stock data is NOT injected here; retrieved only via function calling.
             },
         )
         logger.debug(f"Rendered system prompt for /chat:\n{system_prompt}")
@@ -311,7 +320,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
 
     prev_resp_id = _last_response_id.get(thread_id)
 
-    # Build system prompt with optional RAG context
+    # Build system prompt with optional RAG and stock context (parity with non-stream endpoints)
     rag_context = None
     if 'rag_service' in globals() and rag_service is not None and getattr(rag_service, 'enabled', False):
         try:
@@ -326,6 +335,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
             "seasonal_products": [],
             "user_preferences": [],
             "simple_rag": rag_context or "",
+            # Stock data excluded; function calling path only.
         },
     )
 
@@ -339,154 +349,172 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
 
     # Server label no longer included in DF_META payload; skip computing it
 
+    # Implement the pattern from Tomáš Kubica article: loop-based streaming with tool execution
+    input_messages = [{"role": "user", "content": payload.message}]
+    response_id_local = prev_resp_id
+    full_text = ""
+    
     async def token_generator():
-        """Internal async generator that yields text chunks and updates state on finish."""
-        full_text = ""
-        response_id_local = None
-        last_tool_name: str | None = None
-        # Track args and mapping by item_id to enrich subsequent events
-        args_by_item_id: dict[str, str] = {}
-        name_by_item_id: dict[str, str] = {}
-        try:
-            # Stream from OpenAI Responses API (unified OpenAI/Azure client)
-            # Tools are optional; already resolved above
-            stream_kwargs = {"tools": tools} if tools else {}
-            async with openai_service.client.responses.stream(
-                model=openai_service.model_name,
-                instructions=system_prompt or None,
-                input=payload.message,
-                store=True,
-                previous_response_id=prev_resp_id or None,
-                reasoning={"effort": "minimal"},
-                **stream_kwargs,
-            ) as stream:
-                async for event in stream:
-                    et = getattr(event, "type", "")
-                    # Collect plain text deltas
-                    if et == "response.output_text.delta" or et.endswith("response.output_text.delta"):
-                        delta = getattr(event, "delta", "")
-                        if delta:
-                            full_text += delta
-                            yield delta
-                    # Capture output items where the function/MCP call name is available
-                    elif et in ("response.output_item.added", "response.output_item.done"):
-                        item = getattr(event, "item", None)
-                        if item is not None:
-                            item_type = getattr(item, "type", None)
-                            if item_type in ("function_call", "mcp_call", "web_search_call", "file_search_call"):
-                                # Build simplified payload
-                                meta = {"kind": "tool_event", "event_type": et}
-                                i_name = getattr(item, "name", None)
-                                if i_name:
-                                    meta["tool_name"] = i_name
-                                    last_tool_name = i_name
-                                i_id = getattr(item, "id", None)
-                                if i_id and i_name:
-                                    name_by_item_id[i_id] = i_name
-                                i_args = getattr(item, "arguments", None)
-                                if isinstance(i_args, (str, bytes)) and i_args:
-                                    meta["arguments"] = str(i_args)
-                                    if i_id:
-                                        args_by_item_id[i_id] = str(i_args)
-                                logger.info(f"Tool event: {meta}")
-                                yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
-                    # Stream reasoning summaries (do not include in answer text)
-                    elif "reasoning" in et:
-                        delta = getattr(event, "delta", None) or getattr(event, "text", None)
-                        if delta:
-                            meta = {"kind": "reasoning", "event_type": et, "delta": delta}
-                            logger.info(f"Reasoning event: {et} :: {delta}")
-                            yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
-                    # Stream tool-related events (MCP/web/file-search/function args)
-                    elif ("tool" in et) or ("web_search_call" in et) or ("file_search_call" in et) or ("function_call" in et) or ("mcp" in et) or ("call." in et):
-                        # Build simplified payload
-                        meta = {"kind": "tool_event", "event_type": et}
-                        # Pick up a name directly if present
-                        direct_name = getattr(event, "tool_name", None) or getattr(event, "name", None)
-                        if direct_name:
-                            meta["tool_name"] = direct_name
-                        # Use item_id correlations if available
-                        item_id = getattr(event, "item_id", None)
-                        if item_id:
-                            if hasattr(event, "delta") and isinstance(getattr(event, "delta"), str):
-                                d = getattr(event, "delta")
-                                if d:
-                                    args_by_item_id[item_id] = args_by_item_id.get(item_id, "") + d
-                            if et.endswith(".done"):
-                                final_args = getattr(event, "arguments", None)
-                                if isinstance(final_args, (str, bytes)) and final_args:
-                                    args_by_item_id[item_id] = str(final_args)
-                            agg = args_by_item_id.get(item_id)
-                            if agg:
-                                meta["arguments"] = agg
-                            known_name = name_by_item_id.get(item_id)
-                            if known_name:
-                                meta.setdefault("tool_name", known_name)
-                        # Nested call object may carry name/args
-                        for nested in (getattr(event, "call", None), getattr(event, "mcp_call", None), getattr(event, "tool", None)):
-                            if nested is None:
-                                continue
-                            n_name = getattr(nested, "name", None)
-                            if n_name:
-                                meta.setdefault("tool_name", n_name)
-                                last_tool_name = n_name
-                            n_args = getattr(nested, "arguments", None)
-                            if isinstance(n_args, (str, bytes)):
-                                meta.setdefault("arguments", str(n_args))
-                        # Some deltas carry args text directly
-                        if hasattr(event, "delta") and isinstance(getattr(event, "delta"), str):
-                            d = getattr(event, "delta")
-                            if d and "arguments" not in meta:
-                                meta["arguments"] = d
-                        # Include error detail when a call fails
-                        if et.endswith(".failed") or et.endswith("response.error"):
-                            item_id = getattr(event, "item_id", None)
-                            if item_id:
-                                agg = args_by_item_id.get(item_id)
-                                if agg and "arguments" not in meta:
-                                    meta["arguments"] = agg
-                                known_name = name_by_item_id.get(item_id)
-                                if known_name and "tool_name" not in meta:
-                                    meta["tool_name"] = known_name
-                            # Capture error message if available for diagnostics
-                            err_obj = getattr(event, "error", None)
-                            if err_obj is not None:
-                                try:
-                                    # Try common shapes: str or object with message
-                                    err_text = getattr(err_obj, "message", None) or str(err_obj)
-                                    if err_text:
-                                        meta["error"] = err_text
-                                except Exception:
-                                    pass
-                        if last_tool_name:
-                            meta.setdefault("tool_name", last_tool_name)
-                        logger.info(f"Tool event: {meta}")
-                        yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
-                    elif et == "response.error" or et.endswith("response.error"):
-                        err = getattr(event, "error", None)
-                        logger.error(f"OpenAI stream error: {err}")
-                # Get final response to retrieve response_id
-                final = await stream.get_final_response()
-                response_id_local = getattr(final, "id", None)
-        except Exception as e:
-            logger.error(f"Streaming failed: {e}")
-            # Stop streaming; client will handle partial content
-        finally:
-            # Update server-side state/history when stream completes
-            if response_id_local:
-                _last_response_id[thread_id] = response_id_local
-            # Append assistant message to history
-            assistant_msg = MessageModel(
-                message_id=os.urandom(8).hex(),
-                thread_id=thread_id,
-                role="assistant",
-                content=full_text,
-                timestamp=datetime.now(timezone.utc).isoformat(),
-            )
-            _history[thread_id].append(assistant_msg)
-            # Update thread metadata
-            thread.message_count = len(_history[thread_id])
-            thread.updated_at = datetime.now(timezone.utc).isoformat()
+        """Loop-based streaming generator following proven GPT-5 reasoning pattern."""
+        nonlocal input_messages, response_id_local, full_text
+        
+        while True:
+            try:
+                # Stream from OpenAI Responses API
+                stream_kwargs = {"tools": tools} if tools else {}
+                async with openai_service.client.responses.stream(
+                    model=openai_service.model_name,
+                    instructions=system_prompt or None,
+                    input=input_messages,
+                    store=True,
+                    previous_response_id=response_id_local or None,
+                    reasoning={"effort": "minimal"},
+                    **stream_kwargs,
+                ) as response:
+                    
+                    # Collect all items (reasoning + function calls) and tool outputs for next iteration
+                    pending_outputs = []
+                    current_reasoning_item = None
+                    
+                    # Process streaming events from the model
+                    async for event in response:
+                        if hasattr(event, "response_id"):
+                            response_id_local = event.response_id
+                            
+                        et = getattr(event, "type", "")
+                        
+                        # Stream text deltas directly to client
+                        if et == "response.output_text.delta":
+                            delta = getattr(event, "delta", "")
+                            if delta:
+                                full_text += delta
+                                yield delta
+                                
+                        # Handle function call arguments streaming
+                        elif et == "response.function_call_arguments.delta":
+                            # Don't yield function args to client, just log
+                            delta = getattr(event, "delta", "")
+                            logger.debug(f"Function arg delta: {delta}")
+                            
+                        # Capture reasoning and function call items when done
+                        elif et == "response.output_item.done":
+                            item = getattr(event, "item", None)
+                            if item is not None:
+                                item_type = getattr(item, "type", None)
+                                
+                                # Store reasoning items to pair with function calls
+                                if item_type == "reasoning":
+                                    current_reasoning_item = item
+                                    input_messages.append(item)
+                                    logger.info("Reasoning step completed")
+                                
+                                # Handle function calls
+                                elif item_type == "function_call":
+                                    # Add reasoning item first (if we have one), then function call
+                                    if current_reasoning_item is not None:
+                                        # Reasoning already added above, just note the pairing
+                                        logger.debug(f"Paired reasoning item with function call: {getattr(item, 'name', 'unknown')}")
+                                        current_reasoning_item = None  # Reset for next pair
+                                    
+                                    # Add function call to input messages
+                                    input_messages.append(item)
+                                    
+                                    # Tool event meta for UI
+                                    meta = {"kind": "tool_event", "event_type": et}
+                                    i_name = getattr(item, "name", None)
+                                    if i_name:
+                                        meta["tool_name"] = i_name
+                                    i_args = getattr(item, "arguments", None)
+                                    if isinstance(i_args, (str, bytes)) and i_args:
+                                        meta["arguments"] = str(i_args)
+                                    logger.info(f"Tool event: {meta}")
+                                    yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
+                                    
+                                    # Execute get_stock function
+                                    if getattr(item, "name", None) == "get_stock":
+                                        try:
+                                            raw_args = getattr(item, "arguments", "{}")
+                                            parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                                            product_ids = parsed_args.get("productIds", parsed_args.get("product_ids", []))
+                                            if not isinstance(product_ids, list):
+                                                product_ids = []
+                                            product_ids = [str(p) for p in product_ids][:20]
+                                            
+                                            stock_items_result = []
+                                            if product_ids and hasattr(openai_service, "_stock_service") and openai_service._stock_service and openai_service._stock_service.enabled:  # type: ignore[attr-defined]
+                                                try:
+                                                    stock_items = await openai_service._stock_service.get_stock(product_ids)  # type: ignore[attr-defined]
+                                                    for it in stock_items:
+                                                        stock_items_result.append({"product_id": it.product_id, "on_stock": it.on_stock})
+                                                    logger.info(
+                                                        "Stock API returned %s items (requested %s) for call %s",
+                                                        len(stock_items_result),
+                                                        len(product_ids),
+                                                        getattr(item, "id", "unknown"),
+                                                    )
+                                                except Exception as se:  # noqa: BLE001
+                                                    logger.warning("Stock function execution failed: %s", se)
+                                            
+                                            # Store function call output for next iteration
+                                            pending_outputs.append({
+                                                "type": "function_call_output",
+                                                "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                "output": json.dumps({"items": stock_items_result}),
+                                            })
+                                            
+                                            # Emit meta event for UI
+                                            submit_meta = {
+                                                "kind": "tool_event",
+                                                "event_type": "tool.outputs_executed",
+                                                "tool_name": "get_stock",
+                                                "output_items_count": len(stock_items_result),
+                                            }
+                                            yield "\nDF_META:" + json.dumps(submit_meta, ensure_ascii=False) + "\n"
+                                            
+                                        except Exception as exec_e:  # noqa: BLE001
+                                            logger.warning(f"Function execution error: {exec_e}")
+                        
+                        # Tool event meta for UI (for added events)
+                        elif et == "response.output_item.added":
+                            item = getattr(event, "item", None)
+                            if item is not None:
+                                item_type = getattr(item, "type", None)
+                                if item_type in ("function_call", "mcp_call", "web_search_call", "file_search_call"):
+                                    meta = {"kind": "tool_event", "event_type": et}
+                                    i_name = getattr(item, "name", None)
+                                    if i_name:
+                                        meta["tool_name"] = i_name
+                                    i_args = getattr(item, "arguments", None)
+                                    if isinstance(i_args, (str, bytes)) and i_args:
+                                        meta["arguments"] = str(i_args)
+                                    logger.debug(f"Tool event (added): {meta}")
+                                    yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
+                        
+                # After stream ends, check if we need to continue the loop
+                if not pending_outputs:
+                    break  # No more tool calls → finished
+                    
+                # Add results and continue loop
+                input_messages.extend(pending_outputs)
+                logger.info(f"Continuing reasoning loop with {len(pending_outputs)} tool output(s)")
+                
+            except Exception as e:
+                logger.error(f"Streaming loop failed: {e}")
+                break
+        
+        # Update server-side state when completely done
+        if response_id_local:
+            _last_response_id[thread_id] = response_id_local
+        assistant_msg = MessageModel(
+            message_id=os.urandom(8).hex(),
+            thread_id=thread_id,
+            role="assistant",
+            content=full_text,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
+        _history[thread_id].append(assistant_msg)
+        thread.message_count = len(_history[thread_id])
+        thread.updated_at = datetime.now(timezone.utc).isoformat()
 
     return StreamingResponse(token_generator(), media_type="text/plain; charset=utf-8")
 

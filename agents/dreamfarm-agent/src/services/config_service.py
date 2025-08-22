@@ -54,6 +54,18 @@ class FarmerToolsConfig:
     mcp_url: str | None
     mcp_api_key: str | None
 
+@dataclass
+class StockToolConfig:
+    """Configuration for local Stock API custom tool.
+
+    This tool is invoked locally by the agent (cannot be registered as a remote
+    MCP server) and proxies requests to the stock REST API. The model may have
+    product UUIDs provided in the user's message; when enabled the agent will
+    fetch stock information and inject it into the system prompt.
+    """
+    enabled: bool
+    api_url: str | None
+
 
 @dataclass
 class AppConfig:
@@ -65,6 +77,7 @@ class AppConfig:
     db: DatabaseConfig
     rag: RagConfig
     farmer_tools: FarmerToolsConfig | None
+    stock_tool: StockToolConfig | None
 
 
 class ConfigService:
@@ -152,6 +165,21 @@ class ConfigService:
             else None
         )
 
+        # Local Stock Tool configuration (custom function tool)
+        stock_tool_url = os.getenv("STOCK_API_URL") or os.getenv("STOCK_TOOL_URL")
+        stock_tool_enabled = (
+            os.getenv("STOCK_TOOL_ENABLED", "true").lower() in ["true", "1", "yes", "on"]
+            and bool(stock_tool_url)
+        )
+        stock_tool_config = (
+            StockToolConfig(
+                enabled=stock_tool_enabled,
+                api_url=stock_tool_url,
+            )
+            if stock_tool_url
+            else None
+        )
+
         return AppConfig(
             environment=os.getenv("ENVIRONMENT", "development"),
             cors_origins=cors_origins,
@@ -160,6 +188,7 @@ class ConfigService:
             db=db_config,
             rag=rag_config,
             farmer_tools=farmer_tools_config,
+            stock_tool=stock_tool_config,
         )
     
     def _get_required_env(self, key: str) -> str:
