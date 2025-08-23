@@ -202,3 +202,12 @@ This implementation represents a significant breakthrough in GPT-5 reasoning mod
 - Structured Pydantic `VideoProductSummary` mirrors image + PDF scripts for consistency.
 - Added `VIDEOS_INPUT_DIR` env var to `.env.template` and `.env`.
 - Clear TODO marker to switch to direct video ingestion once generally available in the Python SDK.
+
+## 2025-08-23 Full-Text Search for simple_products
+
+- Added FTS column `fts_combined` (unaccent + simple config) with trigger-based maintenance (initial generated column attempt failed: "generation expression is not immutable").
+- Created GIN index `idx_simple_products_fts_combined`.
+- Added extension script `03_install_unaccent.sql` to enable `unaccent`.
+- Updated `Design.md` (notes trigger approach & table column constraints).
+
+Rationale: enables hybrid (semantic + lexical) retrieval with explicit trigger logic; foundation for future rank fusion.

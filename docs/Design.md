@@ -174,13 +174,17 @@ simple_products
 | producer_name      | varchar(255)  | not null              | Producer name                                    |
 | product_name       | varchar(255)  | not null              | Product name                                     |
 | product_description| text          | not null              | Product description                              |
-| combined_text      | text          | not null              | Preformatted text used for embedding generation  |
+| combined_text      | text          | not null              | Preformatted text used for embedding & FTS       |
 | embedding          | vector(2000)  |                       | 2000-d embedding (pgvector)                      |
+| fts_combined       | tsvector      | trigger-maintained    | Unaccented tsvector over combined_text for FTS   |
 
 Notes
 - Vector similarity optimized with an HNSW index on embedding (cosine similarity).
 - Additional btree indexes on product_id, producer_name, and product_name for lookups.
- - Additional btree indexes on product_id, producer_name, and product_name for lookups.
+- Full-text search enabled via generated column `fts_combined` + GIN index (unaccent + simple config).
+
+#### Full-Text Search (FTS) Enhancement (Lesson 1 Hybrid Add-On)
+Hybrid support: `fts_combined` (trigger-maintained due to unaccent immutability) + GIN index for keyword fallback alongside vector search. Extension: `unaccent`.
 
 ### Database and Knowledge Graph Schema (production-ready)
 
