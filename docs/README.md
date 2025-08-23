@@ -1,6 +1,6 @@
 # Pokročilý kurz AI aplikací – 10 večerních lekcí
 
-Tento pokročilý kurz vás provede tvorbou **virtuálního farmářského tržiště** a naučí vás navrhovat, implementovat a nasazovat produkční AI služby. Projdeme kompletní workflow – od práce s dokumenty, deep research a multimodality, přes personalizační paměť a dynamicky generované UI, až po integraci do podnikových systémů, autonomní workflow, multi-agentní spolupráci, observabilitu, evaluaci, bezpečnost a škálovatelné nasazení. 
+Tento pokročilý kurz vás provede tvorbou **virtuálního farmářského tržiště** a naučí vás navrhovat, implementovat a nasazovat produkční AI služby. Projdeme kompletní workflow – od základního RAG (CSV → embeddings) a nástrojového volání (MCP + function calling), přes ingest dokumentů / obrázků / audia / videí, hybridní vyhledávání a semantický caching, deep research a znalostní graf, multimodalitu, personalizační paměť a dynamicky generované UI, až po integraci do podnikových systémů, autonomní workflow, multi-agentní spolupráci, observabilitu, evaluaci, bezpečnost a škálovatelné nasazení. 
 
 ## V čem je tento kurz jiný
 - Celý kurz společně budujeme AI aplikaci, která řeší reálný byznys problém. Od jednoduchého minimálního produktu přes komplexní funkce až po zabezpečení, měření a vylepšování kvality, nasazení, škálování a observabilitu.
@@ -23,29 +23,54 @@ Obsah lekcí navazuje na agendu (`docs/agenda.md`) a postupně rozvíjí společ
 ## Společný projekt – Virtuální farmářské tržiště  
 Cílem je vybudovat AI aplikaci, která:  
 - Odpovídá na dotazy o původu, kvalitě a dostupnosti produktů.  
-- Zpracovává podklady z dokumentů, obrázků i videí.
-- Doporučuje personalizované košíky a recepty s ohledem na dietu či sezónnost.  
-- Umožňuje hands-free hlasovou interakci a dlouhodobou uživatelskou paměť.  
-- Vizualizuje a počítá nutriční data a nabízí alternativy.  
-- Autonomně nebo polo-autonomně řeší stížnosti a další obchodní procesy.
-- Sjednává catering mezi farmáři a kuchaři skrze multi-agentní systém. 
+- Zpracovává a sjednocuje informace z dokumentů, obrázků, audia i videí do srozumitelných odpovědí.  
+- Rychle a přesně vyhledává i v rozsáhlých podkladech a učí se z častých dotazů pro svižnější reakce.  
+- Propojuje suroviny, recepty a sezónnost a navrhuje personalizované košíky podle preferencí, diet a alergií.  
+- Udržuje dlouhodobou paměť uživatele (obliby, omezení) a tomu přizpůsobuje další doporučení.  
+- Umožňuje hands‑free hlasovou interakci.  
+- Vizualizuje nutriční a další data a nabízí zdravější alternativy.  
+- Pomáhá řešit stížnosti a opakované procesy automatizovanými workflow.  
+- Spolupracuje mezi více specializovanými "agenty" (např. farmářský a kuchařský) a dokáže domluvit catering včetně surovin a ceny.  
+- Respektuje přístupová oprávnění a chrání citlivější podklady. 
 
 Jaké funkce přidáme do aplikace v jaké lekci je k přečteně v [agendě](agenda.md)
 
 ## Použité technologie  
-- Python (backend, FastAPI, MCP)  
-- React UI (assistant-ui)  
-- LangGraph pro RAG a agenty  
-- OpenAI API, embeddings + PostgreSQL (pgvector)  
-- MCP pro napojení interních API a web-search nástrojů  
-- Temporal pro orchestraci workflow, LiteLLM pro model routing  
-- Redis (pub/sub) pro komunikaci agentů a caching  
-- Code Interpreter sandbox pro analýzu & vizualizace  
-- Real Voice Chat (Speech-to-Text / Text-to-Speech)  
-- OpenTelemetry + Langfuse pro observabilitu a evaluace  
-- Kubernetes + GitHub Actions pro škálovatelné nasazení a CI/CD  
-- PyRIT pro bezpečnostní testování (red teaming) a evaluaci odolnosti promptů  
-- Infrastructure-as-Code (Terraform ) pro automatizované nasazení prostředí  
+**Core & Backend:**  
+- Python (FastAPI)  
+- OpenAI GPT / Embeddings (cosine similarity)  
+- PostgreSQL + pgvector (vektory) + full‑text  
+- Redis (caching, pub/sub)  
+
+**Retrieval & Knowledge:**  
+- Hybrid search (keyword + semantic + RRF)  
+- Semantic cache  
+- MarkItDown (konverze dokumentů)  
+- Whisper (STT)  
+- ffmpeg (audio/video extrakce)  
+- AGE (PostgreSQL extension) – knowledge / graph základy  
+
+**Nástroje & Orchestrace:**  
+- MCP servery (interní + web-search, Tavily)  
+- Function calling (vlastní nástroje)  
+- LangGraph (agentic RAG, orchestrace agentů)  
+- Temporal (workflow)  
+- LiteLLM (model routing)  
+
+**UI & Interakce:**  
+- React (assistant-ui)  
+- Real Voice Chat (STT/TTS)  
+- Code Interpreter / sandbox (analýza & vizualizace)  
+
+**Security & Observabilita:**  
+- Keycloak / OIDC (autentizace, tokeny)  
+- OpenTelemetry + Langfuse (telemetrie, evaluace)  
+- PyRIT (red teaming)  
+
+**DevOps & Infra:**  
+- Docker Compose, Kubernetes  
+- GitHub Actions (CI/CD)  
+- Terraform (IaC)  
 
 ## Vstupní požadavky  
 - Praktická znalost Pythonu (funkce, moduly, virtuální prostředí).  
