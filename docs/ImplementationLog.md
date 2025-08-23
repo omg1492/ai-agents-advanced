@@ -188,3 +188,9 @@ This implementation represents a significant breakthrough in GPT-5 reasoning mod
 - Structured response with Pydantic `ProductSummary` ensuring consistent output (product_name + short_description).
 - Added `markitdown` dependency to `data/scripts/pyproject.toml`.
 - Console output uses clear delimiter blocks (PROCESSING, MARKDOWN EXTRACT, LLM SUMMARY, ERROR) for readability during batch runs.
+
+## 2025-08-23 Image Processing Utility
+
+- Added `data/scripts/process_images.py` to generate product name & description from images using vision-capable model via unified OpenAI client.
+- Supports env `IMAGES_INPUT_DIR` (default `../images`).
+- Structured outputs with Pydantic `ImageProductSummary`; consolidated summary printed at end (mirrors PDF script UX).
