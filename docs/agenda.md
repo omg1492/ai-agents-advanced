@@ -6,66 +6,72 @@ Vnímáte u sebe nějaké slabiny a chcete se na kurz lépe připravit? Třeba z
 Dostanete seznam doporučených tutoriálů - nejsou podmínkou, ale pokud chcete pro svou připravenost udělat maximum, skvělé!
 
 ### Lekce 01 – Business požadavky, architektura & základní chatbot nad dokumenty
-Základní chatbot zpřístupní popisy produktů z farmy v přirozeném jazyce, takže zákazník ihned zjistí původ, kvalitu i dostupnost zboží. Rychlé a přesné odpovědi snižují zátěž podpory a zvyšují míru dokončených objednávek.  
+Základní chatbot zpřístupní popisy produktů v přirozeném jazyce, aby zákazník rychle zjistil původ, kvalitu i dostupnost zboží. Součástí je jednoduchá data pipeline (CSV → embeddings) a základní RAG nad PostgreSQL s cosinovou podobností a jednoduchým frontendem.  
 
 **Koncepty:**
 - RAG
 - Embeddings
-- Vektorová databáze  
+- Vektorová databáze
+- Data pipeline (CSV → embeddings)
 
 **Technologie:**
-- OpenAI API
+- OpenAI GPT 5
 - PostgreSQL (pgvector)
-- Python (backend, FastAPI)
-- React UI (assistant-ui)
+- FastAPI (Python)
+- React (assistant-ui)
+- Docker Compose
+- Cosine similarity
 
 ### Lekce 02 – Používání nástrojů: Web search, API, MCP
-Asistent kombinuje interní API s web-search, aby ukázal aktuální ceny, zásoby a recepty k vybranému produktu. Tím pomáhá zákazníkovi lépe plánovat nákup a zvyšuje průměrnou hodnotu košíku i konverzní poměr.  
+Asistent kombinuje interní API, MCP nástroje a web-search (Tavily) pro získání aktuálních zásob, sezónních produktů a receptů. Přidáváme vlastní nástroj přes function calling a (volitelně) MCP gateway.  
 
 **Koncepty:**
 - Tool-use
-- API gateway
-- Web-search  
+- Function calling
+- MCP gateway
+- Web-search
+- Integrace interního API
 
 **Technologie:**
-- MCP
-- REST/GraphQL
-- Python (FastAPI)
-- OpenAI API
+- MCP servery
+- GPT 5 (tool / function calling)
+- FastAPI (Python)
+- Tavily search
 
 ### Lekce 03 – Vytváření znalostní báze pro AI z dokumentů, obrázků a videí
-Řada farmářů dodává popisy ve formě PDF dokumentů, nutričních tabulek nebo obrázků. Kromě toho existuje řada video recenzí, receptů na vaření a dalších tipů spojených s farmářskými produkty. Ty potřebujeme zpracovat a integrovat do znalostní báze, aby AI mohla lépe odpovídat na dotazy zákazníků. Nicméně, některé dokumenty nejsou určeny pro každého zákazníka, takže potřebujeme zajistit bezpečnost přístupu k nim. Navíc často chceme hledat ne podle významu, ale specificky podle třeba kódu produktu nebo farmy, takže potřebujeme i full-text vyhledávání. Pro často kladené otázky bychom mohli systém zrychlit pro uživatele a ještě ušetřit s využitím cachování.  
+Zpracování PDF, obrázků, audia (Whisper) i krátkých videí (extrakce zvuku / textu) do Markdown a embeddings. Přidání hybridního vyhledávání (keyword + semantic + RRF), full‑text vyhledávání a semantického cachování častých dotazů.  
 
 **Koncepty:**
-- Data ingest
-- Hybrid search
-- RAG fencing
-- Semantic cache  
-- Autentizace a autorizace uživatelů
+- Data ingest (PDF, image, audio, video)
+- Hybrid search (keyword + semantic + RRF)
+- Full‑text search
+- Semantic cache
 
 **Technologie:**
-- PyPDF/OCR
+- MarkItDown
 - Whisper
+- ffmpeg
 - OpenAI embeddings
-- PostgreSQL (pgvector)
-- Authentik (OIDC řešení)
-- OpenID Connect, OAuth 2.0 a JWT tokeny
+- PostgreSQL (pgvector + full‑text)
 
 ### Lekce 04 – Deep Research & Knowledge Graph
-Znalostní graf propojí suroviny, recepty a sezónnost, takže AI doporučí ideální košík pro konkrétní událost i roční dobu. Díky cíleným doporučením se zvyšuje upsell a snižuje plýtvání sezónních produktů.  
+Hierarchické a iterativní (agentic) vyhledávání, sestavení znalostního grafu (suroviny, recepty, sezónnost) a RAG fencing s řízeným přístupem, včetně autentizace.  
 
 **Koncepty:**
+- Hierarchické hledání
 - Knowledge graph
-- Agentic RAG
-- Deep research  
+- Agentic search (Agentic RAG)
+- Deep research
+- RAG fencing
+- Autentizace
 
 **Technologie:**
-- Neo4j/Memgraph
-- LangGraph
+- AGE (PostgreSQL extension)
+- Keycloak
 - Python
 
 ### Lekce 05 – Multimodalita, paměť & Real Voice Chat
-Lekce rozšiřuje asistenta o Real Voice Chat, který umožní zákazníkovi ovládat systém hands-free při vaření či na cestách, a zároveň zavádí dlouhodobou personalizační paměť ukládající diety, alergeny či oblíbené recepty. Obě funkce společně zvyšují komfort používání i relevanci doporučení, což podporuje opakované nákupy.  
+Lekce rozšiřuje asistenta o Real Voice Chat (hands‑free) a dlouhodobou paměť s preferencemi, dietami a alergeny pro vyšší personalizaci a retenci.  
 
 **Koncepty:**
 - Multimodality
