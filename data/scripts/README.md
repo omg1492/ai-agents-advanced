@@ -1,19 +1,22 @@
 # Data Scripts
 
-This directory contains scripts for data generation, processing, and database management for the Advanced AI Applications project.
+This directory contains standalone utilities that form two groups:
 
-## Overview
+1. **Data pipeline (tabular + embeddings + database import)** – generates sample product data, prepares PostgreSQL (vector + graph), creates embeddings and imports them.
+2. **Content understanding utilities (PDF / Image / Video)** – extract or infer structured product metadata (name + short description) from heterogeneous media using OpenAI (PDF/Image) and local Whisper + OpenAI vision (Video).
 
-The scripts work together to create a complete data pipeline from raw data generation to a searchable PostgreSQL database with vector embeddings.
+All scripts are intentionally single‑file tools for quick demos and reproducibility. They share a common `.env` using *unified* OpenAI / Azure OpenAI configuration variables.
 
 ## Prerequisites
 
-1. **Python Environment**: Use `uv` to manage dependencies
-2. **PostgreSQL with pgvector**: Use Docker Compose setup in `deploy/local/`
-3. **OpenAI API**: Configure Azure OpenAI or OpenAI API credentials
-4. **Environment Configuration**: Copy `.env.template` to `.env` and configure
+1. **Python environment**: Use `uv` (Python ≥3.12)
+2. **PostgreSQL with pgvector + AGE** (for the data pipeline) via `deploy/local/docker-compose.yml`
+3. **OpenAI or Azure OpenAI** credentials for embeddings + vision + text
+4. **FFmpeg** (optional but recommended) for video audio extraction – required when processing videos
+5. **Local Whisper (faster-whisper)** – automatically pulled when you run `uv sync`; used for video transcription to avoid remote speech costs / deployment issues
+6. **Environment file**: copy `.env.template` → `.env` and edit
 
-## Quick Start
+## Quick Start (Data Pipeline)
 
 ```bash
 # 1. Install dependencies
@@ -38,7 +41,9 @@ uv run import_simple_products.py  # Import data and test queries
 
 ## Scripts Description
 
-### 1. `gen_basic_data.py`
+### A. Data Pipeline
+
+#### 1. `gen_basic_data.py`
 **Purpose**: Generates sample product data with producers, products, and descriptions.
 
 **Output**: Creates JSON files in `../source_json/`:
@@ -52,7 +57,7 @@ uv run import_simple_products.py  # Import data and test queries
 uv run gen_basic_data.py
 ```
 
-### 2. `configure_postgresql.py`
+#### 2. `configure_postgresql.py`
 **Purpose**: Sets up PostgreSQL database with pgvector extension and creates tables.
 
 **Features**:
@@ -74,7 +79,7 @@ uv run configure_postgresql.py
 - `sql/tables/03_create_products.sql` - Creates production products table (hybrid: pgvector + FTS)
 - `sql/tables/04_init_age_graph.sql` - Initializes the AGE graph `dreamfarm`
 
-### 3. `embeddings_simple_products.py`
+#### 3. `embeddings_simple_products.py`
 **Purpose**: Processes product data and generates vector embeddings using OpenAI models.
 
 **Features**:
@@ -91,7 +96,7 @@ uv run configure_postgresql.py
 uv run embeddings_simple_products.py
 ```
 
-### 4. `import_simple_products.py`
+#### 4. `import_simple_products.py`
 **Purpose**: Imports processed data into PostgreSQL and tests vector similarity search.
 
 **Features**:
@@ -106,7 +111,7 @@ uv run embeddings_simple_products.py
 uv run import_simple_products.py
 ```
 
-### 5. `import_stock.py`
+#### 5. `import_stock.py`
 **Purpose**: Imports stock levels from `../source_json/stock.json` into the `stock` table.
 
 **Features**:
@@ -118,7 +123,47 @@ uv run import_simple_products.py
 uv run import_stock.py
 ```
 
-## Data Flow
+### B. Content Understanding Utilities
+
+These scripts infer consistent product metadata (`product_name`, `short_description`) from different modalities. All print clearly delimited console blocks plus a consolidated summary.
+
+| Script | Modality | Core Steps | Model / Engine | Structured Output |
+|--------|----------|-----------|----------------|------------------|
+| `process_pdfs.py` | PDFs | Convert to Markdown (markitdown) → vision & text prompt (Responses/Chat parse) | OpenAI/Azure (unified client) | `ProductSummary` |
+| `process_images.py` | Images (jpg/png/webp/gif) | Base64 embed → vision prompt with structured parse | OpenAI/Azure | `ImageProductSummary` |
+| `process_video.py` | Videos (mp4/mov/mkv/webm) | Sample frames (OpenCV) + extract audio (ffmpeg) + local Whisper transcription + vision prompt | OpenAI/Azure (vision) + local `faster-whisper` | `VideoProductSummary` |
+
+#### `process_pdfs.py`
+Usage:
+```bash
+uv run process_pdfs.py
+```
+Behavior: converts each `*.pdf` from `PDF_INPUT_DIR` (default `../PDFs`) to Markdown (no truncation), then prompts the model for structured output.
+
+#### `process_images.py`
+Usage:
+```bash
+uv run process_images.py
+```
+Behavior: sends one image per request with a grounding prompt; returns structured product name + description.
+
+#### `process_video.py`
+Usage:
+```bash
+uv run process_video.py
+```
+Pipeline:
+1. Enumerate supported videos from `VIDEOS_INPUT_DIR` (default `../videos`).
+2. Sample 3 frames (first / mid / last) with OpenCV.
+3. Extract mono 16 kHz WAV via ffmpeg (if available).
+4. Transcribe audio locally using `faster-whisper` (model + compute type from env) – no remote speech API required.
+5. Provide frames (as vision inputs) + full transcript to the OpenAI model for structured output.
+
+Diagnostics blocks printed: FRAME SAMPLING, AUDIO EXTRACTION, TRANSCRIPTION, LLM SUMMARY.
+
+Environment knobs (see below) let you choose Whisper model size and quantization for CPU performance.
+
+## Data Flow (Pipeline Portion)
 
 ```
 Raw Data Generation → Embedding Creation → Database Import → Search Testing
@@ -130,27 +175,51 @@ gen_basic_data.py → embeddings_simple_products.py → import_simple_products.p
 
 ## Configuration
 
-### Environment Variables (.env)
+### Unified Environment Variables (`.env` / `.env.template`)
+
+The project standardizes on the same OpenAI/Azure vars across agents + scripts:
 
 ```env
-# PostgreSQL Database
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_DB=aidb
-POSTGRES_USER=admin
-POSTGRES_PASSWORD=Admin12345678
-
-# Azure OpenAI (recommended)
-OPENAI_API_TYPE=azure
-AZURE_OPENAI_EMBEDDING_ENDPOINT=https://your-resource.openai.azure.com/
-AZURE_OPENAI_EMBEDDING_API_KEY=your-api-key
-AZURE_OPENAI_EMBEDDING_API_VERSION=2024-12-01-preview
-AZURE_OPENAI_EMBEDDING_DEPLOYMENT_NAME=text-embedding-3-large
-
-# OR OpenAI API
-OPENAI_API_TYPE=openai
-OPENAI_API_KEY=sk-your-openai-api-key
+# Required (OpenAI or Azure OpenAI)
+OPENAI_API_KEY=...
+OPENAI_MODEL=gpt-5
 OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+
+# Azure-specific (optional for pure OpenAI)
+OPENAI_BASE_URL=https://your-resource.openai.azure.com/openai/v1/
+OPENAI_API_VERSION=preview
+
+# PostgreSQL (used by pipeline scripts)
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=aidb
+PGUSER=admin
+PGPASSWORD=your-password
+
+# Media input directories (relative to this folder by default)
+PDF_INPUT_DIR=../PDFs
+IMAGES_INPUT_DIR=../images
+VIDEOS_INPUT_DIR=../videos
+
+# Local Whisper settings (video transcription)
+WHISPER_MODEL_SIZE=small        # e.g. tiny, base, small, medium, large-v3
+WHISPER_COMPUTE_TYPE=int8       # int8 | int8_float16 | float16 | int16 | float32
+WHISPER_BEAM_SIZE=5             # decoding beam size
+# WHISPER_LANGUAGE=             # optional force language (e.g. en); empty = auto-detect
+```
+
+### Choosing a Whisper configuration
+
+| Goal | Suggested model | Compute type | Notes |
+|------|-----------------|-------------|-------|
+| Fastest iteration | `tiny` | `int8` | Lowest accuracy but very quick |
+| Balanced demo (default) | `small` | `int8` | Good speed/accuracy on CPU |
+| Higher accuracy | `medium` | `int8_float16` | Slower cold start |
+| Multilingual best | `large-v3` | `int8_float16` | Heavy; consider caching |
+
+Set `OMP_NUM_THREADS` to number of physical cores for better CPU throughput:
+```bash
+set OMP_NUM_THREADS=8  # PowerShell: $Env:OMP_NUM_THREADS=8
 ```
 
 ### Database Schema
@@ -165,7 +234,7 @@ The `simple_products` table contains:
 - `embedding` - 2000-dimensional vector (VECTOR)
 - `created_at`, `updated_at` - Timestamps
 
-## Vector Search
+## Vector Search (Pipeline)
 
 The system uses cosine similarity for vector search with HNSW indexes for fast approximate nearest neighbor search.
 
@@ -206,22 +275,35 @@ LIMIT 5;
 3. **Vector Search**: HNSW indexes provide fast approximate search
 4. **Data Size**: Start with smaller datasets for testing
 
+### Video Transcription Issues
+| Symptom | Likely Cause | Fix |
+|---------|--------------|-----|
+`AUDIO EXTRACTION Failed: ffmpeg executable not found` | ffmpeg missing | Install ffmpeg & ensure on PATH (Windows: winget install Gyan.FFmpeg) |
+`TRANSCRIPTION Failed: Local Whisper error: ...` | Model download interrupted / low memory | Re-run; choose smaller model or different compute type |
+No transcript but frames OK | Silent audio track | Expected; model relies purely on frames |
+
+### General
+If a script prints a `Fatal error:` line it exits non‑zero; inspect preceding blocks (they include granular diagnostics rather than stack traces for brevity).
+
 ## File Structure
 
 ```
 data/scripts/
 ├── README.md                          # This file
-├── .env.example                       # Environment template
+├── .env.template                      # Environment template
 ├── pyproject.toml                     # Python dependencies
 ├── gen_basic_data.py                  # Data generation
 ├── configure_postgresql.py            # Database setup
-├── embeddings_simple_products.py     # Embedding generation
+├── embeddings_simple_products.py      # Embedding generation
 ├── import_simple_products.py          # Data import and testing
-└── sql/                              # SQL scripts
+├── process_pdfs.py                    # PDF → Markdown → structured summary
+├── process_images.py                  # Image → vision structured summary
+├── process_video.py                   # Video → frames + local Whisper + vision summary
+└── sql/                               # SQL scripts
     ├── README.md                      # SQL documentation
     ├── extensions/                    # Database extensions
     │   └── 01_install_pgvector.sql
-   │   └── 02_install_age.sql
+    │   └── 02_install_age.sql
     └── tables/                        # Table definitions
       ├── 01_create_simple_products.sql
       ├── 02_create_stock.sql

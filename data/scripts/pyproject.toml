@@ -15,4 +15,8 @@ dependencies = [
     "numpy>=1.24.0",
     # Include pdf extra so MarkItDown can read PDF files
     "markitdown[pdf]>=0.0.1",
+    # Video frame extraction for process_video script
+    "opencv-python>=4.10.0.0",
+    "requests>=2.32.0",
+    "faster-whisper>=1.1.0",
 ]

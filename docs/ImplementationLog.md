@@ -194,3 +194,11 @@ This implementation represents a significant breakthrough in GPT-5 reasoning mod
 - Added `data/scripts/process_images.py` to generate product name & description from images using vision-capable model via unified OpenAI client.
 - Supports env `IMAGES_INPUT_DIR` (default `../images`).
 - Structured outputs with Pydantic `ImageProductSummary`; consolidated summary printed at end (mirrors PDF script UX).
+
+## 2025-08-23 Video Processing Utility (Frame Sampling Prototype)
+
+- Added `data/scripts/process_video.py` implementing product summarization for videos.
+- Current approach samples up to 3 representative frames (start/mid/end) via OpenCV and sends them as multiple image parts to the same vision model (fallback while native `input_video` support stabilizes).
+- Structured Pydantic `VideoProductSummary` mirrors image + PDF scripts for consistency.
+- Added `VIDEOS_INPUT_DIR` env var to `.env.template` and `.env`.
+- Clear TODO marker to switch to direct video ingestion once generally available in the Python SDK.
