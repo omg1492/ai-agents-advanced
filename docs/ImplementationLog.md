@@ -180,3 +180,11 @@ elif item_type == "function_call":
 - Proper reasoning→action→reflection cycles for AI agent behavior
 
 This implementation represents a significant breakthrough in GPT-5 reasoning model integration, enabling sophisticated AI agent capabilities with streaming UX.
+
+## 2025-08-23 PDF Processing Utility
+
+- Added `data/scripts/process_pdfs.py` single-file tool to extract Markdown from PDFs using `markitdown` and summarize product metadata via unified OpenAI Responses API.
+- Configurable via env (`PDF_INPUT_DIR`, defaults to `../PDFs` relative to script). Reuses existing unified OpenAI env vars.
+- Structured response with Pydantic `ProductSummary` ensuring consistent output (product_name + short_description).
+- Added `markitdown` dependency to `data/scripts/pyproject.toml`.
+- Console output uses clear delimiter blocks (PROCESSING, MARKDOWN EXTRACT, LLM SUMMARY, ERROR) for readability during batch runs.
