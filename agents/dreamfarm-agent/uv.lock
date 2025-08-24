@@ -103,7 +103,7 @@ requires-dist = [
     { name = "httpx", specifier = ">=0.28.1" },
     { name = "httpx", marker = "extra == 'dev'", specifier = ">=0.25.0" },
     { name = "jinja2", specifier = ">=3.1.0" },
-    { name = "openai", specifier = ">=1.99.0,<2.0.0" },
+    { name = "openai", specifier = ">=1.101.0,<2.0.0" },
     { name = "pgvector", specifier = ">=0.4.1" },
     { name = "psycopg2-binary", specifier = ">=2.9.10" },
     { name = "pydantic", specifier = ">=2.5.0" },

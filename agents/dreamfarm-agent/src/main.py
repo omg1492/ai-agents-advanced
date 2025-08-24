@@ -28,6 +28,7 @@ from src.services.config_service import ConfigService
 from src.services.rag_service import RAGService
 from src.services.template_service import TemplateService
 from src.services.stock_service import StockService
+from src.services.semantic_cache_service import SemanticCacheService
 
 
 # Load environment variables
@@ -56,16 +57,18 @@ config_service: ConfigService = None
 rag_service: RAGService | None = None
 template_service: TemplateService | None = None
 stock_service: StockService | None = None
+semantic_cache_service: SemanticCacheService | None = None
 # Minimal session and history stores (state remains in Responses API)
 _threads: dict[str, ThreadModel] = {}
 _history: dict[str, list[MessageModel]] = {}
 _last_response_id: dict[str, str] = {}
+_semantic_cache_bootstrap: dict[str, dict] = {}  # thread_id -> {user:str, assistant:str, injected:bool}
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage application lifespan - startup and shutdown."""
-    global openai_service, config_service, rag_service, template_service, stock_service
+    global openai_service, config_service, rag_service, template_service, stock_service, semantic_cache_service
 
     # Startup
     logger.info("Starting DreamFarm Agent...")
@@ -100,6 +103,17 @@ async def lifespan(app: FastAPI):
             logger.info("Stock service (custom tool) enabled")
         else:
             logger.info("Stock service (custom tool) disabled")
+        # Initialize semantic cache (optional, high-threshold first-turn accelerator)
+        semantic_cache_service = None
+        if getattr(cfg, "semantic_cache", None) and cfg.semantic_cache.enabled:
+            try:
+                semantic_cache_service = SemanticCacheService(cfg)
+                logger.info(
+                    "Semantic cache enabled (threshold=%.3f)",
+                    cfg.semantic_cache.similarity_threshold,
+                )
+            except Exception as sce:  # pragma: no cover
+                logger.warning(f"Semantic cache initialization failed: {sce}")
         logger.info("Services initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
@@ -150,6 +164,25 @@ async def chat(request: ChatRequest):
     Uses Responses API with store=True and previous_response_id for continuity.
     """
     try:
+        # Semantic cache: only when there is no previous_response_id (first turn)
+        if (
+            request.previous_response_id in (None, "")
+            and 'semantic_cache_service' in globals()
+            and semantic_cache_service is not None
+            and getattr(semantic_cache_service, 'enabled', False)
+        ):
+            try:
+                hit = await semantic_cache_service.lookup(request.message)
+            except Exception as e:  # pragma: no cover
+                logger.warning(f"Semantic cache lookup failed (/chat): {e}")
+                hit = None
+            if hit:
+                logger.info("/chat semantic cache hit; skipping model call")
+                return ChatResponse(
+                    response_id="",  # no provider response id yet
+                    message=hit.answer,
+                    timestamp=datetime.now(timezone.utc).isoformat(),
+                )
         # Build system prompt from template and optional RAG context
         rag_context = None
         if 'rag_service' in globals() and rag_service is not None and getattr(rag_service, 'enabled', False):
@@ -238,8 +271,40 @@ async def send_message(thread_id: str, payload: SendMessageRequest):
     )
     _history[thread_id].append(user_msg)
 
-    # Use provider state via Responses API
+    # Use provider state via Responses API (if we already have a provider-generated response)
     prev_resp_id = _last_response_id.get(thread_id)
+
+    # Semantic cache only for very first user turn (history length == 1 just added)
+    if (
+        semantic_cache_service is not None
+        and getattr(semantic_cache_service, 'enabled', False)
+        and len(_history[thread_id]) == 1
+    ):
+        try:
+            hit = await semantic_cache_service.lookup(payload.message)
+        except Exception as e:  # pragma: no cover
+            logger.warning(f"Semantic cache lookup failed: {e}")
+            hit = None
+        if hit:
+            # Record assistant synthetic reply (no provider response id chain yet)
+            from src.services.semantic_cache_service import SemanticCacheService as _SCS
+            _SCS.seed_history_with_hit(_history[thread_id], thread_id, hit, MessageModel)
+            # Store bootstrap transcript for later injection
+            _semantic_cache_bootstrap[thread_id] = {
+                "user": payload.message,
+                "assistant": hit.answer,
+                "injected": False,
+            }
+            thread.message_count = len(_history[thread_id])
+            thread.updated_at = now
+            logger.info("Responded from semantic cache; skipping model call")
+            return SendMessageResponse(
+                message_id=message_id,
+                thread_id=thread_id,
+                user_message=payload.message,
+                assistant_response=hit.answer,
+                timestamp=now,
+            )
     # Build system prompt from template and optional RAG context
     rag_context = None
     if 'rag_service' in globals() and rag_service is not None and getattr(rag_service, 'enabled', False):
@@ -248,7 +313,7 @@ async def send_message(thread_id: str, payload: SendMessageRequest):
         except Exception as re:
             logger.warning(f"RAG context fetch failed; proceeding without context: {re}")
 
-    system_prompt = template_service.render_template(
+    base_prompt = template_service.render_template(
         "system_prompt.j2",
         {
             "user_location": None,
@@ -257,6 +322,22 @@ async def send_message(thread_id: str, payload: SendMessageRequest):
             "simple_rag": rag_context or "",
         },
     )
+    # Inject prior cached turn transcript if applicable (first real LLM turn)
+    if prev_resp_id is None and thread_id in _semantic_cache_bootstrap and not _semantic_cache_bootstrap[thread_id]["injected"]:
+        boot = _semantic_cache_bootstrap[thread_id]
+        user_q = boot["user"].replace("</conversation_history>", "</conversation_history_escaped>")
+        assist_a = boot["assistant"].replace("</conversation_history>", "</conversation_history_escaped>")
+        transcript = (
+            "\n<conversation_history>\n"
+            f"User: {user_q}\n"
+            f"Assistant: {assist_a}\n"
+            "</conversation_history>\n"
+        )
+        system_prompt = base_prompt + transcript
+        _semantic_cache_bootstrap[thread_id]["injected"] = True
+        logger.info("Injected semantic cache transcript into first real LLM turn")
+    else:
+        system_prompt = base_prompt
     logger.debug(f"Rendered system prompt for /threads/{thread_id}/messages:\n{system_prompt}")
     try:
         text, response_id = await openai_service.generate_response(
@@ -320,6 +401,33 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
 
     prev_resp_id = _last_response_id.get(thread_id)
 
+    # Semantic cache fast path for first turn (streaming variant)
+    if (
+        semantic_cache_service is not None
+        and getattr(semantic_cache_service, 'enabled', False)
+        and len(_history[thread_id]) == 1
+    ):
+        try:
+            hit = await semantic_cache_service.lookup(payload.message)
+        except Exception as e:  # pragma: no cover
+            logger.warning(f"Semantic cache lookup failed (stream): {e}")
+            hit = None
+        if hit:
+            from src.services.semantic_cache_service import SemanticCacheService as _SCS
+            _SCS.seed_history_with_hit(_history[thread_id], thread_id, hit, MessageModel)
+            _semantic_cache_bootstrap[thread_id] = {
+                "user": payload.message,
+                "assistant": hit.answer,
+                "injected": False,
+            }
+            thread.message_count = len(_history[thread_id])
+            thread.updated_at = datetime.now(timezone.utc).isoformat()
+            logger.info("Streaming fast path: semantic cache hit")
+            # Return single-chunk streaming response
+            async def single_chunk():
+                yield hit.answer
+            return StreamingResponse(single_chunk(), media_type="text/plain; charset=utf-8")
+
     # Build system prompt with optional RAG and stock context (parity with non-stream endpoints)
     rag_context = None
     if 'rag_service' in globals() and rag_service is not None and getattr(rag_service, 'enabled', False):
@@ -328,7 +436,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
         except Exception as re:
             logger.warning(f"RAG context fetch failed; proceeding without context: {re}")
 
-    system_prompt = template_service.render_template(
+    base_prompt = template_service.render_template(
         "system_prompt.j2",
         {
             "user_location": None,
@@ -338,6 +446,22 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
             # Stock data excluded; function calling path only.
         },
     )
+    # Inject transcript if semantic cache provided first answer and first real LLM turn
+    if prev_resp_id is None and thread_id in _semantic_cache_bootstrap and not _semantic_cache_bootstrap[thread_id]["injected"]:
+        boot = _semantic_cache_bootstrap[thread_id]
+        user_q = boot["user"].replace("</conversation_history>", "</conversation_history_escaped>")
+        assist_a = boot["assistant"].replace("</conversation_history>", "</conversation_history_escaped>")
+        transcript = (
+            "\n<conversation_history>\n"
+            f"User: {user_q}\n"
+            f"Assistant: {assist_a}\n"
+            "</conversation_history>\n"
+        )
+        system_prompt = base_prompt + transcript
+        _semantic_cache_bootstrap[thread_id]["injected"] = True
+        logger.info("Injected semantic cache transcript into first real LLM turn (stream)")
+    else:
+        system_prompt = base_prompt
 
     # Resolve tools once (tests may use a fake service without get_tools)
     tools = None

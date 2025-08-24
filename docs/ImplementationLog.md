@@ -127,6 +127,26 @@ Why it matters: prevents hallucinated inventory when RAG returns no results (e.g
 
 - Removed earlier approach of injecting stock data into system prompt via `<stock_info>` tags (risk of stale or overlong prompts).
 - Implemented proper function calling for local Stock API as `get_stock` tool registered alongside remote MCP tools in `OpenAIService.get_tools()`.
+
+## 2025-08-24 Semantic Cache Service Integration
+
+- Added `SemanticCacheService` (`agents/dreamfarm-agent/src/services/semantic_cache_service.py`) implementing high-threshold vector lookup against `semantic_cache` table.
+- Configuration via new env vars: `SEMANTIC_CACHE_ENABLED` (default true) and `SEMANTIC_CACHE_SIMILARITY_THRESHOLD` (default 0.93). Optional `SEMANTIC_CACHE_EMBEDDING_MODEL` falls back to `OPENAI_EMBEDDING_MODEL`.
+- Integrated into `main.py` for `/threads/{thread_id}/messages` and streaming variant only on the FIRST user turn (after user message appended, history length==1).
+- On cache hit: immediate response returned, no LLM call, INFO log emitted ("Semantic cache hit").
+- Conversation state handling: because Responses API lacks an endpoint to inject a synthetic assistant turn without model generation, we seed only local in-memory history; subsequent model call starts a fresh chain (no `previous_response_id`). Documented rationale + future option in service docstring.
+- Added seeding helper `seed_history_with_hit` to append synthetic assistant message with timestamp.
+- Updated `.env` and `.env.template` with semantic cache variables; updated `ConfigService` with `SemanticCacheConfig` dataclass.
+- Implementation decisions documented here and in service docstring to avoid ambiguity about state continuity and token accounting trade-off.
+
+### 2025-08-24 Semantic Cache Testing
+
+- Added unit tests (`test_semantic_cache_unit.py`) mocking embeddings + DB engine to cover hit and miss paths without network/DB.
+- Added integration tests (`test_semantic_cache_integration.py`) exercising real PostgreSQL `semantic_cache` table + real embeddings:
+   - Positive case: query "Hello!" expected hit (seed from Q&A import) with similarity >= threshold.
+   - Negative case: random string ("jsdovnfjepsd") expected miss.
+- Integration test auto-skips when required env vars, API key, or `semantic_cache` table absent (mirrors RAG integration style).
+- Ensures threshold logic respected and guards against false positives.
 - Added guarded two-iteration tool loop in `generate_response` to resolve synchronous function calls and resubmit outputs via `submit_tool_outputs`.
 - Extraction helper `_extract_function_calls` isolates `function_call` items from Responses API output list; resilient to malformed entries.
 - Ensures graceful no-op when stock tool disabled while model attempts a call (returns empty items array).

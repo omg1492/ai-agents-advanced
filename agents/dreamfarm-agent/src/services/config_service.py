@@ -42,6 +42,23 @@ class RagConfig:
     max_results: int
     embedding_model: str = "text-embedding-3-large"
 
+
+@dataclass
+class SemanticCacheConfig:
+    """Semantic first-turn cache configuration.
+
+    The semantic cache stores (question, answer, embedding) pairs for common
+    first user messages (greetings, capability questions, onboarding). Only
+    the FIRST user turn in a thread is eligible for cache lookup; subsequent
+    turns always go to the model.
+
+    similarity_threshold should be intentionally high (e.g. ≥0.9) to avoid
+    mismatching user intent and returning an imprecise canned answer.
+    """
+    enabled: bool
+    similarity_threshold: float
+    embedding_model: str = "text-embedding-3-large"
+
 @dataclass
 class FarmerToolsConfig:
     """Configuration for the Farmer Tools MCP server.
@@ -88,6 +105,7 @@ class AppConfig:
     openai: OpenAIConfig
     db: DatabaseConfig
     rag: RagConfig
+    semantic_cache: SemanticCacheConfig | None
     farmer_tools: FarmerToolsConfig | None
     tavily: TavilyConfig | None
     stock_tool: StockToolConfig | None
@@ -159,6 +177,19 @@ class ConfigService:
             ),
         )
 
+        # Semantic cache configuration (first-turn accelerator)
+        semantic_cache_enabled = os.getenv("SEMANTIC_CACHE_ENABLED", "true").lower() in ["true", "1", "yes", "on"]
+        semantic_cache_threshold = float(os.getenv("SEMANTIC_CACHE_SIMILARITY_THRESHOLD", "0.93"))
+        semantic_cache = SemanticCacheConfig(
+            enabled=semantic_cache_enabled,
+            similarity_threshold=semantic_cache_threshold,
+            embedding_model=(
+                os.getenv("SEMANTIC_CACHE_EMBEDDING_MODEL")
+                or os.getenv("OPENAI_EMBEDDING_MODEL")
+                or "text-embedding-3-large"
+            ),
+        ) if semantic_cache_enabled else None
+
         # Farmer Tools MCP configuration (remote MCP tool)
         farmer_tools_url = os.getenv("FARMER_TOOLS_MCP_URL") or os.getenv("MCP_URL")
         # Fallback to legacy MCP_API_KEY if present, but prefer namespaced env var
@@ -215,6 +246,7 @@ class ConfigService:
             openai=openai_config,
             db=db_config,
             rag=rag_config,
+            semantic_cache=semantic_cache,
             farmer_tools=farmer_tools_config,
             tavily=tavily_config,
             stock_tool=stock_tool_config,
