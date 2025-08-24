@@ -273,38 +273,32 @@ class TestRAGService:
     @patch('src.services.rag_service.create_engine')
     async def test_get_relevant_context_with_results(self, mock_create_engine):
         """Test getting relevant context when results are found."""
-        # Setup mocks as in semantic search test (synchronous client)
         mock_client = Mock()
         mock_response = Mock()
         mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3])]
         mock_client.embeddings.create.return_value = mock_response
-        
         mock_engine = Mock()
         mock_conn = Mock()
-        mock_result = [
-            Mock(
-                id=1,
-                product_id="uuid-1",
-                producer_name="Local Farm",
-                product_name="Fresh Carrots",
-                product_description="Crispy orange carrots",
-                combined_text="Local Farm Fresh Carrots Crispy orange carrots",
-                similarity_score=0.75
-            )
-        ]
+        mock_result = [Mock(
+            id=1,
+            product_id="uuid-1",
+            producer_name="Local Farm",
+            product_name="Fresh Carrots",
+            product_description="Crispy orange carrots",
+            combined_text="Local Farm Fresh Carrots Crispy orange carrots",
+            similarity_score=0.75
+        )]
         mock_conn.execute.return_value = mock_result
-        # Set up context manager for connection
         mock_context = Mock()
         mock_context.__enter__ = Mock(return_value=mock_conn)
         mock_context.__exit__ = Mock(return_value=None)
         mock_engine.connect.return_value = mock_context
         mock_create_engine.return_value = mock_engine
-        
-        # Create service and test
         service = RAGService()
         service.openai_client = mock_client
-        
-        context = await service.get_relevant_context("I need some vegetables")
+        with patch.object(service, '_extract_keywords', return_value=[]), \
+             patch.object(service, '_fts_search', return_value=[]):
+            context = await service.get_relevant_context("I need some vegetables")
         
         assert context is not None
         assert "Producer name: Local Farm" in context
@@ -315,28 +309,23 @@ class TestRAGService:
     @patch('src.services.rag_service.create_engine')
     async def test_get_relevant_context_no_results(self, mock_create_engine):
         """Test getting relevant context when no results are found."""
-        # Mock to return no results (synchronous client)
         mock_client = Mock()
         mock_response = Mock()
         mock_response.data = [Mock(embedding=[0.1, 0.2, 0.3])]
         mock_client.embeddings.create.return_value = mock_response
-        
         mock_engine = Mock()
         mock_conn = Mock()
-        mock_conn.execute.return_value = []  # No results
-        # Set up context manager for connection
+        mock_conn.execute.return_value = []
         mock_context = Mock()
         mock_context.__enter__ = Mock(return_value=mock_conn)
         mock_context.__exit__ = Mock(return_value=None)
         mock_engine.connect.return_value = mock_context
         mock_create_engine.return_value = mock_engine
-        
-        # Create service and test
         service = RAGService()
         service.openai_client = mock_client
-        
-        context = await service.get_relevant_context("nonexistent product")
-        
+        with patch.object(service, '_extract_keywords', return_value=[]), \
+             patch.object(service, '_fts_search', return_value=[]):
+            context = await service.get_relevant_context("nonexistent product")
         assert context is None
     
     @patch('src.services.rag_service.create_engine')

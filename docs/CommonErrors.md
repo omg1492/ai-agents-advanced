@@ -234,3 +234,129 @@ elif item_type == "function_call":
 **Reference Implementation**: Loop-based streaming with proper item pairing following Tomáš Kubica's proven GPT-5 reasoning pattern.
 
 ---
+
+## Hybrid RAG & Full‑Text Search Integration Issues - 2025-08-24
+
+### Incorrect Structured Output Parameter (Responses API)
+
+**Problem**: Attempted to use `response_format={"type": "json_schema", ...}` with the (async) Responses API for keyword extraction in `_extract_keywords`.
+
+**Error Symptoms**:
+```
+TypeError: AsyncResponses.create() got an unexpected keyword argument 'response_format'
+```
+
+**Root Cause**: The new SDK's Responses API does not accept `response_format` in `create()` like the older Chat Completions API. Structured parsing must instead use `client.responses.parse()` with a Pydantic model.
+
+**Solution**:
+```python
+class ExtractedKeywords(BaseModel):
+    keywords: List[str]
+
+parsed = client.responses.parse(
+    model=model_name,
+    input=prompt_messages,
+    response_format=ExtractedKeywords,  # Pydantic schema
+)
+keywords = parsed.output_parsed.keywords
+```
+
+**Prevention**:
+- For structured outputs, always prefer `responses.parse(..., response_format=YourModel)`.
+- Only use `response_format` with endpoints that explicitly document it.
+- Add a quick unit test that mocks the client to ensure `_extract_keywords` path does not pass unknown kwargs.
+
+---
+
+### Patch-Induced Indentation / Scope Errors
+
+**Problem**: During iterative patches to `rag_service.py`, incorrect indentation left helper functions nested or misaligned, risking them becoming inner scopes or producing readability issues.
+
+**Error Symptoms**: (Representative)
+```
+IndentationError: unexpected indent
+```
+or silent logical errors where definitions ended up inside other functions.
+
+**Root Cause**: Applying partial diffs without full surrounding context caused indentation drift (especially after adding `_extract_keywords`, `_fts_search`, `_rrf_fuse`).
+
+**Solution**:
+- Re‑aligned all helper functions to module level.
+- Ensured consistent 4‑space indentation and no accidental nesting.
+- Ran linting / basic import execution to validate file parses cleanly.
+
+**Prevention**:
+- After sizable patch, immediately open the file and visually scan left margin alignment.
+- Prefer editing whole function blocks instead of fragmenting start/end separately.
+- Add a minimal test that imports the service module (catches `IndentationError` early).
+
+---
+
+### Full‑Text Search Returning Zero Results (Over‑Strict AND Semantics)
+
+**Problem**: Initial FTS used `plainto_tsquery('simple', combined_phrase_text)` which applies implicit AND across all tokens. Multi‑word / multi‑concept queries frequently returned zero rows.
+
+**Example**:
+```
+Input phrases (LLM): ["bio honey", "chilli honey"]
+plainto_tsquery => 'bio' & 'honey' & 'chilli' & 'honey'
+-- Requires documents containing ALL tokens → many misses.
+```
+
+**Root Cause**: `plainto_tsquery` normalizes and ANDs all lexemes; mixing distinct concepts collapses recall.
+
+**Intermediate Fix**: Switched to token OR query (split tokens; join with `|`) boosting recall but losing phrase cohesion.
+
+**Final Solution (Phrase‑Preserving OR of AND Groups)**:
+1. Keep each original LLM phrase.
+2. For multi‑word phrase: split → AND within phrase: `term1 & term2`.
+3. OR across phrases: `(bio & honey) | (chilli & honey) | honey | chilli`.
+4. Execute with `to_tsquery('simple', tsquery_string)`.
+
+**Result**: Restores phrase intent while expanding recall vs pure AND; still allows single tokens to match.
+
+**Code Sketch**:
+```python
+groups = []
+for phrase in phrases:
+    terms = [sanitize(t) for t in phrase.split() if t.strip()]
+    if not terms:
+        continue
+    group = ' & '.join(terms)
+    groups.append(group)
+tsquery = ' | '.join(groups)
+sql = """
+SELECT id, content, ts_rank_cd(ft_vector, to_tsquery('simple', :q)) AS rank
+FROM documents
+WHERE ft_vector @@ to_tsquery('simple', :q)
+ORDER BY rank DESC
+LIMIT :limit
+"""
+```
+
+**Prevention**:
+- Evaluate recall using sample queries before locking in tsquery form.
+- Log both the original phrases and the final `tsquery` string (already added).
+- Keep an integration test asserting at least one FTS hit for a known phrase.
+
+---
+
+### Fusion Score Overwrite Awareness
+
+**Problem**: After introducing Reciprocal Rank Fusion (RRF), fused scores replaced original semantic similarity scores in the final list, potentially confusing debugging when comparing to raw embedding distances.
+
+**Solution**: Explicit logging: semantic count, FTS count, and final fused list size; clarify that `score` now represents RRF output, not cosine similarity.
+
+**Prevention**:
+- When changing scoring meaning, rename field or document in logs (e.g., `fused_score`).
+- Add a docstring / comment above `_rrf_fuse` explaining formula `1 / (k + rank)`.
+
+---
+
+### Takeaways
+- Use SDK‑appropriate structured output methods (`responses.parse`).
+- Prefer phrase‑aware tsquery construction balancing precision & recall.
+- Instrument every retrieval stage to accelerate iterative tuning.
+- Guard against layout drift (indentation) after multi‑patch sequences with a simple import test.
+
+---

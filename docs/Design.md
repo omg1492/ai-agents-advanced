@@ -147,21 +147,33 @@ This abstraction allows the same codebase to work with both providers seamlessly
 
 ### RAG (Retrieval-Augmented Generation) Implementation
 
-The DreamFarm Agent includes a simple RAG system for semantic product search:
+The DreamFarm Agent includes a (now hybrid) RAG system combining semantic + full‑text retrieval:
 
-#### RAG Architecture
-1. **User Message Processing**: When a user sends a message, the system generates an embedding for the query
-2. **Semantic Search**: The query embedding is compared against product embeddings in PostgreSQL using pgvector
-3. **Context Injection**: Relevant products (above similarity threshold) are formatted and injected into the system prompt
-4. **Enhanced Response**: The AI assistant generates responses with access to relevant product information
+#### RAG Architecture (Hybrid)
+1. **Semantic Pass**: Generate embedding for user query; vector similarity over `simple_products.embedding` (cosine) → ranked list S
+2. **Keyword Extraction**: LLM (Responses API structured output) extracts normalized keywords (product names, producer names, salient nouns)
+3. **Full‑Text Pass**: Build `to_tsquery` over `fts_combined` from extracted keywords → ranked list K (ts_rank)
+4. **Fusion (RRF)**: Apply Reciprocal Rank Fusion score = Σ 1/(k + rank) with k=60 across S and K; produce fused list F (top N = configured `RAG_MAX_RESULTS`)
+5. **Prompt Injection**: Format F (same block format) → `<relevant_products>` in system prompt (existing behavior; unchanged downstream)
+6. **Logging** (INFO): counts for semantic, keywords, fts, fused
+
+Design Notes
+- **Structured Output**: Pydantic `ExtractedKeywords(keywords: List[str])` passed via `response_format` json_schema; deterministic schema for parsing
+- **Safety**: Keyword extraction failure → fallback to semantic only; empty keywords skip FTS
+- **FTS Query**: OR-joined sanitized keywords (`|`) with `simple` config & `unaccent`; limit = `RAG_MAX_RESULTS` (pre‑fusion diversity kept by fusion step)
+- **RRF Justification**: Simple, order‑aware, requires only ranks (not raw scores), robust to heterogeneous scoring scales
+- **Score Reporting**: Final `similarity_score` field holds fused score (semantic method unchanged for tests)
+- **Extensibility**: Future third signal (graph, stock filters, reranker) can add another ranked list before fusion
 
 #### RAG Components
 
 **RAGService** (`src/services/rag_service.py`):
-- Manages embedding generation using OpenAI/Azure OpenAI
-- Performs vector similarity search in PostgreSQL
-- Formats search results for system prompt injection
-- Feature flag support via `ENABLE_RAG` environment variable
+- Embedding generation (unchanged)
+- Keyword extraction via Responses API structured output (new)
+- Vector similarity + FTS search (new FTS path)
+- Reciprocal Rank Fusion combiner (new)
+- Result formatting + prompt injection (unchanged)
+- Feature flag: `ENABLE_RAG`
 
 **Database Schema (brief):**
 

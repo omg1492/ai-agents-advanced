@@ -199,6 +199,14 @@ This implementation represents a significant breakthrough in GPT-5 reasoning mod
 
 - Added `data/scripts/process_video.py` implementing product summarization for videos.
 - Current approach samples up to 3 representative frames (start/mid/end) via OpenCV and sends them as multiple image parts to the same vision model (fallback while native `input_video` support stabilizes).
+
+## 2025-08-23 Hybrid RAG (Semantic + FTS + RRF)
+
+- Extended `RAGService` with keyword extraction (Responses API structured output via Pydantic `ExtractedKeywords`).
+- Added full‑text search path over `fts_combined` using extracted OR tsquery.
+- Implemented Reciprocal Rank Fusion (k=60) to merge semantic + FTS results; fused score stored in `similarity_score` for formatting.
+- Logging (INFO): semantic count, extracted keyword count, FTS count, fusion summary.
+- Design doc updated (concise hybrid architecture section). Unit tests patched to mock new keyword/FTS branches.
 - Structured Pydantic `VideoProductSummary` mirrors image + PDF scripts for consistency.
 - Added `VIDEOS_INPUT_DIR` env var to `.env.template` and `.env`.
 - Clear TODO marker to switch to direct video ingestion once generally available in the Python SDK.
