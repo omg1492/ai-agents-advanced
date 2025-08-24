@@ -1,9 +1,10 @@
 # Data Scripts
 
-This directory contains standalone utilities that form two groups:
+This directory contains standalone utilities that form three groups:
 
 1. **Data pipeline (tabular + embeddings + database import)** – generates sample product data, prepares PostgreSQL (vector + graph), creates embeddings and imports them.
 2. **Content understanding utilities (PDF / Image / Video)** – extract or infer structured product metadata (name + short description) from heterogeneous media using OpenAI (PDF/Image) and local Whisper + OpenAI vision (Video).
+3. **Semantic cache (first‑turn Q&A)** – generates a generic Q&A seed set, embeds it, creates a dedicated cache table, and imports rows for low‑latency cold‑start responses.
 
 All scripts are intentionally single‑file tools for quick demos and reproducibility. They share a common `.env` using *unified* OpenAI / Azure OpenAI configuration variables.
 
@@ -16,7 +17,7 @@ All scripts are intentionally single‑file tools for quick demos and reproducib
 5. **Local Whisper (faster-whisper)** – automatically pulled when you run `uv sync`; used for video transcription to avoid remote speech costs / deployment issues
 6. **Environment file**: copy `.env.template` → `.env` and edit
 
-## Quick Start (Data Pipeline)
+## Quick Start (Data Pipeline + Semantic Cache)
 
 ```bash
 # 1. Install dependencies
@@ -37,6 +38,12 @@ uv run gen_basic_data.py          # Generate sample data
 uv run configure_postgresql.py    # Setup database tables and extensions
 uv run embeddings_simple_products.py  # Generate embeddings
 uv run import_simple_products.py  # Import data and test queries
+
+# (Optional) Semantic cache seed (generic first‑turn questions)
+uv run gen_qna.py                 # Generate generic Q&A pairs (qna.json)
+uv run embeddings_qna.py          # Embed questions → qna_embeddings.parquet
+# Ensure semantic_cache table exists (sql/tables/05_create_semantic_cache.sql)
+uv run import_qna.py              # Import Q&A embeddings into semantic_cache
 ```
 
 ## Scripts Description
@@ -133,6 +140,19 @@ These scripts infer consistent product metadata (`product_name`, `short_descript
 | `process_images.py` | Images (jpg/png/webp/gif) | Base64 embed → vision prompt with structured parse | OpenAI/Azure | `ImageProductSummary` |
 | `process_video.py` | Videos (mp4/mov/mkv/webm) | Sample frames (OpenCV) + extract audio (ffmpeg) + local Whisper transcription + vision prompt | OpenAI/Azure (vision) + local `faster-whisper` | `VideoProductSummary` |
 
+### C. Semantic Cache (First‑Turn Q&A)
+
+These scripts create a small semantic cache for extremely common first user turns (greetings, generic capability queries). The agent can attempt a fast embedding similarity lookup before invoking full RAG + tool reasoning. All answers are intentionally generic and avoid specific product / price / stock claims.
+
+| Script | Purpose | Input | Output |
+|--------|---------|-------|--------|
+| `gen_qna.py` | Generate ~50 generic Q&A pairs (structured Responses API) | OpenAI model | `../source_json/qna.json` |
+| `embeddings_qna.py` | Create 2000‑d embeddings for each question | `qna.json` | `../processed/qna_embeddings.parquet` |
+| `sql/tables/05_create_semantic_cache.sql` | Define `semantic_cache` table + HNSW index | n/a | DB table/index |
+| `import_qna.py` | Import embedded Q&A into `semantic_cache` | Parquet | Populated table |
+
+Planned usage (agent): if first message similarity ≥ threshold (configurable) → return cached answer; else proceed normally.
+
 #### `process_pdfs.py`
 Usage:
 ```bash
@@ -171,6 +191,9 @@ Raw Data Generation → Embedding Creation → Database Import → Search Testin
 gen_basic_data.py → embeddings_simple_products.py → import_simple_products.py
                                                            ↑
                                                configure_postgresql.py
+
+                                             Semantic Cache Flow:
+                                             gen_qna.py → embeddings_qna.py → (05_create_semantic_cache.sql) → import_qna.py → first‑turn lookup
 ```
 
 ## Configuration
@@ -294,8 +317,10 @@ data/scripts/
 ├── pyproject.toml                     # Python dependencies
 ├── gen_basic_data.py                  # Data generation
 ├── configure_postgresql.py            # Database setup
-├── embeddings_simple_products.py      # Embedding generation
-├── import_simple_products.py          # Data import and testing
+├── embeddings_simple_products.py      # Embedding generation (products)
+├── embeddings_qna.py                  # Embedding generation (semantic cache Q&A)
+├── import_simple_products.py          # Data import and testing (products)
+├── import_qna.py                      # Import semantic cache Q&A embeddings
 ├── process_pdfs.py                    # PDF → Markdown → structured summary
 ├── process_images.py                  # Image → vision structured summary
 ├── process_video.py                   # Video → frames + local Whisper + vision summary
@@ -308,5 +333,6 @@ data/scripts/
       ├── 01_create_simple_products.sql
       ├── 02_create_stock.sql
       ├── 03_create_products.sql
-      └── 04_init_age_graph.sql
+   ├── 04_init_age_graph.sql
+   └── 05_create_semantic_cache.sql
 ```

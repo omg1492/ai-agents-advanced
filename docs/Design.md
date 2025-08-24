@@ -198,6 +198,57 @@ Notes
 #### Full-Text Search (FTS) Enhancement (Lesson 1 Hybrid Add-On)
 Hybrid support: `fts_combined` (trigger-maintained due to unaccent immutability) + GIN index for keyword fallback alongside vector search. Extension: `unaccent`.
 
+### Semantic Caching (First-Turn Accelerator)
+
+Purpose: Reduce latency and model cost for extremely common FIRST user turns (greetings, capability questions, generic help requests) by answering from a local cache when the opening user message semantically matches a precomputed canonical question.
+
+Scope & Constraints:
+- Only applied to the VERY FIRST user message of a conversation/session (no prior context). Subsequent turns are not cached to avoid misinterpretation without full dialogue history.
+- Cache contains only generic, non‑specific Q&A pairs (no concrete product, farmer, stock, price, certification, or allergen references) to avoid stale or hallucinated factual answers.
+- Answers are concise, neutral, and encourage the user to proceed with a more specific request if needed.
+
+Data Preparation:
+- Generated via `data/scripts/gen_qna.py` using GPT‑5 with structured output (Pydantic) to produce exactly 50 diverse, generic Q&A pairs.
+- Output file: `data/source_json/qna.json` with schema:
+  ```json
+  [ { "question": "...", "answer": "..." }, ... ]
+  ```
+
+Database Schema (`semantic_cache`):
+
+| Column      | Type        | Constraints            | Description                                                   |
+|-------------|-------------|------------------------|---------------------------------------------------------------|
+| id          | serial      | primary key            | Surrogate key                                                 |
+| question    | text        | unique, not null       | Canonical generic question (embedding source)                 |
+| answer      | text        | not null               | Pre-approved neutral answer                                   |
+| embedding   | vector(2000)| not null               | 2000‑d embedding of `question` (text-embedding-3-large)       |
+| created_at  | timestamptz | default now()          | Insert timestamp                                              |
+
+Indexes:
+- HNSW index on `embedding` (cosine) for fast nearest neighbor match.
+- Unique btree on `question` for integrity.
+
+Retrieval Logic (First Turn Only):
+1. User sends initial message M (thread has 0 prior messages).
+2. Generate embedding for M and run vector similarity against `semantic_cache`.
+3. If top similarity >= configured threshold (e.g., 0.90) return cached `answer` immediately (flag response as `cache_hit=true`).
+4. Otherwise proceed with normal LLM path (RAG / tools, etc.).
+
+Benefits:
+- Cuts cold-start latency for frequent boilerplate intents.
+- Reduces token spend for trivial first exchanges.
+- Creates deterministic, consistent onboarding tone.
+
+Limitations & Rationale:
+- Not applied mid-conversation: meaning shifts with context; risk of incorrect shortcutting.
+- No product specifics cached: inventory & catalog are dynamic; those must remain grounded via RAG to avoid stale answers.
+- Simple single-table design; future evolutions may add adaptive cache entries from high-frequency production queries plus feedback scoring.
+
+Future Enhancements:
+- Add hit/miss telemetry for tuning threshold & pruning low-value entries.
+- Periodic regeneration/refinement incorporating anonymized real user phrasing.
+- Multi-lingual variant sets keyed by detected language.
+
 ### Database and Knowledge Graph Schema (production-ready)
 
 This section specifies the target schema for production, extending the Lesson 1 "simple_products" with a richer `products` table for hybrid search, a `stock` table, and a knowledge graph using Apache AGE.

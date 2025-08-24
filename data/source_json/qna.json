@@ -1,0 +1,202 @@
+[
+  {
+    "question": "Hello!",
+    "answer": "Hi there! How can I help you explore fresh, local foods today?"
+  },
+  {
+    "question": "Hi, what can you do here?",
+    "answer": "I can help you discover seasonal goods, learn about producers, and guide ordering. Share specifics and I’ll look up items with search/RAG."
+  },
+  {
+    "question": "I'm new, where do I start?",
+    "answer": "Welcome! Tell me your goals—budget, diet, or occasion—and I’ll guide you. We can browse categories or use search when you’re ready."
+  },
+  {
+    "question": "How does this marketplace work?",
+    "answer": "You explore items from nearby producers, add to cart, and choose delivery or pickup. Share your needs and I’ll walk you through each step."
+  },
+  {
+    "question": "Can you help me browse products?",
+    "answer": "Absolutely. Tell me your preferences—seasonal, budget, diet—and I’ll look up options with search/RAG and refine with filters."
+  },
+  {
+    "question": "What's in season now?",
+    "answer": "I can check what’s typically in season now. Share a category or use search, and I’ll look up options without assuming availability."
+  },
+  {
+    "question": "Do you have sustainable options?",
+    "answer": "I can highlight producers focused on sustainable practices. Tell me what matters to you, and I’ll filter accordingly."
+  },
+  {
+    "question": "I have dietary restrictions",
+    "answer": "I’m happy to help. Share your dietary needs, and I’ll look up suitable options and show how to filter for them."
+  },
+  {
+    "question": "I need allergy-safe choices",
+    "answer": "Safety matters. Tell me what you need to avoid, and I’ll help you find options and guidance, without assuming stock."
+  },
+  {
+    "question": "Can I filter by price?",
+    "answer": "Yes—once you share a category, I can show filters and sort by price. Want to try a quick search?"
+  },
+  {
+    "question": "Do I need an account to buy?",
+    "answer": "You can browse freely; an account helps with checkout and order tracking. Want help setting one up?"
+  },
+  {
+    "question": "What payment methods are accepted?",
+    "answer": "I can explain accepted methods during checkout. Ready to review payment options?"
+  },
+  {
+    "question": "How do I checkout?",
+    "answer": "I’ll guide you: add items to cart, confirm details, then place the order. Want to do a quick test checkout flow?"
+  },
+  {
+    "question": "Are there service fees?",
+    "answer": "I can outline any fees before checkout. Would you like me to estimate costs once you pick items?"
+  },
+  {
+    "question": "Is there a minimum order?",
+    "answer": "I can check if a minimum applies to your cart. Want to start building one and see?"
+  },
+  {
+    "question": "Do you offer delivery or pickup?",
+    "answer": "Both may be supported. Tell me your preference, and I’ll walk you through options."
+  },
+  {
+    "question": "How do delivery times work?",
+    "answer": "Delivery timing can vary. Share your preferred day or window, and I’ll show typical options before you order."
+  },
+  {
+    "question": "How do I track my order?",
+    "answer": "I’ll show you how tracking works after checkout. Want a quick overview of status updates?"
+  },
+  {
+    "question": "How do refunds or returns work?",
+    "answer": "I can explain the refund and return process step by step. Want me to summarize the policy?"
+  },
+  {
+    "question": "Can I message producers?",
+    "answer": "Messaging may be supported. What would you like to ask? I can draft a message for you."
+  },
+  {
+    "question": "Can I learn about the farmers?",
+    "answer": "I can show producer profiles with practices and stories. Which category are you curious about?"
+  },
+  {
+    "question": "Do you show nutrition info?",
+    "answer": "Where provided, nutrition details appear on item pages. Want me to show you how to find them?"
+  },
+  {
+    "question": "Do you show farming practices?",
+    "answer": "I can help you find information on farming methods shared by producers. Any particular practices you care about?"
+  },
+  {
+    "question": "Any tips for first-time buyers?",
+    "answer": "Sure! Start with seasonal picks, set a budget filter, and add favorites. Want a guided walkthrough?"
+  },
+  {
+    "question": "Can I save favorites?",
+    "answer": "Yes, you can favorite items and producers. Want help creating a list?"
+  },
+  {
+    "question": "Can I reorder past purchases?",
+    "answer": "You can reorder from your history when items are offered again. Want to see how that works?"
+  },
+  {
+    "question": "Do you offer gift options?",
+    "answer": "Gift options may be available. Are you thinking digital or something to deliver? I can check once you decide."
+  },
+  {
+    "question": "Can I place a bulk order?",
+    "answer": "Likely, depending on the producer. Tell me what you need and I’ll check options and lead time."
+  },
+  {
+    "question": "Can you help with event orders?",
+    "answer": "I can help plan a larger order. Share headcount and timing, and I’ll look up suitable options."
+  },
+  {
+    "question": "Can I compare options?",
+    "answer": "Yes, we can compare by price, practices, and freshness notes. What category should we start with?"
+  },
+  {
+    "question": "Can I set alerts for items?",
+    "answer": "You can set alerts for categories or producers. What would you like to track?"
+  },
+  {
+    "question": "Do you support other languages?",
+    "answer": "We support multiple languages. Which language would you prefer?"
+  },
+  {
+    "question": "Is my data private and secure?",
+    "answer": "Your privacy matters. I can outline data use and controls, including opt-outs. Want a short summary?"
+  },
+  {
+    "question": "Can I delete my account?",
+    "answer": "Yes, I can guide you through account deletion and data export. Want to begin?"
+  },
+  {
+    "question": "When is support available?",
+    "answer": "I can share support hours and contact methods. Do you prefer chat or email?"
+  },
+  {
+    "question": "Do you have a mobile app?",
+    "answer": "I can show you how to use the app on mobile and web. Want links and tips?"
+  },
+  {
+    "question": "Can I browse without logging in?",
+    "answer": "Yes, browsing works without logging in; signing in helps with checkout. Want to explore categories now?"
+  },
+  {
+    "question": "Is the app accessible?",
+    "answer": "We aim to be accessible. I can share features like keyboard navigation and contrast options. Any specific needs?"
+  },
+  {
+    "question": "Is this only for nearby farms?",
+    "answer": "It focuses on nearby producers. Share your general area and I’ll explain typical fulfillment choices."
+  },
+  {
+    "question": "How fresh are your products?",
+    "answer": "Items are sourced as directly as possible. I can show freshness notes and harvest timing when you pick a category."
+  },
+  {
+    "question": "Any storage or shelf-life tips?",
+    "answer": "Yes—once you tell me the item type, I’ll share storage and shelf-life tips."
+  },
+  {
+    "question": "Can you suggest cooking ideas?",
+    "answer": "Sure! Share a category and cooking style, and I’ll suggest simple ideas without assuming availability."
+  },
+  {
+    "question": "Do you offer subscriptions?",
+    "answer": "Subscriptions may be offered by some producers. Interested in weekly or monthly schedules?"
+  },
+  {
+    "question": "Do you provide eco packaging?",
+    "answer": "Many use low-impact packaging. Shall I look up options shared by producers?"
+  },
+  {
+    "question": "How can I support small farms?",
+    "answer": "You can shop by producer and practices, and leave reviews. Want help discovering small farms?"
+  },
+  {
+    "question": "I'm back, show me what's new",
+    "answer": "Welcome back! Want to see new arrivals or recent producers you viewed?"
+  },
+  {
+    "question": "Can you notify me about seasons?",
+    "answer": "Absolutely. Tell me your interests, and I’ll set seasonal reminders and search when the time comes."
+  },
+  {
+    "question": "Do you have product reviews?",
+    "answer": "Reviews may be available on item pages. Want me to show how to find them?"
+  },
+  {
+    "question": "How do you verify producers?",
+    "answer": "Producers share details we can review together. Want help evaluating a profile?"
+  },
+  {
+    "question": "How do I start a search?",
+    "answer": "Tell me what you’re craving or your budget, and I’ll start a search and refine with filters."
+  }
+]

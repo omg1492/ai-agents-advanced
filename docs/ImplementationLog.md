@@ -219,3 +219,45 @@ This implementation represents a significant breakthrough in GPT-5 reasoning mod
 - Updated `Design.md` (notes trigger approach & table column constraints).
 
 Rationale: enables hybrid (semantic + lexical) retrieval with explicit trigger logic; foundation for future rank fusion.
+
+## 2025-08-24 Semantic Cache Seed Generation
+
+- Added `data/scripts/gen_qna.py` producing exactly 50 structured generic first-turn Q&A pairs (greetings, capability inquiries, broad help, onboarding) using GPT‑5 Responses API + Pydantic schema.
+- Ensures no specific product / farmer / price / stock / certification mentions; answers are neutral (1–3 sentences) and encourage follow-up specificity.
+- Design doc updated with `semantic_cache` table schema (question, answer, embedding) and first-turn-only retrieval rationale + workflow.
+- Enforces uniqueness & size (raises if != 50) and basic heuristic guards against leakage of disallowed specifics.
+- Temperature kept low (0.4) for stability while preserving phrasing diversity.
+
+Why it matters: reduces cost & latency for extremely frequent cold-start user intents while preserving strict grounding for any catalog-related queries.
+
+### 2025-08-24 Semantic Cache Import Script Simplification
+
+- Simplified `data/scripts/import_qna.py` after successful initial import:
+   - Removed conditional (try/except) numpy import; direct dependency already declared.
+   - Dropped `# pragma: no cover` markers to reflect real coverage and reduce noise.
+   - Generalized embedding sequence detection to accept any non-string `Sequence` (list/tuple/ndarray) without special‑casing numpy.
+   - Removed unused import after refactor; leaner path for row preparation and clearer debug logs.
+- Result: smaller script surface, fewer conditional branches, and clearer diagnostics if future imports skip rows.
+
+### 2025-08-24 Semantic Cache Pipeline (End-to-End) Summary
+
+End of session snapshot of the new semantic cache data pipeline (first‑turn Q&A):
+
+1. Generation (`data/scripts/gen_qna.py`)
+   - Produces a generic first‑turn Q&A seed set (no product / price / stock specifics) via Responses API structured output.
+   - Exact count enforcement and heuristic filters were later relaxed per requirements to keep the script minimal.
+
+2. Embeddings (`data/scripts/embeddings_qna.py`)
+   - Loads `qna.json`, batches questions through `text-embedding-3-large` (2000 dims) and writes `qna_embeddings.parquet`.
+   - Mirrors batching + logging style used in existing product embeddings script for consistency.
+
+3. Table DDL (`data/scripts/sql/05_create_semantic_cache.sql`)
+   - Idempotent drop/create of `semantic_cache` table with `question`, `answer`, `embedding VECTOR(2000)`, `created_at`.
+   - Adds HNSW index for fast similarity on cold‑start lookups.
+
+4. Import (`data/scripts/import_qna.py`)
+   - Truncates table (dev overwrite) then batch inserts from `qna_embeddings.parquet`.
+   - Initial zero‑row import issue traced to strict embedding type check; resolved by accepting any non‑string `Sequence`.
+   - Simplified after validation (removed conditional numpy import, coverage pragmas) → leaner maintenance footprint.
+
+Result: We now have a reproducible, one‑command path from synthetic Q&A intent seeds to a populated `semantic_cache` table ready for first‑turn retrieval logic integration in the agent service.
