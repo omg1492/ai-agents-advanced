@@ -1,10 +1,10 @@
 - [x] Add is_vip boolean column to products table that will be used for RAG fencing example
 - [x] Create embeddings script for products table to add embeddings on combined_text + randomly assign is_vip to true for about 10% of products and store result into parquet file
 - [x] Create import script for products from parquet to database
-- [ ] Create new Keycloack in our PostgreSQL
-- [ ] Add and configure Keycloack container to Docker Compose
-- [ ] Add script to create 3 demo users in Keycloak
-- [ ] Add authorization information to users such as security group or something that will be part of JWT, make one of users VIP
+- [x] Create new Keycloack in our PostgreSQL
+- [x] Add and configure Keycloack container to Docker Compose
+- [x] Add script to create 3 demo users in Keycloak
+- [x] Add authorization information to users such as security group or something that will be part of JWT, make one of users VIP
 - [ ] Implement authentication in Frontend and dreamfarm agent
 - [ ] In dreamfarm agent extract user information from JWT so we have userId and isVip attributes
 - [ ] Besides simple RAG implement agentic search - rather than adding to system prompt implement function calling with two tools: semantic search (with "text" attribute with description for LLM to create HyDE text based on user question and context) and keyword search (with "keywords" attribute for full-text search). Use .env configuration so we can turn off simple RAG and use tool-based search at will.

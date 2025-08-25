@@ -18,6 +18,35 @@ services:
       retries: 3
       start_period: 60s
 
+  keycloak:
+    image: quay.io/keycloak/keycloak:25.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+    # Use same PostgreSQL instance; dev-only admin credentials (override via .env in real use)
+    environment:
+      - KEYCLOAK_ADMIN=${KEYCLOAK_ADMIN:-admin}
+      - KEYCLOAK_ADMIN_PASSWORD=${KEYCLOAK_ADMIN_PASSWORD:-admin}
+      - KC_DB=postgres
+      - KC_DB_URL=jdbc:postgresql://postgres:${PGPORT}/${PGDATABASE}
+      - KC_DB_USERNAME=${PGUSER}
+      - KC_DB_PASSWORD=${PGPASSWORD}
+      # Hostname set to localhost so issuer becomes http://localhost:8080/realms/<realm>
+      - KC_HOSTNAME=localhost
+      - KC_PROXY=edge
+      - KC_HTTP_ENABLED=true
+      # (Optional) future realm import: mount ./keycloak/realms:/opt/keycloak/data/import and add --import-realm
+    command: ["start-dev"]
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/health/ready || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
+
   api-stock:
     image: ghcr.io/tkubica12/advanced-ai-applications/api-stock:latest
     depends_on:

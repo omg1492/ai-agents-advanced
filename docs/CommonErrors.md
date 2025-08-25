@@ -360,3 +360,53 @@ LIMIT :limit
 - Guard against layout drift (indentation) after multi‑patch sequences with a simple import test.
 
 ---
+
+## All Rows Skipped on Products Import - 2025-08-25
+
+**Problem**: Running `import_products.py` logged:
+```
+Skipped 5595 rows with missing/invalid embeddings
+Prepared 0 rows for insert
+No rows to import
+```
+
+**Root Cause**: Generated embeddings had a dimension different from the database column (`vector(2000)`). Import validation rejects any embedding whose length != 2000, so every row was dropped instead of failing loudly.
+
+**Solution**:
+1. Standardized `embeddings_products.py` to always call the API with `dimensions=2000`.
+2. Regenerated parquet, confirmed log line: `Detected embedding dimension=2000 (DB expects 2000)`.
+3. Re-ran import; rows inserted successfully.
+
+**Prevention**:
+- Always request embeddings with explicit `dimensions=2000` for this table.
+- Add a quick assert (or CI check) that first embedding length matches expected dimension.
+- If dimension ever changes intentionally, migrate the DB column (ALTER TABLE ... USING) before regenerating data.
+
+---
+
+## TRUNCATE Usage in Import Script (Dev Convenience vs Prod Risk) - 2025-08-25
+
+**Context**: `import_products.py` executes:
+```
+TRUNCATE TABLE products RESTART IDENTITY;
+```
+
+**Why in Dev**:
+- Fast (minimal WAL) and ensures a clean snapshot matching the regenerated parquet.
+- Avoids duplicates & stale rows while iterating on schema / embeddings.
+
+**Risk in Production**:
+- Irreversible bulk deletion (no WHERE clause); accidental run erases entire table instantly.
+- Blocks concurrent access while holding strong locks.
+
+**Safer Production Patterns**:
+1. UPSERT / MERGE style load (`ON CONFLICT (product_id) DO UPDATE`).
+2. Stage + swap: load into `products_staging`, then transactional `DELETE/INSERT` or partition swap.
+3. Differential update: compare hashes and only update changed rows.
+
+**Prevention**:
+- Gate TRUNCATE behind environment flag, e.g. `ALLOW_TRUNCATE_IN_DEV=1`.
+- Add a defensive check that aborts if `ENVIRONMENT=prod`.
+- Include an integration test asserting production config path skips TRUNCATE.
+
+---

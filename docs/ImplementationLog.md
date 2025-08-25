@@ -302,3 +302,22 @@ Result: We now have a reproducible, one‑command path from synthetic Q&A intent
 - Added post-generation sanity check logging error if returned dimension diverges (defensive guard against model/config drift).
 
 Next (not implemented here): integrate VIP filtering into RAG queries and tool-based agentic search once those layers are added.
+
+## 2025-08-25 Keycloak Service Added (Local Dev Auth Foundation)
+
+- Added `keycloak` service to `deploy/local/docker-compose.yml` using `quay.io/keycloak/keycloak:25.0`.
+- Runs against existing Postgres instance (shared DB) via JDBC URL `jdbc:postgresql://postgres:${PGPORT}/${PGDATABASE}` to keep dev stack minimal (acceptable for local; prod should isolate DB/schema).
+- Dev credentials parameterized: `KEYCLOAK_ADMIN`, `KEYCLOAK_ADMIN_PASSWORD` with defaults (`admin`/`admin`) for simplicity.
+- Started with `start-dev` mode (ephemeral, no TLS) and exposed on port 8080; healthcheck hitting `/health/ready` to coordinate dependent future auth integration work.
+- Prepared environment variables for future realm import (comment notes about mounting an import directory and adding `--import-realm`).
+
+Rationale: Provides immediate OIDC provider so upcoming tasks (demo users, JWT extraction, VIP fencing) can proceed incrementally without waiting for realm automation. Future steps: create realm (e.g., `dreamfarm`), client for frontend (public w/ PKCE), roles or group mapping for `vip`, and scripted user bootstrap.
+
+### 2025-08-25 Keycloak Provisioning Script
+
+- Added provisioning script (later moved to `identity/provision_keycloak.py`) to automate local Keycloak setup: creates (idempotently) realm, VIP role, public frontend client (Auth Code + PKCE), and three demo users (`user1`, `user2`, `vipuser` with last assigned `vip`).
+- Environment-driven; dedicated env moved to `identity/.env*` (`KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_DEMO_CLIENT_ID`, `KEYCLOAK_DEMO_REDIRECT_URIS`, `KEYCLOAK_DEMO_USERS`, `KEYCLOAK_VIP_ROLE`).
+- Uses simple deterministic passwords `<username>123` for dev only; sets user attribute `is_vip` plus realm role membership for VIP user.
+- Script is safe to re-run; updates client redirect URIs and skips existing entities.
+  
+Next: integrate JWT validation middleware reading `vip` role (or `is_vip` attr if we map to a claim) in the agent and implement frontend OIDC flow.
