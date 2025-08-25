@@ -1,6 +1,6 @@
-- [ ] Add is_vip boolean column to products table that will be used for RAG fencing example
-- [ ] Create embeddings script for products table to add embeddings on combined_text + randomly assign is_vip to true for about 10% of products and store result into parquet file
-- [ ] Create import script for products from parquet to database
+- [x] Add is_vip boolean column to products table that will be used for RAG fencing example
+- [x] Create embeddings script for products table to add embeddings on combined_text + randomly assign is_vip to true for about 10% of products and store result into parquet file
+- [x] Create import script for products from parquet to database
 - [ ] Create new Keycloack in our PostgreSQL
 - [ ] Add and configure Keycloack container to Docker Compose
 - [ ] Add script to create 3 demo users in Keycloak

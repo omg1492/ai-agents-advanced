@@ -281,3 +281,24 @@ End of session snapshot of the new semantic cache data pipeline (first‑turn Q&
    - Simplified after validation (removed conditional numpy import, coverage pragmas) → leaner maintenance footprint.
 
 Result: We now have a reproducible, one‑command path from synthetic Q&A intent seeds to a populated `semantic_cache` table ready for first‑turn retrieval logic integration in the agent service.
+
+## 2025-08-25 Products VIP Fencing Foundation
+
+- Added `is_vip BOOLEAN NOT NULL DEFAULT false` column to `products` table DDL (`03_create_products.sql`) plus index `idx_products_is_vip` and column comment. Purpose: enable search/result fencing so non‑VIP users cannot access VIP‑flagged products.
+- Created `data/scripts/embeddings_products.py` generating enriched products parquet (`products.parquet`) with:
+   - Flattened producer/product data from `producers.json` (product + producer IDs/names/descriptions)
+   - Deterministic VIP assignment (~10%, configurable via `PRODUCT_VIP_RATIO`, seeded RNG) in `is_vip` column
+   - 2000‑dim embeddings over a structured `combined_text` field
+   - Unified OpenAI/Azure client + batched resilient embedding requests (tenacity retry policy)
+- Created `data/scripts/import_products.py` to load parquet into `products`:
+   - Truncates table for dev repeatability
+   - Converts embedding arrays to pgvector literal strings `[v1,v2,...]`
+   - Preserves `is_vip` flag and validates embedding dimensionality
+- Updated ImplementationLog to document rationale: forms basis for forthcoming RAG / tool fencing (filter automatically by user VIP status) without modifying existing simple RAG path yet.
+
+### 2025-08-25 Standardized Product Embedding Dimension
+
+- Simplified `embeddings_products.py` to always request embeddings with explicit `dimensions=2000` (removed env override & fallback path) to guarantee alignment with `products.embedding vector(2000)` and avoid import skips.
+- Added post-generation sanity check logging error if returned dimension diverges (defensive guard against model/config drift).
+
+Next (not implemented here): integrate VIP filtering into RAG queries and tool-based agentic search once those layers are added.
