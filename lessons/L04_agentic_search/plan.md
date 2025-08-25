@@ -1,0 +1,14 @@
+- [ ] Add is_vip boolean column to products table that will be used for RAG fencing example
+- [ ] Create embeddings script for products table to add embeddings on combined_text + randomly assign is_vip to true for about 10% of products and store result into parquet file
+- [ ] Create import script for products from parquet to database
+- [ ] Create new Keycloack in our PostgreSQL
+- [ ] Add and configure Keycloack container to Docker Compose
+- [ ] Add script to create 3 demo users in Keycloak
+- [ ] Add authorization information to users such as security group or something that will be part of JWT, make one of users VIP
+- [ ] Implement authentication in Frontend and dreamfarm agent
+- [ ] In dreamfarm agent extract user information from JWT so we have userId and isVip attributes
+- [ ] Besides simple RAG implement agentic search - rather than adding to system prompt implement function calling with two tools: semantic search (with "text" attribute with description for LLM to create HyDE text based on user question and context) and keyword search (with "keywords" attribute for full-text search). Use .env configuration so we can turn off simple RAG and use tool-based search at will.
+- [ ] Add fencing into searches so when LLM calls semantic or keyword search tool, we automatically add isVip attribute to the search and use it for filtering results - non-vip user can see only non-vip items, vip user can see everything
+- [ ] Use AGE to build graph and import to database using producers.json (producer and product relations) and allergens and certifications
+- [ ] Create import script and ingest data into AGE graph
+- [ ] Create pipeline to enhance knowledge graph using LLM - create two higher level concepts - category and cuisine. First we must define about 50 categories (meat, vegetables, ...) and 20 cuisines (italian, japanese, ..) by looking into our data and for each create some summary (description of this category or cuisine). Categories and cuisines will be stored as nodes. Than we need to assign products to those two concept and create graph (add edges). This calculation must be stored in some format (JSON? Parquet?) and than we create script to import it to database.

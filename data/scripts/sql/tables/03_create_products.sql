@@ -12,7 +12,7 @@ CREATE TABLE public.products (
     product_name        VARCHAR(255) NOT NULL,
     product_description TEXT NOT NULL,
     combined_text       TEXT NOT NULL,
-  embedding           vector(2000),
+    embedding           vector(2000),
     fts_document        TSVECTOR NOT NULL,
     created_at          TIMESTAMPTZ DEFAULT now(),
     updated_at          TIMESTAMPTZ DEFAULT now()

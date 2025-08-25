@@ -103,6 +103,15 @@ PGPASSWORD=Admin12345678
 
 # Embeddings (use same unified scheme)
 OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+
+# Authentication / Authorization
+REQUIRE_AUTH=false
+KEYCLOAK_ISSUER=https://keycloak.local/realms/dreamfarm
+KEYCLOAK_AUDIENCE=dreamfarm-frontend
+
+# Agentic Search (function/tool based retrieval)
+ENABLE_AGENTIC_SEARCH=false
+AGENTIC_MAX_RESULTS=5
 ```
 
 **Frontend (Runtime Configuration):**
@@ -145,9 +154,17 @@ def get_model_name():
 
 This abstraction allows the same codebase to work with both providers seamlessly.
 
-### RAG (Retrieval-Augmented Generation) Implementation
+### Retrieval & Search Architecture
 
-The DreamFarm Agent includes a (now hybrid) RAG system combining semantic + full‑text retrieval:
+The platform provides two complementary retrieval modes:
+1. Hybrid RAG (semantic + keyword fusion) – prompt inlined context blocks (internal fusion logic)
+2. Agentic tool-based iterative search (function calling) – LLM chooses which retrieval tool(s) to call (no backend fusion)
+
+VIP fencing (row-level filtering) currently applies only to the agentic tool-based retrieval path; hybrid RAG remains unrestricted (shows full catalog) unless extended later.
+
+#### Hybrid RAG (Semantic + Keyword with RRF)
+
+The DreamFarm Agent includes a hybrid RAG system combining semantic + full‑text retrieval:
 
 #### RAG Architecture (Hybrid)
 1. **Semantic Pass**: Generate embedding for user query; vector similarity over `simple_products.embedding` (cosine) → ranked list S
@@ -168,12 +185,36 @@ Design Notes
 #### RAG Components
 
 **RAGService** (`src/services/rag_service.py`):
-- Embedding generation (unchanged)
-- Keyword extraction via Responses API structured output (new)
-- Vector similarity + FTS search (new FTS path)
-- Reciprocal Rank Fusion combiner (new)
-- Result formatting + prompt injection (unchanged)
-- Feature flag: `ENABLE_RAG`
+- Embedding generation
+- Keyword extraction via Responses API structured output
+- Vector similarity + FTS search
+- Reciprocal Rank Fusion (RRF) combiner
+- Result formatting + prompt injection
+- Feature flags: `ENABLE_RAG`, interplay with `ENABLE_AGENTIC_SEARCH`
+
+#### Agentic Tool-Based Retrieval (Function Calling)
+Enabled via `ENABLE_AGENTIC_SEARCH=true`. The LLM receives two retrieval tool schemas and decides dynamically which (and how many times) to invoke; the backend does not merge or rerank across tool outputs—each call returns an independent result set the model can reference in subsequent reasoning.
+
+Tools (JSON schema arguments):
+- `semantic_search(text: string)` -> returns `{ results: [ { product_id, product_name, producer_name, score, is_vip } ] }` (semantic vector similarity, HyDE capable)
+- `keyword_search(keywords: string[])` -> returns same shape (full‑text search)
+
+Workflow:
+1. Model may synthesize a HyDE document for the semantic tool (backend optional heuristic for very short questions).
+2. LLM issues tool calls; backend executes and returns raw lists (VIP‑filtered if user not VIP).
+3. Model integrates referenced products in final answer; ordering/selection is model decision (no backend fusion).
+4. Each call emits a `DF_META` line with counts (requested, returned) and VIP filter stats.
+
+Fallback: If agentic search disabled or model opts not to call tools, system uses Hybrid RAG.
+
+HyDE Meta: When generated, truncated hash + token count emitted in a `DF_META` line with kind `hyde_generation`.
+
+#### VIP Fencing
+Applied only in agentic retrieval tool queries:
+```
+WHERE (products.is_vip = false OR :user_is_vip = true)
+```
+`user_is_vip` derived from authenticated request context (defaults false if auth disabled). Hybrid RAG path intentionally ignores `is_vip` (shows full catalog) in this phase; policy may evolve later.
 
 **Database Schema (brief):**
 
@@ -274,6 +315,7 @@ Columns
 | combined_text      | text          | not null                   | Concatenated fields used for embeddings                                     |
 | embedding          | vector(2000)  |                            | 2000‑d pgvector embedding (text-embedding-3-large)                          |
 | fts_document       | tsvector      | not null                   | Generated from name/producer/description for FTS                            |
+| is_vip             | boolean       | not null default false     | True = restricted; visible only to VIP users                                |
 | created_at         | timestamptz   | default now()              | Row creation timestamp                                                      |
 | updated_at         | timestamptz   | default now()              | Row update timestamp                                                        |
 
@@ -326,7 +368,8 @@ Vertices (labels and representative properties)
 - Product { productId: UUID, name: text }
 - Certification { certificationId: UUID, name: text, description: text }
 - Allergen { allergenId: UUID, name: text }
-- Category { name: text }
+- Category { categoryId: UUID, name: text, description: text }
+- Cuisine { cuisineId: UUID, name: text, description: text }
 
 Edges (relationship types)
 
@@ -334,6 +377,7 @@ Edges (relationship types)
 - HAS_CERTIFICATION (Producer → Certification)
 - CONTAINS_ALLERGEN (Product → Allergen)
 - HAS_CATEGORY (Product → Category)
+- HAS_CUISINE (Product → Cuisine)
 - RELATED (Product ↔ Product) optional, for curated similarity/co‑purchase signals
 
 Relational ↔ Graph integration (recommended pattern)
@@ -346,6 +390,12 @@ Relational ↔ Graph integration (recommended pattern)
   1) Do hybrid retrieval in SQL on `products` to get top-N product_ids with scores.
   2) Use those IDs as parameters to a Cypher query for traversals/enrichment (e.g., producers, certifications, similar products) and optionally re‑rank.
   3) Join the `cypher(...)` results with relational tables on the `productId`/`producerId` properties.
+
+Taxonomy Enrichment Pipeline (categories & cuisines):
+1. Derive canonical category & cuisine sets (LLM structured output + deterministic review) – ~50 categories, ~20 cuisines.
+2. Multi‑label classify products -> arrays of category/cuisine IDs.
+3. Store intermediate JSON/Parquet `processed/product_taxonomy.json` with {categories, cuisines, assignments}.
+4. Import script MERGEs vertices & edges via Cypher.
 
 Why this split?
 
@@ -658,7 +708,7 @@ advanced-ai-applications/
 - **nginx/Envoy** (Lesson 10): For production load balancing, SSL, static files
 - **Authentication**: Can be added as middleware to agents or separate service
 
-### Tool Integration Strategy
+### Tool Integration Strategy & Function Interfaces
 
 #### MCP vs REST API Decision
 
@@ -689,9 +739,9 @@ advanced-ai-applications/
 
 This approach allows the API Gateway to remain focused on core business logic while delegating specialized tasks to dedicated MCP servers.
 
-### Planned AI Tools (tools/)
+#### AI Tools Overview
 
-This project will ship a small, focused set of AI tools located in the `tools/` folder. They are designed to be plugged into the DreamFarm Agent either directly (HTTP) or via MCP. Initial scope:
+Tools live under `tools/` (standalone services / MCP servers) or as internal function-call interfaces exposed to the LLM. Scope:
 
 - mcp_public_farmer_tools (MCP, Python)
   - Purpose: simple utility/tooling for the assistant without external dependencies.
@@ -709,6 +759,16 @@ This project will ship a small, focused set of AI tools located in the `tools/` 
   - Notes: read-only; aligns with `data/source_json/stock.json` shapes (producerId, productId, onStock).
 
 - Tavily Remote MCP (SaaS web search)
+
+#### Internal Function-Call Interfaces (Agentic Retrieval)
+- `semantic_search` (arguments: text: string) – semantic vector similarity (HyDE capable) with VIP fence.
+- `keyword_search` (arguments: keywords: string[]) – full‑text search over `fts_document` / `fts_combined` with VIP fence.
+
+Return schema (for each call) list of products `[product_id, product_name, producer_name, score, is_vip]`.
+
+No backend fusion: model may call tools multiple times and integrate / compare results itself.
+
+Telemetry: Each invocation emits `DF_META` line (`search_tool_call`) with counts pre/post VIP filter.
   - Purpose: real-time internet search and extraction to augment answers beyond local data.
   - Integration: connect to Tavily’s remote MCP server as an MCP tool in the LLM call. Server URL: `https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>` (requires a Tavily API key).
   - Capabilities: search, extract, map, crawl (we primarily use `tavily-search` and `tavily-extract`).
@@ -788,8 +848,13 @@ This pattern enables:
 - No hardcoded credentials in source code
 - CORS configuration for frontend-backend communication
 - Input validation using Pydantic models
+- JWT verification (Keycloak) when `REQUIRE_AUTH=true`
+- Role / VIP enforcement at data access layer (defense-in-depth; currently only applied to agentic tool queries)
 
-### Future Enhancements (Later Lessons)
+#### Authentication & Authorization
+Keycloak provides OIDC tokens with roles; backend middleware validates JWT (issuer & audience), extracts `user_id` (sub) and VIP status (role membership or explicit `is_vip` claim). Frontend performs Authorization Code + PKCE, stores token in memory, attaches Bearer header. Unauthorized or invalid token requests return 401 (when auth required). VIP fencing implemented via SQL predicate; LLM is instructed but not trusted to self‑filter.
+
+### Future Enhancements
 
 This basic architecture will be extended with:
 - RAG (Retrieval-Augmented Generation) with PostgreSQL and pgvector
@@ -806,4 +871,4 @@ This basic architecture will be extended with:
 - Focus on clean architecture that can be easily extended
 - Use established patterns and frameworks
 - Document all public APIs and methods
-- Follow project coding standards throughout development
+-- Follow project coding standards throughout development
