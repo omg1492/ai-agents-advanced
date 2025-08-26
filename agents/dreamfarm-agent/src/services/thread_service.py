@@ -124,10 +124,10 @@ class ThreadService:
         system_prompt = self.template_service.render_template(
             "system_prompt.j2",
             {
-                "user_location": None,  # TODO: Add user location detection
-                "seasonal_products": [],  # TODO: Add seasonal product data
-                "user_preferences": [],  # TODO: Add user preference tracking
-                "simple_rag": rag_context  # Include RAG search results
+                "user_location": None,
+                "seasonal_products": [],
+                "user_preferences": [],
+                "simple_rag": rag_context,
             }
         )
         
@@ -135,9 +135,9 @@ class ThreadService:
         logger.debug(f"Rendered system prompt for thread {thread_id}:\n{system_prompt}")
 
         try:
-            assistant_response = await self.openai_service.generate_response(
-                messages=conversation_messages,
-                system_prompt=system_prompt
+            assistant_response, _ = await self.openai_service.generate_response(
+                user_text=user_message,
+                system_prompt=system_prompt,
             )
         except Exception as e:
             logger.error(f"Failed to generate AI response: {e}")

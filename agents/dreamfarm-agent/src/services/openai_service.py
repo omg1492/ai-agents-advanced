@@ -24,6 +24,7 @@ import json
 from typing import Optional, List, Any
 
 from src.services.config_service import ConfigService, OpenAIConfig, AppConfig
+from src.services.agentic_search import AgenticSearchService
 from src.services.stock_service import StockService
 
 from openai import AsyncOpenAI
@@ -73,12 +74,20 @@ class OpenAIService:
                 self._stock_service = None
         self.client = self._get_openai_client()
         self.model_name = self._get_model_name()
+        # Agentic search service (function tools) optional
+        self._agentic_search: AgenticSearchService | None = None
+        try:
+            if getattr(self._app_config, "agentic_search", None) and self._app_config.agentic_search.enabled:  # type: ignore[attr-defined]
+                self._agentic_search = AgenticSearchService(self._app_config)
+        except Exception as ae:  # pragma: no cover
+            logger.warning(f"Agentic search init failed: {ae}")
         logger.info(
-            "Initialized OpenAI service with base_url=%s, model=%s, stock_tool_enabled=%s, tavily_enabled=%s",
+            "Initialized OpenAI service base_url=%s model=%s stock_tool=%s tavily=%s agentic=%s",
             getattr(self.client, "base_url", None),
             self.model_name,
             bool(self._stock_service and self._stock_service.enabled),
             bool(self._tavily and self._tavily.enabled),
+            bool(self._agentic_search and self._agentic_search.enabled),
         )
 
     def get_tools(self) -> Optional[list[dict]]:
@@ -171,6 +180,57 @@ class OpenAIService:
                 }
             )
 
+        # Agentic search function tools
+        if self._agentic_search and self._agentic_search.enabled:
+            tools.append(
+                {
+                    "type": "function",
+                    "name": "semantic_product_search",
+                    "description": "Semantic vector search over products using HyDE style expanded description. Use when rich context or description of need is helpful.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "text": {
+                                "type": "string",
+                                "description": "HyDE style expanded description of the user's need (the model writes this)."
+                            },
+                            "k": {
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 10,
+                                "description": "How many top products to retrieve (3-10)."
+                            }
+                        },
+                        "required": ["text"],
+                    },
+                }
+            )
+            tools.append(
+                {
+                    "type": "function",
+                    "name": "keyword_product_search",
+                    "description": "Keyword / phrase full-text search over products. Use when concise specific terms are known (e.g. exact product or producer names).",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "keywords": {
+                                "type": "array",
+                                "items": {"type": "string"},
+                                "minItems": 1,
+                                "maxItems": 8,
+                                "description": "Distinct short keywords or short noun phrases (no stop words)."
+                            },
+                            "k": {
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 10,
+                                "description": "How many top products to retrieve (3-10)."
+                            }
+                        },
+                        "required": ["keywords"],
+                    },
+                }
+            )
         return tools or None
 
     def _get_openai_client(self) -> AsyncOpenAI:
@@ -212,6 +272,7 @@ class OpenAIService:
         *,
         system_prompt: Optional[str] = None,
         previous_response_id: Optional[str] = None,
+        user_is_vip: bool = False,
     ) -> tuple[str, str]:
         """Generate a response handling any synchronous function tool calls.
 
@@ -230,7 +291,7 @@ class OpenAIService:
                 input=user_text,
                 store=True,
                 previous_response_id=previous_response_id or None,
-                reasoning={"effort": "minimal"},
+                reasoning={"effort": getattr(self._app_config, 'reasoning_effort', 'minimal')},
                 **kwargs,
             )
         except Exception as e:  # pragma: no cover - network / auth errors
@@ -249,31 +310,46 @@ class OpenAIService:
                 name = call.get("name")
                 call_id = call.get("id")
                 raw_args = call.get("arguments") or "{}"
-                if name != "get_stock":
+                output_payload = None
+                if name == "get_stock":
+                    if not (self._stock_service and self._stock_service.enabled):
+                        logger.info("Stock tool called but service disabled; returning empty list")
+                        output_payload = {"items": []}
+                    else:
+                        try:
+                            parsed = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                        except Exception:
+                            parsed = {}
+                        prod_ids = parsed.get("productIds") or parsed.get("product_ids") or []
+                        if not isinstance(prod_ids, list):
+                            prod_ids = []
+                        prod_ids = [str(p) for p in prod_ids][:20]
+                        items = []
+                        if prod_ids:
+                            try:
+                                stock_items = await self._stock_service.get_stock(prod_ids)
+                                for it in stock_items:
+                                    items.append({"product_id": it.product_id, "on_stock": it.on_stock})
+                            except Exception as se:  # pragma: no cover - API failure
+                                logger.warning("Stock tool execution failed: %s", se)
+                        output_payload = {"items": items}
+                elif name in {"semantic_product_search", "keyword_product_search"}:
+                    if self._agentic_search and self._agentic_search.enabled:
+                        try:
+                            parsed = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                        except Exception:
+                            parsed = {}
+                        try:
+                            output_json = await self._agentic_search.execute(name, parsed, user_is_vip=user_is_vip)
+                            output_payload = json.loads(output_json)
+                        except Exception as ae:  # pragma: no cover
+                            logger.warning(f"Agentic search execution failed: {ae}")
+                            output_payload = {"products": []}
+                    else:
+                        output_payload = {"products": []}
+                else:
                     logger.info("Ignoring unsupported function call name=%s", name)
                     continue
-                if not (self._stock_service and self._stock_service.enabled):
-                    logger.info("Stock tool called but service disabled; returning empty list")
-                    output_payload = {"items": []}
-                else:
-                    try:
-                        parsed = json.loads(raw_args) if isinstance(raw_args, str) else {}
-                    except Exception:
-                        parsed = {}
-                    # Accept both new camelCase and legacy snake_case
-                    prod_ids = parsed.get("productIds") or parsed.get("product_ids") or []
-                    if not isinstance(prod_ids, list):
-                        prod_ids = []
-                    prod_ids = [str(p) for p in prod_ids][:20]
-                    items = []
-                    if prod_ids:
-                        try:
-                            stock_items = await self._stock_service.get_stock(prod_ids)
-                            for it in stock_items:
-                                items.append({"product_id": it.product_id, "on_stock": it.on_stock})
-                        except Exception as se:  # pragma: no cover - API failure
-                            logger.warning("Stock tool execution failed: %s", se)
-                    output_payload = {"items": items}
                 if call_id:
                     tool_outputs.append(
                         {"tool_call_id": call_id, "output": json.dumps(output_payload)}

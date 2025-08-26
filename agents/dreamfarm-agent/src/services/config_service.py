@@ -1,4 +1,9 @@
-"""Configuration service for managing application settings."""
+"""Configuration service for managing application settings.
+
+Extended to include:
+- Agentic search tool configuration (semantic + keyword function tools)
+- Reasoning effort level for GPT‑5 models (REASONING_EFFORT env)
+"""
 
 import os
 import logging
@@ -117,6 +122,8 @@ class AppConfig:
     environment: str
     cors_origins: list[str]
     log_level: str
+    # Reasoning effort for GPT‑5 models (minimal|medium|high|max) default minimal
+    reasoning_effort: str
     openai: OpenAIConfig
     db: DatabaseConfig
     rag: RagConfig
@@ -125,6 +132,13 @@ class AppConfig:
     tavily: TavilyConfig | None
     stock_tool: StockToolConfig | None
     auth: AuthConfig | None
+    agentic_search: Optional["AgenticSearchConfig"]  # forward ref
+
+
+@dataclass
+class AgenticSearchConfig:
+    enabled: bool
+    max_results: int
 
 
 class ConfigService:
@@ -271,10 +285,18 @@ class ConfigService:
             jwks_url=jwks_url,
         ) if auth_enabled else None
 
+        # Agentic search (tool-based retrieval) configuration
+        agentic_enabled = os.getenv("AGENTIC_SEARCH_ENABLED", "false").lower() in ["true", "1", "yes", "on"]
+        agentic_cfg = AgenticSearchConfig(
+            enabled=agentic_enabled,
+            max_results=int(os.getenv("AGENTIC_SEARCH_MAX_RESULTS", "10")),
+        ) if agentic_enabled else None
+
         return AppConfig(
             environment=os.getenv("ENVIRONMENT", "development"),
             cors_origins=cors_origins,
             log_level=os.getenv("LOG_LEVEL", "INFO"),
+            reasoning_effort=os.getenv("REASONING_EFFORT", "minimal"),
             openai=openai_config,
             db=db_config,
             rag=rag_config,
@@ -283,6 +305,7 @@ class ConfigService:
             tavily=tavily_config,
             stock_tool=stock_tool_config,
             auth=auth_config,
+            agentic_search=agentic_cfg,
         )
     
     def _get_required_env(self, key: str) -> str:

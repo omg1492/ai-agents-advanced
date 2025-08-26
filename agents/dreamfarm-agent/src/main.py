@@ -29,6 +29,7 @@ from src.services.rag_service import RAGService
 from src.services.template_service import TemplateService
 from src.services.stock_service import StockService
 from src.services.semantic_cache_service import SemanticCacheService
+from src.services.agentic_search import AgenticSearchService
 from src.services.auth_service import AuthService
 
 
@@ -60,6 +61,7 @@ template_service: TemplateService | None = None
 stock_service: StockService | None = None
 semantic_cache_service: SemanticCacheService | None = None
 auth_service: AuthService | None = None
+agentic_search_service: AgenticSearchService | None = None
 # Minimal session and history stores (state remains in Responses API)
 _threads: dict[str, ThreadModel] = {}
 _history: dict[str, list[MessageModel]] = {}
@@ -116,6 +118,16 @@ async def lifespan(app: FastAPI):
                 )
             except Exception as sce:  # pragma: no cover
                 logger.warning(f"Semantic cache initialization failed: {sce}")
+        # Agentic search service (tool-based retrieval)
+        if getattr(cfg, "agentic_search", None) and cfg.agentic_search.enabled:  # type: ignore[attr-defined]
+            try:
+                from src.services.agentic_search import AgenticSearchService as _ASS
+                global agentic_search_service
+                agentic_search_service = _ASS(cfg)
+                logger.info("Agentic search service enabled")
+            except Exception as ase:  # pragma: no cover
+                logger.warning(f"Agentic search initialization failed: {ase}")
+                agentic_search_service = None
         # Auth service (Keycloak JWT validation)
         if cfg.auth and cfg.auth.enabled:
             try:
@@ -238,6 +250,7 @@ async def chat(request: ChatRequest, user_ctx: tuple[str, bool, dict] = Depends(
                 "seasonal_products": [],
                 "user_preferences": [],
                 "simple_rag": rag_context or "",
+                "config": config_service.config,
                 # Stock data is NOT injected here; retrieved only via function calling.
             },
         )
@@ -247,6 +260,7 @@ async def chat(request: ChatRequest, user_ctx: tuple[str, bool, dict] = Depends(
             user_text=request.message,
             system_prompt=system_prompt,
             previous_response_id=request.previous_response_id,
+            user_is_vip=is_vip,
         )
         return ChatResponse(
             response_id=response_id,
@@ -330,10 +344,8 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
             logger.warning(f"Semantic cache lookup failed: {e}")
             hit = None
         if hit:
-            # Record assistant synthetic reply (no provider response id chain yet)
             from src.services.semantic_cache_service import SemanticCacheService as _SCS
             _SCS.seed_history_with_hit(_history[thread_id], thread_id, hit, MessageModel)
-            # Store bootstrap transcript for later injection
             _semantic_cache_bootstrap[thread_id] = {
                 "user": payload.message,
                 "assistant": hit.answer,
@@ -364,6 +376,7 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
             "seasonal_products": [],
             "user_preferences": [],
             "simple_rag": rag_context or "",
+            "config": config_service.config,
         },
     )
     # Inject prior cached turn transcript if applicable (first real LLM turn)
@@ -388,6 +401,7 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
             user_text=payload.message,
             system_prompt=system_prompt,
             previous_response_id=prev_resp_id,
+            user_is_vip=is_vip,
         )
     except Exception as e:
         logger.error(f"Failed to generate AI response: {e}")
@@ -489,6 +503,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
             "seasonal_products": [],
             "user_preferences": [],
             "simple_rag": rag_context or "",
+            "config": config_service.config,
             # Stock data excluded; function calling path only.
         },
     )
@@ -526,7 +541,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
     
     async def token_generator():
         """Loop-based streaming generator following proven GPT-5 reasoning pattern."""
-        nonlocal input_messages, response_id_local, full_text
+        nonlocal input_messages, response_id_local, full_text, tools
         
         while True:
             try:
@@ -538,7 +553,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                     input=input_messages,
                     store=True,
                     previous_response_id=response_id_local or None,
-                    reasoning={"effort": "minimal"},
+                    reasoning={"effort": getattr(config_service.config, 'reasoning_effort', 'minimal')},
                     **stream_kwargs,
                 ) as response:
                     
@@ -643,6 +658,31 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                                             
                                         except Exception as exec_e:  # noqa: BLE001
                                             logger.warning(f"Function execution error: {exec_e}")
+                                    elif getattr(item, "name", None) in {"semantic_product_search", "keyword_product_search"}:
+                                        try:
+                                            if agentic_search_service and agentic_search_service.enabled:
+                                                raw_args = getattr(item, "arguments", "{}")
+                                                parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                                                output_json = await agentic_search_service.execute(getattr(item, "name", ""), parsed_args, user_is_vip=is_vip)
+                                                pending_outputs.append({
+                                                    "type": "function_call_output",
+                                                    "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                    "output": output_json,
+                                                })
+                                                submit_meta = {
+                                                    "kind": "tool_event",
+                                                    "event_type": "tool.outputs_executed",
+                                                    "tool_name": getattr(item, "name", ""),
+                                                }
+                                                yield "\nDF_META:" + json.dumps(submit_meta, ensure_ascii=False) + "\n"
+                                            else:
+                                                pending_outputs.append({
+                                                    "type": "function_call_output",
+                                                    "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                    "output": json.dumps({"products": []}),
+                                                })
+                                        except Exception as exec_e:  # noqa: BLE001
+                                            logger.warning(f"Agentic search function execution error: {exec_e}")
                         
                         # Tool event meta for UI (for added events)
                         elif et == "response.output_item.added":
