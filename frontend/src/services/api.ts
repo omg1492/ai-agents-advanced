@@ -19,6 +19,17 @@ function getConfig() {
 // API client class for DreamFarm Agent
 export class DreamFarmAPI {
   private baseUrl: string;
+  private getAuthHeader(): Record<string,string> {
+    try {
+      const raw = localStorage.getItem('df_auth_tokens_v1');
+      if (!raw) return {};
+      const { access_token, expires_at } = JSON.parse(raw);
+      if (!access_token) return {};
+      const now = Math.floor(Date.now()/1000);
+      if (now >= (expires_at - 30)) return {};
+      return { Authorization: `Bearer ${access_token}` };
+    } catch { return {}; }
+  }
 
   constructor() {
     const config = getConfig();
@@ -29,10 +40,11 @@ export class DreamFarmAPI {
    * Create a new conversation thread
    */
   async createThread(title?: string) {
-    const response = await fetch(`${this.baseUrl}/threads`, {
+  const response = await fetch(`${this.baseUrl}/threads`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+    ...this.getAuthHeader(),
       },
       body: JSON.stringify({ title }),
     });
@@ -61,10 +73,11 @@ export class DreamFarmAPI {
    * Send a message in a thread
    */
   async sendMessage(threadId: string, message: string, abortSignal?: AbortSignal) {
-    const response = await fetch(`${this.baseUrl}/threads/${threadId}/messages`, {
+  const response = await fetch(`${this.baseUrl}/threads/${threadId}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+    ...this.getAuthHeader(),
       },
       body: JSON.stringify({ message }),
       signal: abortSignal,
@@ -81,11 +94,12 @@ export class DreamFarmAPI {
    * Send a message and receive a streaming text response
    */
   async sendMessageStream(threadId: string, message: string, abortSignal?: AbortSignal) {
-    const response = await fetch(`${this.baseUrl}/threads/${threadId}/messages/stream`, {
+  const response = await fetch(`${this.baseUrl}/threads/${threadId}/messages/stream`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'text/plain',
+    ...this.getAuthHeader(),
       },
       body: JSON.stringify({ message }),
       signal: abortSignal,
@@ -111,7 +125,7 @@ export class DreamFarmAPI {
       offset: offset.toString(),
     });
 
-    const response = await fetch(`${this.baseUrl}/threads/${threadId}/messages?${params}`);
+  const response = await fetch(`${this.baseUrl}/threads/${threadId}/messages?${params}`, { headers: { ...this.getAuthHeader() }});
     
     if (!response.ok) {
       throw new Error(`Failed to get messages: ${response.statusText}`);
@@ -124,7 +138,7 @@ export class DreamFarmAPI {
    * Health check
    */
   async healthCheck() {
-    const response = await fetch(`${this.baseUrl}/health`);
+  const response = await fetch(`${this.baseUrl}/health`, { headers: { ...this.getAuthHeader() }});
     
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.statusText}`);

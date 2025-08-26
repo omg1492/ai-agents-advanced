@@ -15,6 +15,7 @@ Creates / updates:
 - VIP role (KEYCLOAK_VIP_ROLE)
 - Public frontend client (PKCE) with redirect URIs
 - Demo users (last user marked VIP: role + is_vip attribute)
+- Client registration for dreamfarm-frontend
 
 Re-run safely: operations are idempotent. The script auto-loads `identity/.env` using python-dotenv; you can still override vars via the shell environment.
 

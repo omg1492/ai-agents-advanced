@@ -5,7 +5,9 @@
 - [x] Add and configure Keycloack container to Docker Compose
 - [x] Add script to create 3 demo users in Keycloak
 - [x] Add authorization information to users such as security group or something that will be part of JWT, make one of users VIP
-- [ ] Implement authentication in Frontend and dreamfarm agent
+- [x] Implement authentication in Frontend
+- [ ] Implement authentication/authorization from frontend to dreamfarm agent
+- [x] In dreamfarm frontend extract user information from JWT so we have userId and isVip attributes
 - [ ] In dreamfarm agent extract user information from JWT so we have userId and isVip attributes
 - [ ] Besides simple RAG implement agentic search - rather than adding to system prompt implement function calling with two tools: semantic search (with "text" attribute with description for LLM to create HyDE text based on user question and context) and keyword search (with "keywords" attribute for full-text search). Use .env configuration so we can turn off simple RAG and use tool-based search at will.
 - [ ] Add fencing into searches so when LLM calls semantic or keyword search tool, we automatically add isVip attribute to the search and use it for filtering results - non-vip user can see only non-vip items, vip user can see everything

@@ -20,7 +20,6 @@ import sys
 import json
 import httpx
 from typing import List
-from pathlib import Path
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -148,21 +147,79 @@ def find_user(token: str, username: str) -> dict | None:
 
 
 def create_user(token: str, username: str, password: str, vip: bool) -> dict:
+    """Create a new demo user with deterministic profile fields.
+
+    Ensures Keycloak does not prompt for first/last name or email on first login
+    by pre-populating them and marking the email as verified (dev only).
+    """
+    email_domain = "example.com"
+    first_name = username.capitalize()
+    last_name = "VIP" if vip else "User"
     payload = {
         "username": username,
         "enabled": True,
+        "email": f"{username}@{email_domain}",
+        "firstName": first_name,
+        "lastName": last_name,
+        "emailVerified": True,
         "credentials": [{"type": "password", "value": password, "temporary": False}],
         "attributes": {"is_vip": [str(vip).lower()]},
     }
-    r = httpx.post(f"{BASE_URL}/admin/realms/{REALM}/users", headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"}, json=payload, timeout=30)
+    r = httpx.post(
+        f"{BASE_URL}/admin/realms/{REALM}/users",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json=payload,
+        timeout=30,
+    )
     if r.status_code not in (201, 409):
         print(f"Create user {username} failed: {r.status_code} {r.text}", file=sys.stderr)
         r.raise_for_status()
     if r.status_code == 409:
-        print(f"User '{username}' already exists")
+        print(f"User '{username}' already exists (will ensure profile fields)")
     else:
         print(f"User '{username}' created")
     return find_user(token, username)  # type: ignore
+
+
+def ensure_user_profile(token: str, user: dict, vip: bool) -> dict:
+    """Ensure existing user has email / first / last name populated.
+
+    If any of these fields are missing (or blank) we update the user. We mark
+    email verified to suppress Keycloak's update profile prompt during demo.
+    """
+    needs_update = False
+    username = user.get("username")
+    email_domain = "example.com"
+    desired_email = f"{username}@{email_domain}" if username else None
+    desired_first = username.capitalize() if username else None
+    desired_last = "VIP" if vip else "User"
+    # Detect missing / empty fields
+    if not user.get("email"):
+        user["email"] = desired_email
+        needs_update = True
+    if not user.get("firstName"):
+        user["firstName"] = desired_first
+        needs_update = True
+    if not user.get("lastName"):
+        user["lastName"] = desired_last
+        needs_update = True
+    if user.get("emailVerified") is not True:
+        user["emailVerified"] = True
+        needs_update = True
+    if needs_update:
+        uid = user["id"]
+        r = httpx.put(
+            f"{BASE_URL}/admin/realms/{REALM}/users/{uid}",
+            headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+            json=user,
+            timeout=30,
+        )
+        if r.status_code not in (204,):
+            print(f"Update user profile failed for {username}: {r.status_code} {r.text}", file=sys.stderr)
+            r.raise_for_status()
+        else:
+            print(f"Updated profile for user '{username}' (first login prompt suppressed)")
+    return user
 
 
 def ensure_user_role(token: str, user: dict, role: dict, assign: bool) -> None:
@@ -195,6 +252,7 @@ def main() -> None:
         vip = idx == len(USER_NAMES) - 1
         password = f"{username}123"
         user = find_user(token, username) or create_user(token, username, password, vip)
+        ensure_user_profile(token, user, vip)
         ensure_user_role(token, user, role, vip)
     summary = {
         "realm": REALM,

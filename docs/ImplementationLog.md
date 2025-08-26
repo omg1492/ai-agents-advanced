@@ -321,3 +321,26 @@ Rationale: Provides immediate OIDC provider so upcoming tasks (demo users, JWT e
 - Script is safe to re-run; updates client redirect URIs and skips existing entities.
   
 Next: integrate JWT validation middleware reading `vip` role (or `is_vip` attr if we map to a claim) in the agent and implement frontend OIDC flow.
+
+## 2025-08-25 Frontend OIDC (Keycloak) Basic Integration
+
+- Added runtime config keys to `frontend/public/config.js` (+ template): `KEYCLOAK_URL`, `KEYCLOAK_REALM`, `KEYCLOAK_CLIENT_ID`, `KEYCLOAK_REDIRECT_URI` with Docker env counterparts (`REACT_APP_*`).
+- Implemented minimal dependency-free PKCE Authorization Code flow in `frontend/src/services/auth.ts` (login redirect, code exchange, token storage, user parsing, logout).
+- Updated `App.tsx` to gate UI: unauthenticated users see welcome + login button; authenticated users see username avatar + logout.
+- API client (`api.ts`) now attaches bearer token automatically if present and not expired.
+- Added `identity/register_app.py` helper for future additional client registrations (idempotent create/update) – not required for main flow but scaffolds future needs.
+- Documented auth variables & behavior in `frontend/README.md` (explicit dev‑only caveats, no silent refresh yet).
+
+Deferred (future work): refresh token rotation, silent renew, backend JWT validation & role/VIP claim consumption, fine-grained route protection.
+
+### 2025-08-26 Keycloak Demo User Profile Auto-Population
+
+- Updated `identity/provision_keycloak.py` so demo users are created (or updated) with deterministic `email`, `firstName`, `lastName`, and `emailVerified=True` to suppress the initial Keycloak profile completion screen during local demos.
+- Added `ensure_user_profile` helper invoked on every provision run to backfill missing fields for pre-existing users (idempotent). VIP user gets last name `VIP`; others get `User` for quick visual distinction.
+- Rationale: streamline developer/testing flow (one-click login) without manual profile edits; strictly dev-only convenience (would not auto-verify email in production).
+
+### 2025-08-26 Frontend VIP Badge
+
+- Parsed `vip` realm role from access token (`realm_access.roles`) plus fallbacks to prospective custom claims.
+- Added purple "VIP" badge beside username in header when role present.
+- README updated (Authentication section) documenting indicator logic.

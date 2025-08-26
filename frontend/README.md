@@ -70,22 +70,30 @@ npm run preview
 
 ## Runtime Configuration
 
-The frontend uses a runtime configuration pattern that allows the same build to work in different environments:
+The frontend uses a runtime configuration pattern that allows the same build to work in different environments. Authentication (Keycloak OIDC) adds additional variables.
 
 ### Local Development
 Manually edit `public/config.js`:
 ```javascript
 window.APP_CONFIG = {
   BACKEND_URL: 'http://localhost:8001',
-  API_VERSION: 'v1'
+  API_VERSION: 'v1',
+  KEYCLOAK_URL: 'http://localhost:8080',
+  KEYCLOAK_REALM: 'dreamfarm',
+  KEYCLOAK_CLIENT_ID: 'dreamfarm-frontend',
+  KEYCLOAK_REDIRECT_URI: 'http://localhost:3000/'
 };
 ```
 
 ### Docker Deployment
-Set environment variables:
+Set environment variables (all optional except BACKEND_URL; defaults reflect local dev):
 ```bash
 REACT_APP_BACKEND_URL=http://your-dreamfarm-agent-url
 REACT_APP_API_VERSION=v1
+REACT_APP_KEYCLOAK_URL=http://localhost:8080
+REACT_APP_KEYCLOAK_REALM=dreamfarm
+REACT_APP_KEYCLOAK_CLIENT_ID=dreamfarm-frontend
+REACT_APP_KEYCLOAK_REDIRECT_URI=http://localhost:3000/
 ```
 
 The container startup script automatically generates `config.js` from these variables.
@@ -203,11 +211,33 @@ The app includes built-in thread management via `ThreadList` component:
 To customize thread behavior, modify `src/components/thread-list.tsx`.
 
 ### API Integration
-Update `src/services/api.ts` to:
-- Add new API endpoints
-- Modify request/response handling
-- Add authentication
-- Handle different response formats
+### Authentication (OIDC via Keycloak)
+
+Minimal, dependency‑free PKCE Authorization Code flow has been implemented:
+
+1. Unauthenticated users see a Welcome screen with a Login button.
+2. Clicking Login redirects to Keycloak authorization endpoint with PKCE challenge.
+3. After consent/login, Keycloak redirects back to `KEYCLOAK_REDIRECT_URI` with `code` & `state`.
+4. Frontend exchanges the code for tokens (access + optional ID token), stores them in `localStorage` (`df_auth_tokens_v1`).
+5. Username is extracted from the access token (`preferred_username` fallback to email/sub) and shown in header with avatar + Logout.
+6. Logout clears storage and calls Keycloak end-session endpoint (front-channel) then returns to app root.
+
+Environment variables controlling auth (runtime via `public/config.js`):
+
+| Variable | Purpose | Example |
+|----------|---------|---------|
+| KEYCLOAK_URL | Base Keycloak server URL | http://localhost:8080 |
+| KEYCLOAK_REALM | Realm name | dreamfarm |
+| KEYCLOAK_CLIENT_ID | Public client ID (PKCE) | dreamfarm-frontend |
+| KEYCLOAK_REDIRECT_URI | SPA redirect (must be allowed in client) | http://localhost:3000/ |
+
+Docker env counterparts (used by template expansion): `REACT_APP_KEYCLOAK_URL`, `REACT_APP_KEYCLOAK_REALM`, `REACT_APP_KEYCLOAK_CLIENT_ID`, `REACT_APP_KEYCLOAK_REDIRECT_URI`.
+
+Token Usage: Access token is attached as `Authorization: Bearer <token>` automatically in `api.ts`. No refresh logic yet—on expiry user will need to login again (sufficient for current lesson scope).
+
+VIP Indicator: If the user has the realm role `vip` (as assigned by the provisioning script) a small purple "VIP" badge is shown next to the username in the header. Detection logic inspects `realm_access.roles` for `vip` (and will also honor future custom claims `vip` / `is_vip`).
+
+Security Note: This implementation is for local demo purposes—production hardening (refresh token rotation, silent renew, iframe logout, state nonce replay protection enhancements) intentionally deferred.
 
 ## Development Tips
 
