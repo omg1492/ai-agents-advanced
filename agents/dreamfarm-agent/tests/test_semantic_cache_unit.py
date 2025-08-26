@@ -23,6 +23,7 @@ def build_config():
         farmer_tools=None,
         tavily=None,
         stock_tool=None,
+    auth=None,
     )
 
 

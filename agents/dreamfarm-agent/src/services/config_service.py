@@ -95,6 +95,21 @@ class StockToolConfig:
     enabled: bool
     api_url: str | None
 
+@dataclass
+class AuthConfig:
+    """Keycloak authentication configuration.
+
+    Stores the minimal parameters needed to validate JWTs issued for our
+    frontend public client. Signature verification uses JWKS from the
+    Keycloak realm. For now this is dev‑only and kept intentionally simple.
+    """
+    enabled: bool
+    keycloak_url: str
+    realm: str
+    audience: str
+    issuer: str
+    jwks_url: str
+
 
 @dataclass
 class AppConfig:
@@ -109,6 +124,7 @@ class AppConfig:
     farmer_tools: FarmerToolsConfig | None
     tavily: TavilyConfig | None
     stock_tool: StockToolConfig | None
+    auth: AuthConfig | None
 
 
 class ConfigService:
@@ -239,6 +255,22 @@ class ConfigService:
             else None
         )
 
+        # Auth (Keycloak) configuration
+        keycloak_url = os.getenv("KEYCLOAK_URL") or "http://localhost:8080"
+        keycloak_realm = os.getenv("KEYCLOAK_REALM") or "dreamfarm"
+        audience = os.getenv("KEYCLOAK_AUDIENCE") or os.getenv("KEYCLOAK_DEMO_CLIENT_ID") or "dreamfarm-frontend"
+        auth_enabled = os.getenv("AUTH_ENABLED", "true").lower() in ["true", "1", "yes", "on"]
+        issuer = f"{keycloak_url}/realms/{keycloak_realm}"
+        jwks_url = f"{issuer}/protocol/openid-connect/certs"
+        auth_config = AuthConfig(
+            enabled=auth_enabled,
+            keycloak_url=keycloak_url,
+            realm=keycloak_realm,
+            audience=audience,
+            issuer=issuer,
+            jwks_url=jwks_url,
+        ) if auth_enabled else None
+
         return AppConfig(
             environment=os.getenv("ENVIRONMENT", "development"),
             cors_origins=cors_origins,
@@ -250,6 +282,7 @@ class ConfigService:
             farmer_tools=farmer_tools_config,
             tavily=tavily_config,
             stock_tool=stock_tool_config,
+            auth=auth_config,
         )
     
     def _get_required_env(self, key: str) -> str:

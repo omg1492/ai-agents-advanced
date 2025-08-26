@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import json
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request, Depends, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
@@ -29,6 +29,7 @@ from src.services.rag_service import RAGService
 from src.services.template_service import TemplateService
 from src.services.stock_service import StockService
 from src.services.semantic_cache_service import SemanticCacheService
+from src.services.auth_service import AuthService
 
 
 # Load environment variables
@@ -58,6 +59,7 @@ rag_service: RAGService | None = None
 template_service: TemplateService | None = None
 stock_service: StockService | None = None
 semantic_cache_service: SemanticCacheService | None = None
+auth_service: AuthService | None = None
 # Minimal session and history stores (state remains in Responses API)
 _threads: dict[str, ThreadModel] = {}
 _history: dict[str, list[MessageModel]] = {}
@@ -114,6 +116,22 @@ async def lifespan(app: FastAPI):
                 )
             except Exception as sce:  # pragma: no cover
                 logger.warning(f"Semantic cache initialization failed: {sce}")
+        # Auth service (Keycloak JWT validation)
+        if cfg.auth and cfg.auth.enabled:
+            try:
+                from src.services.auth_service import AuthService as _AS
+                global auth_service
+                auth_service = _AS(cfg.auth.issuer, cfg.auth.audience, cfg.auth.jwks_url)
+                logger.info(
+                    "Auth enabled (issuer=%s audience=%s)",
+                    cfg.auth.issuer,
+                    cfg.auth.audience,
+                )
+            except Exception as ae:  # pragma: no cover
+                logger.error(f"Auth initialization failed: {ae}")
+                auth_service = None
+        else:
+            logger.info("Auth disabled")
         logger.info("Services initialized successfully")
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
@@ -157,13 +175,35 @@ async def health_check():
     )
 
 
+def _require_user(request: Request) -> tuple[str, bool, dict]:
+    """Dependency to validate JWT and extract identity.
+
+    Returns (username, is_vip, claims). Raises HTTPException on failure.
+    """
+    if auth_service is None:
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Auth service not ready")
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Missing bearer token")
+    token = auth_header.split(" ", 1)[1].strip()
+    try:
+        claims = auth_service.validate(token)
+        username, is_vip = auth_service.extract_identity(claims)
+        return username, is_vip, claims
+    except ValueError as ve:
+        logger.warning(f"Auth failed: {ve}")
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+
 @app.post("/chat", response_model=ChatResponse)
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
     """Single endpoint chat using server-side conversation state.
 
     Uses Responses API with store=True and previous_response_id for continuity.
     """
     try:
+        username, is_vip, _ = user_ctx
+        logger.info("/chat user=%s vip=%s", username, is_vip)
         # Semantic cache: only when there is no previous_response_id (first turn)
         if (
             request.previous_response_id in (None, "")
@@ -223,8 +263,10 @@ async def chat(request: ChatRequest):
 # Lightweight /threads endpoints to satisfy frontend session handling
 
 @app.post("/threads", response_model=CreateThreadResponse)
-async def create_thread(payload: CreateThreadRequest):
+async def create_thread(payload: CreateThreadRequest, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
     now = datetime.now(timezone.utc).isoformat()
+    username, is_vip, _ = user_ctx
+    logger.info("/threads create user=%s vip=%s", username, is_vip)
     thread_id = os.urandom(8).hex()
     title = payload.title or f"Dream Farm Chat {datetime.now().strftime('%Y-%m-%d %H:%M')}"
     thread = ThreadModel(
@@ -245,7 +287,7 @@ async def create_thread(payload: CreateThreadRequest):
 
 
 @app.get("/threads/{thread_id}", response_model=ThreadModel)
-async def get_thread(thread_id: str):
+async def get_thread(thread_id: str, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
     thread = _threads.get(thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
@@ -253,10 +295,12 @@ async def get_thread(thread_id: str):
 
 
 @app.post("/threads/{thread_id}/messages", response_model=SendMessageResponse)
-async def send_message(thread_id: str, payload: SendMessageRequest):
+async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
     thread = _threads.get(thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
+    username, is_vip, _ = user_ctx
+    logger.info("/threads/%s/messages user=%s vip=%s", thread_id, username, is_vip)
 
     now = datetime.now(timezone.utc).isoformat()
     message_id = os.urandom(8).hex()
@@ -377,7 +421,7 @@ async def send_message(thread_id: str, payload: SendMessageRequest):
 
 
 @app.post("/threads/{thread_id}/messages/stream")
-async def send_message_stream(thread_id: str, payload: SendMessageRequest):
+async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
     """Stream assistant response tokens for a user message in a thread.
 
     Streams raw text chunks so the frontend can progressively render tokens.
@@ -386,6 +430,8 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
     thread = _threads.get(thread_id)
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
+    username, is_vip, _ = user_ctx
+    logger.info("/threads/%s/messages/stream user=%s vip=%s", thread_id, username, is_vip)
 
     # Record the user message immediately
     now_iso = datetime.now(timezone.utc).isoformat()
@@ -644,9 +690,11 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
 
 
 @app.get("/threads/{thread_id}/messages", response_model=GetMessagesResponse)
-async def get_messages(thread_id: str, limit: int = 50, offset: int = 0):
+async def get_messages(thread_id: str, limit: int = 50, offset: int = 0, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
     if thread_id not in _threads:
         raise HTTPException(status_code=404, detail="Thread not found")
+    username, is_vip, _ = user_ctx
+    logger.info("/threads/%s/messages GET user=%s vip=%s", thread_id, username, is_vip)
     msgs = _history.get(thread_id, [])
     total = len(msgs)
     paginated = msgs[offset : offset + limit]

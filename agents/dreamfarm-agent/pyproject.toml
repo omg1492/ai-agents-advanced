@@ -21,6 +21,7 @@ dependencies = [
     "sqlalchemy>=2.0.42",
     "pgvector>=0.4.1",
     "httpx>=0.28.1",
+    "pyjwt[crypto]>=2.8.0",
 ]
 
 [project.scripts]

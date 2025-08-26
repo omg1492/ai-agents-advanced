@@ -16,6 +16,7 @@ This is the main AI agent for the Advanced AI Applications course. It provides a
 - **Dream Farm Context**: AI assistant specialized in farm marketplace topics
 - **RESTful API**: Clean HTTP endpoints for frontend integration
 - **In-memory Storage**: Simple storage for Lesson 1 (will be replaced with database in later lessons)
+- **JWT Authentication (Keycloak)**: Optional RS256 validation of access tokens (dev default enabled)
 
 ## Quick Start
 
@@ -86,6 +87,26 @@ This is the main AI agent for the Advanced AI Applications course. It provides a
    ```
 
    The agent will be available at `http://localhost:8001`
+
+### Authentication (Keycloak JWT)
+
+The agent can validate access tokens issued by the local Keycloak realm provisioned via `identity/provision_keycloak.py`.
+
+Environment variables (already present in `.env`):
+```env
+AUTH_ENABLED=true                  # Toggle auth (all chat/thread endpoints require Bearer token when true)
+KEYCLOAK_URL=http://localhost:8080 # Keycloak base URL
+KEYCLOAK_REALM=dreamfarm           # Realm name
+KEYCLOAK_AUDIENCE=dreamfarm-frontend  # Expected client_id (aud) in tokens
+```
+
+Behavior:
+- On each protected request the `Authorization: Bearer <access_token>` header is required.
+- Token is validated for signature (RS256 via JWKS), issuer (`{KEYCLOAK_URL}/realms/{KEYCLOAK_REALM}`) and audience.
+- Username + VIP status (realm role `vip`) are extracted and included in request logs.
+- If `AUTH_ENABLED=false`, endpoints skip validation (development fallback).
+
+Current scope (dev): No refresh endpoint, no per-route RBAC decisions yet—only identity extraction and logging foundation for later RAG fencing.
 
 ### Optional: Remote MCP Tools (Farmer Tools)
 
@@ -264,7 +285,7 @@ tests/
 
 - Database persistence for threads/messages (PostgreSQL)
 - MCP tool integration
-- User authentication
+- User authorization & role-based filtering (VIP product fencing)
 - Multi-agent orchestration
 
 ## Troubleshooting

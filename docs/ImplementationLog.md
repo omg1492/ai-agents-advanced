@@ -344,3 +344,16 @@ Deferred (future work): refresh token rotation, silent renew, backend JWT valida
 - Parsed `vip` realm role from access token (`realm_access.roles`) plus fallbacks to prospective custom claims.
 - Added purple "VIP" badge beside username in header when role present.
 - README updated (Authentication section) documenting indicator logic.
+
+### 2025-08-26 Backend JWT Auth (Keycloak)
+
+- Added JWT auth to dreamfarm-agent: new `AuthConfig` + `AuthService` with JWKS-based RS256 verification.
+- Protected chat/thread endpoints via `_require_user` dependency; logs now include `user` and `vip` status.
+- VIP detection mirrors frontend logic (realm role `vip` or fallback claims).
+- Environment toggled (`AUTH_ENABLED`, defaults true). Minimal verification (issuer/audience/signature) suitable for dev.
+  
+### 2025-08-26 Test Auth Override
+
+- Added pytest session-scoped dependency override in `agents/dreamfarm-agent/tests/conftest.py` to bypass JWT validation during tests.
+- Rationale: Keep new auth enforcement from breaking existing fast unit/integration tests (Option A from analysis). Provides synthetic user `test-user` (non‑VIP) so behavior relying on user identity remains consistent.
+- Cleanup performed after session; production runtime unchanged.
