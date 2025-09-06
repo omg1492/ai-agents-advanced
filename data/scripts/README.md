@@ -130,6 +130,31 @@ uv run import_simple_products.py
 uv run import_stock.py
 ```
 
+#### 6. `import_graph_age.py`
+**Purpose**: Populate Apache AGE graph (`dreamfarm`) with producers, products, certifications and allergens plus edges (PRODUCES, HAS_CERTIFICATION, CONTAINS_ALLERGEN).
+
+**Features**:
+- Reads `producers.json`, `allergens.json`, `certifications.json`
+- MERGE-based idempotent upserts (safe re-runs)
+- Optional `--reset` flag to drop & recreate graph (destructive, dev only)
+- Minimal node payloads (avoid embedding / VIP duplication)
+- Batched execution with progress logging (default batch size 1000 statements; override via `--batch-size`)
+- Prints summary counts + top producers by product count
+
+**Usage**:
+```bash
+# Default (batch size 1000)
+uv run import_graph_age.py
+
+# Custom batch size (e.g. 200) for more frequent commits during debugging
+uv run import_graph_age.py --batch-size 200
+
+# Rebuild graph from scratch then import
+uv run import_graph_age.py --reset
+```
+
+**Why batching?** A single large (~15k) transaction increases lock time and makes restarts expensive on failure. Committing every 1000 statements offers a balance of throughput and safety; tune `--batch-size` based on latency vs. lock considerations.
+
 ### B. Content Understanding Utilities
 
 These scripts infer consistent product metadata (`product_name`, `short_description`) from different modalities. All print clearly delimited console blocks plus a consolidated summary.

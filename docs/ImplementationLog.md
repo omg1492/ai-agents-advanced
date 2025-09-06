@@ -128,6 +128,14 @@ Why it matters: prevents hallucinated inventory when RAG returns no results (e.g
 - Removed earlier approach of injecting stock data into system prompt via `<stock_info>` tags (risk of stale or overlong prompts).
 - Implemented proper function calling for local Stock API as `get_stock` tool registered alongside remote MCP tools in `OpenAIService.get_tools()`.
 
+### 2025-09-06 AGE Graph Data Import Script
+
+- Added `data/scripts/import_graph_age.py` to populate Apache AGE graph `dreamfarm` with nodes: Producer, Product, Certification, Allergen and edges: PRODUCES, HAS_CERTIFICATION, CONTAINS_ALLERGEN.
+- Idempotent MERGE pattern; optional `--reset` flag drops & recreates graph (dev only) mirroring earlier `04_init_age_graph.sql` intent.
+- Product node keeps only id/name/description subset to prevent duplication of large relational attributes (embedding, VIP) inside graph.
+- Summary queries (counts + top producers) printed post-run for quick validation.
+ - 2025-09-06 Update: Added batching (`--batch-size`, default 1000) committing after each batch to avoid a single long-running transaction (~15k MERGEs) and to emit progress logs (percentage + batch count). Function `_execute_cypher_batches` replaces previous single-transaction executor. Default 1000 chosen as a balance between commit overhead and lock duration; configurable for tuning.
+
 ## 2025-08-24 Semantic Cache Service Integration
 
 - Added `SemanticCacheService` (`agents/dreamfarm-agent/src/services/semantic_cache_service.py`) implementing high-threshold vector lookup against `semantic_cache` table.

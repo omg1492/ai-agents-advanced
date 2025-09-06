@@ -410,3 +410,101 @@ TRUNCATE TABLE products RESTART IDENTITY;
 - Include an integration test asserting production config path skips TRUNCATE.
 
 ---
+
+## Apache AGE Cypher Invocation & Quoting Pitfalls - 2025-09-06
+
+### Overview
+While implementing the AGE knowledge graph import (`import_graph_age.py`), multiple non‑obvious failures occurred around the `cypher()` function invocation, query quoting, and ordering semantics. These issues are easy to repeat unless the working patterns are documented.
+
+### Problems & Symptoms
+1. Function Signature Confusion
+    - Error: `ERROR:  function cypher(unknown, unknown, unknown) does not exist`
+    - Error (variant): `third argument of cypher function must be a parameter`
+    - Cause: AGE 1.5.0 catalog lists a 3‑argument signature `(graph_name, query, params)` returning `setof agtype`, but passing a plain JSON / NULL / text for the 3rd arg failed. Practical usage in our environment required the 2‑argument form with no params.
+
+2. Dollar‑Quoted String Requirement
+    - Error: `dollar-quoted string constant is expected`
+    - Cause: Multi‑line Cypher passed as a regular single‑quoted string containing embedded quotes/newlines. AGE (through PostgreSQL) expects a dollar‑quoted literal for complex multi‑line cypher bodies to avoid premature termination / escaping headaches.
+
+3. Apostrophe Explosion in Text Properties
+    - Symptoms: Syntax errors mid‑batch when product / producer descriptions contained many `'` characters even after doubling them for SQL.
+    - Resolution: Normalize ASCII apostrophes to the Unicode right single quotation mark (`’`) before embedding into the Cypher literal. This sidesteps nested escaping inside: SQL string → Cypher parser → property value.
+
+4. ORDER BY Alias Resolution Failure
+    - Error: `ERROR:  could not find rte for product_count`
+    - Context: Summary query ordering by an aliased aggregate coming from a Cypher→SQL projection.
+    - Fix: Use positional ordering (`ORDER BY 2 DESC`) instead of the alias.
+
+5. Patch‑Induced Syntax / Indentation Errors
+    - After iterative edits, Python summary function indentation became malformed causing `IndentationError` / runtime failures. (General mitigation already covered earlier – included here for cross‑reference.)
+
+### Root Causes
+- AGE version quirk: Parameter map handling stricter than (or diverging from) older docs / examples.
+- Mixing three layers of parsing simultaneously (PostgreSQL SQL, dollar‑quoted literal, Cypher grammar) magnifies quoting risk.
+- Large free‑text fields with apostrophes trigger escaping edge cases inside MERGE property maps.
+- Aliased columns from `cypher()` set-returning function sometimes not resolvable by name in outer ORDER BY within our version.
+
+### Working Invocation Pattern (Use This)
+```sql
+-- Template for executing a batch of Cypher statements (no params) in AGE 1.5.0
+SELECT *
+FROM cypher('dreamfarm', $$
+// Cypher goes here
+MATCH (p:Producer {id: 'producer-123'})
+RETURN p
+$$) AS (result agtype);
+```
+
+### Text Normalization Helper (Python)
+```python
+def _escape(text: str) -> str:
+     if text is None:
+          return ''
+     # Replace ASCII apostrophes with Unicode to avoid deep escaping issues
+     return text.replace("'", "’")
+```
+
+### MERGE Idempotency Pattern
+```cypher
+MERGE (pr:Producer {id: 'producer-123'})
+ON CREATE SET pr.name = 'Acme Honey’, pr.country = 'CZ'
+ON MATCH  SET pr.name = COALESCE(pr.name, 'Acme Honey’), pr.country = COALESCE(pr.country, 'CZ');
+```
+
+### Relationship Creation Pattern
+```cypher
+MERGE (pr:Producer {id: 'producer-123'})
+MERGE (pd:Product  {id: 'product-987'})
+MERGE (pr)-[:PRODUCES]->(pd);
+```
+
+### Do / Avoid Quick Reference
+| Do | Avoid |
+|----|-------|
+| Use 2‑arg `cypher(graph, $$...$$)` | Forcing 3rd param when not strictly needed |
+| Dollar‑quote the whole Cypher batch | Nesting many single quotes inside a single‑quoted SQL string |
+| Normalize apostrophes to `’` | Relying only on doubling `'` in deep nested contexts |
+| Positional `ORDER BY` (e.g. 2) | Aliased aggregate names that fail to resolve |
+| MERGE for idempotent upserts | Separate MATCH+CREATE increasing race / duplication risk |
+
+### Prevention / Guidelines
+- Wrap every multi‑statement Cypher execution in a single dollar‑quoted block passed as the second argument only.
+- Centralize text sanitation (apostrophes + optionally trim control chars) before formatting MERGE lines.
+- Keep batches to a manageable size; if memory / transaction bloat appears, chunk statements (e.g., 1–2k MERGE lines per execution) while reusing the same pattern.
+- Document the AGE version; retest 3‑argument form only after upgrading beyond 1.5.0.
+- Prefer concise property sets—omit large blobs unless queried.
+
+### Fast Diagnostic Checklist
+| Symptom | Immediate Check |
+|---------|-----------------|
+| Undefined function for `cypher` | Confirm extension loaded: `LOAD 'age'; SET search_path = ag_catalog, "$user";` |
+| `third argument must be a parameter` | Drop the 3rd argument; retry 2‑arg form |
+| Dollar‑quote expected | Ensure query wrapped in `$$` delimiters |
+| Mid‑batch syntax near random text | Inspect for stray ASCII `'`; confirm normalization applied |
+| ORDER BY alias error | Switch to positional ORDER BY |
+
+### Follow‑Up Actions
+- If/when parameter maps are required (e.g., dynamic values safer than string formatting), prototype with a minimal graph on the upgraded AGE version and update this section.
+- Consider adding a tiny automated import smoke test that runs a single MERGE + RETURN to catch regression in invocation semantics early.
+
+---
