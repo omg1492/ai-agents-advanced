@@ -136,6 +136,13 @@ Why it matters: prevents hallucinated inventory when RAG returns no results (e.g
 - Summary queries (counts + top producers) printed post-run for quick validation.
  - 2025-09-06 Update: Added batching (`--batch-size`, default 1000) committing after each batch to avoid a single long-running transaction (~15k MERGEs) and to emit progress logs (percentage + batch count). Function `_execute_cypher_batches` replaces previous single-transaction executor. Default 1000 chosen as a balance between commit overhead and lock duration; configurable for tuning.
 
+### 2025-09-06 Taxonomy Enrichment Pipeline Design Spec
+
+- Added comprehensive taxonomy & cuisine enrichment section to `docs/Design.md` detailing generation of ~50 categories and ~20 cuisines, description summaries, multi-label classification, artifact versioning (JSON + Parquet), and Apache AGE graph import strategy.
+- Defined environment-driven configuration (`TAXONOMY_*` variables), confidence thresholding, batch classification approach, and version-aware MERGE semantics for edges (storing confidence + version properties).
+- Included operational safeguards (atomic artifact writes, optional human review gate, dry-run import, logging metrics) plus extensibility roadmap (hierarchies, dietary tags, feedback loop, seasonal concepts).
+- Rationale: Removes ambiguity from Lesson 4 plan checkbox; provides executable blueprint enabling parallel implementation of generation, classification, and import scripts.
+
 ## 2025-08-24 Semantic Cache Service Integration
 
 - Added `SemanticCacheService` (`agents/dreamfarm-agent/src/services/semantic_cache_service.py`) implementing high-threshold vector lookup against `semantic_cache` table.

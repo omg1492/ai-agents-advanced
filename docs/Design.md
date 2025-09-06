@@ -392,10 +392,114 @@ Relational ↔ Graph integration (recommended pattern)
   3) Join the `cypher(...)` results with relational tables on the `productId`/`producerId` properties.
 
 Taxonomy Enrichment Pipeline (categories & cuisines):
-1. Derive canonical category & cuisine sets (LLM structured output + deterministic review) – ~50 categories, ~20 cuisines.
-2. Multi‑label classify products -> arrays of category/cuisine IDs.
-3. Store intermediate JSON/Parquet `processed/product_taxonomy.json` with {categories, cuisines, assignments}.
-4. Import script MERGEs vertices & edges via Cypher.
+1. Derive canonical category & cuisine sets (LLM structured output + deterministic review) – target ~50 categories, ~20 cuisines.
+2. Generate concise, neutral summaries for every category & cuisine (1–2 sentences) for graph explainability.
+3. Multi‑label classify each product to 0..N categories and 0..N cuisines (confidence‑aware; low confidence = unassigned).
+4. Persist artifacts (JSON + Parquet) for reproducibility & downstream batch import.
+5. Import script MERGEs Category / Cuisine vertices (with description) and HAS_CATEGORY / HAS_CUISINE edges into graph.
+
+#### Detailed Taxonomy & Cuisine Enrichment Specification (Lesson 4)
+
+Goals
+- Introduce two higher‑level concept layers (Category, Cuisine) above raw products to enable semantic grouping, faceted exploration, recommendation pivots, and richer natural‑language answers (e.g., "These cheeses fit Italian Mediterranean salads").
+- Keep derivation deterministic & auditable (stored artifacts, hash of model prompts, version tags) so future re‑runs can diff changes.
+
+Inputs
+- Source product data (relational `products` table or pre‑import parquet) – fields: `product_id`, `product_name`, `producer_name`, `product_description`.
+- (Optional) Existing allergens/certifications (can inform category naming for edge cases, but not required for first pass).
+
+LLM Tasks (three sequential phases)
+1. Concept Set Generation
+  - Prompt model with sampled / summarized product descriptions (NOT entire corpus verbatim) to propose a candidate list of categories (target count configurable) and cuisines.
+  - Structured JSON schema with fields: `categories: [{id, name, description}]`, `cuisines: [{id, name, description}]`.
+  - Deterministic ID strategy: slug of name (kebab-case) + short hash suffix to avoid collisions (e.g., `fresh-cheese-d4f2`).
+2. Concept Refinement (optional human review loop)
+  - Script outputs draft set; if `--review` flag provided, write to `processed/taxonomy_concepts.draft.json` and exit for manual edits; otherwise continue automatically.
+3. Product Classification
+  - Multi‑label assignment using second structured call per batch of products (batch size configurable, default 50) with schema: `assignments: [{product_id, categories: [id], cuisines: [id], confidences: {<id>: float}}]`.
+  - Apply local confidence filter (`>= TAXONOMY_MIN_CONFIDENCE`, default 0.55) dropping weak associations.
+
+Artifacts (Versioned)
+```
+processed/
+  taxonomy_concepts.v1.json            # canonical list (categories + cuisines)
+  product_taxonomy_assignments.v1.parquet  # columns: product_id, category_ids (array<str>), cuisine_ids (array<str>), meta (JSON)
+  product_taxonomy_assignments.v1.json  # (optional) human-readable mirror
+```
+Versioning Rules: bump minor (v1 -> v1.1) for additive concept descriptions; bump major for structural or ID changes.
+
+Import Workflow
+1. Ensure graph exists (`dreamfarm`).
+2. Load `taxonomy_concepts.*` → MERGE Category/Cuisine vertices with properties: `{categoryId|cuisineId, name, description, version}`.
+3. Load product assignment parquet → for each product edge:
+  - MATCH (p:Product {productId}) & (c:Category {categoryId}) MERGE (p)-[:HAS_CATEGORY {version, confidence}]->(c)
+  - MATCH (p:Product {productId}) & (cui:Cuisine {cuisineId}) MERGE (p)-[:HAS_CUISINE {version, confidence}]->(cui)
+4. Optionally detach & recreate only edges whose version differs to support incremental updates.
+
+Configuration (env vars / flags)
+- `TAXONOMY_CATEGORY_TARGET=50`
+- `TAXONOMY_CUISINE_TARGET=20`
+- `TAXONOMY_MIN_CONFIDENCE=0.55`
+- `TAXONOMY_MODEL` (defaults to main chat model)
+- `TAXONOMY_BATCH_SIZE=50`
+- `TAXONOMY_VERSION=v1`
+
+Planned Scripts (`data/scripts/`)
+- `gen_taxonomy_concepts.py` – phases 1–2 (generation + optional review)
+- `classify_products_taxonomy.py` – phase 3 (multi‑label classification, parquet + json output)
+- `import_taxonomy_graph.py` – graph MERGE of vertices + edges (idempotent, version aware)
+
+Data Models (JSON Schemas – conceptual)
+```
+// taxonomy_concepts.v1.json
+{
+  "version": "v1",
+  "generated_at": "<iso8601>",
+  "categories": [ { "id": "fresh-cheese-d4f2", "name": "Fresh Cheese", "description": "Soft, unripened cheeses..." } ],
+  "cuisines":   [ { "id": "italian-78ac", "name": "Italian", "description": "Cuisine featuring regional..." } ],
+  "model": {"name": "gpt-5", "embedding": "text-embedding-3-large"},
+  "prompt_hash": "sha256:..."
+}
+
+// Single assignment row (logical)
+{
+  "product_id": "<uuid>",
+  "categories": ["fresh-cheese-d4f2", "dairy-general-91bf"],
+  "cuisines": ["italian-78ac"],
+  "confidences": {"fresh-cheese-d4f2": 0.81, "dairy-general-91bf": 0.62, "italian-78ac": 0.74},
+  "version": "v1"
+}
+```
+
+Edge Cases & Safeguards
+- Products with extremely short or generic descriptions may yield no assignments (allowed).
+- Confidence tie‑breaking: keep all above threshold (no forced top‑k) to avoid premature narrowing.
+- Category/Cuisine name collisions collapse via slug+hash; detection logged.
+- Re‑run with same input + model should produce same slug IDs (hash includes name only) – descriptions may vary; review gate recommended for stability.
+
+Integration Points
+- RAG / Agentic Search Enhancement: allow filtering or boosting by category/cuisine (future flag `ENABLE_TAXONOMY_FILTERS`).
+- Answer Generation: graph traversals can fetch sibling products in same category or top categories for a cuisine to enrich recommendations.
+- Explanations: surface chain like Product → HAS_CATEGORY → Category.description to justify suggestions.
+
+Observability
+- Log counts: total categories/cuisines, mean categories per product, orphan products (0 assignments), duplicate slug collisions.
+- Potential metrics table (future): taxonomy_version, run_id, category_count, cuisine_count, coverage_ratio.
+
+Future Extensions
+- Add hierarchical Category layering (e.g., Meat -> Poultry -> Chicken) using parent edges.
+- Introduce seasonal tags or dietary patterns (vegan, keto) as additional concept layers.
+- Feedback loop: capture user selections to refine confidence thresholds.
+
+Security / Safety Considerations
+- Human edible example terms only; rely on manual review for sensitive or culturally specific cuisine descriptions.
+- All model outputs constrained by schema & max length (truncate/server‑side validation before import).
+
+Failure Handling
+- Any phase error aborts before writing partially complete artifacts (write temp file then atomic rename).
+- Import script supports `--dry-run` to emit Cypher without executing for review.
+
+This specification operationalizes the high‑level taxonomy bullet so implementation can proceed without further design ambiguity.
 
 Why this split?
 
