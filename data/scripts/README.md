@@ -155,6 +155,100 @@ uv run import_graph_age.py --reset
 
 **Why batching?** A single large (~15k) transaction increases lock time and makes restarts expensive on failure. Committing every 1000 statements offers a balance of throughput and safety; tune `--batch-size` based on latency vs. lock considerations.
 
+#### 7. `embeddings_products.py`
+**Purpose**: Generate embeddings for the richer `products` dataset (flattened from `producers.json`) and mark a deterministic subset (~10% by default) as VIP (`is_vip=True`).
+
+**Features**:
+- Flattens nested producers → products structure (extracts `producer_id`, `producer_name`, `product_id`, names & descriptions)
+- Builds `combined_text` field (`PRODUCER | PRODUCT | DESCRIPTION`)
+- Deterministic VIP sampling (seeded RNG) via `PRODUCT_VIP_RATIO` (default 0.10)
+- Requests 2000‑dim embeddings (compatible with `products.embedding VECTOR(2000)`) using unified OpenAI/Azure config
+- Saves Parquet: `../processed/products.parquet`
+
+**Environment**:
+- `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_API_VERSION`, `OPENAI_EMBEDDING_MODEL`
+- `PRODUCT_VIP_RATIO` (float, default 0.10)
+
+**Usage**:
+```bash
+uv run embeddings_products.py
+```
+
+#### 8. `import_products.py`
+**Purpose**: Import rich product rows (with embeddings + VIP flag) from `products.parquet` into the `products` table.
+
+**Features**:
+- Validates embedding dimension (drops malformed rows)
+- Truncates table each run (dev‑friendly idempotence)
+- Batches inserts with `execute_batch`
+- Logs skipped rows & final counts
+
+**Environment**: Standard PostgreSQL connection vars.
+
+**Usage**:
+```bash
+uv run import_products.py
+```
+
+#### 9. `gen_graph_taxonomy.py`
+**Purpose**: LLM‑driven enrichment – synthesize Category (~50) & Cuisine (~20) concepts and assign every product to 0‑3 categories and 0‑2 cuisines.
+
+**Key Outputs (../processed/):**
+- `taxonomy_concepts.parquet` (kind, code, name, description)
+- `taxonomy_assignments.parquet` (product_id, category_codes[list], cuisine_codes[list])
+- `taxonomy_state.json` (resumable progress + token usage)
+
+**Resumable Design**:
+- Concept generation done once; subsequent runs reuse unless `--rebuild-concepts` or `TAXONOMY_FORCE_REGENERATE_CONCEPTS=true`.
+- Product assignments processed in deterministic batches (default 40) – safe resume mid‑way.
+
+**Token Accounting**: Aggregates prompt/completion usage for concept & assignment stages.
+
+**Environment**:
+- `OPENAI_API_KEY`, `OPENAI_BASE_URL`, `OPENAI_API_VERSION`, `OPENAI_MODEL`
+- `TAXONOMY_BATCH_SIZE` (default 40)
+- `TAXONOMY_STATE_PATH` (override state file location)
+- `TAXONOMY_FORCE_REGENERATE_CONCEPTS` (boolean)
+
+**CLI**:
+```bash
+uv run gen_graph_taxonomy.py                          # resume / normal
+uv run gen_graph_taxonomy.py --batch-size 30          # first run only (locks in state)
+uv run gen_graph_taxonomy.py --rebuild-concepts       # discard prior concepts
+```
+
+#### 10. `import_taxonomy_age.py`
+**Purpose**: Import taxonomy concepts + assignments into the Apache AGE graph as `Category` / `Cuisine` nodes and `IN_CATEGORY` / `IN_CUISINE` edges from existing `Product` nodes.
+
+**Features**:
+- MERGE‑based idempotent creation / update (safe re-runs)
+- Optional selective reset of only taxonomy nodes/edges (`--reset-taxonomy`)
+- Batched Cypher execution (`--batch-size`, default 1000)
+- Gracefully handles empty / numpy‑backed list columns from Parquet
+
+**Usage**:
+```bash
+uv run import_taxonomy_age.py
+uv run import_taxonomy_age.py --batch-size 500
+uv run import_taxonomy_age.py --reset-taxonomy        # drop & rebuild taxonomy layer only
+```
+
+**Preconditions**:
+1. Base graph initialized (`import_graph_age.py`).
+2. Taxonomy parquet files exist (run `gen_graph_taxonomy.py`).
+
+### Additional Environment Variables (beyond earlier sections)
+
+```env
+# Rich products embedding pipeline
+PRODUCT_VIP_RATIO=0.10
+
+# Taxonomy generation
+TAXONOMY_BATCH_SIZE=40
+TAXONOMY_STATE_PATH=../processed/taxonomy_state.json
+TAXONOMY_FORCE_REGENERATE_CONCEPTS=false
+```
+
 ### B. Content Understanding Utilities
 
 These scripts infer consistent product metadata (`product_name`, `short_description`) from different modalities. All print clearly delimited console blocks plus a consolidated summary.
@@ -344,11 +438,15 @@ data/scripts/
 ├── configure_postgresql.py            # Database setup
 ├── embeddings_simple_products.py      # Embedding generation (products)
 ├── embeddings_qna.py                  # Embedding generation (semantic cache Q&A)
+├── embeddings_products.py             # Embedding generation (rich products + VIP flag)
 ├── import_simple_products.py          # Data import and testing (products)
 ├── import_qna.py                      # Import semantic cache Q&A embeddings
+├── import_products.py                 # Import rich products table
 ├── process_pdfs.py                    # PDF → Markdown → structured summary
 ├── process_images.py                  # Image → vision structured summary
 ├── process_video.py                   # Video → frames + local Whisper + vision summary
+├── gen_graph_taxonomy.py              # Generate taxonomy concepts + assignments (resumable)
+├── import_taxonomy_age.py             # Import taxonomy into AGE graph (Category/Cuisine)
 └── sql/                               # SQL scripts
     ├── README.md                      # SQL documentation
     ├── extensions/                    # Database extensions

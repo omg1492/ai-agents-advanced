@@ -143,6 +143,31 @@ Why it matters: prevents hallucinated inventory when RAG returns no results (e.g
 - Included operational safeguards (atomic artifact writes, optional human review gate, dry-run import, logging metrics) plus extensibility roadmap (hierarchies, dietary tags, feedback loop, seasonal concepts).
 - Rationale: Removes ambiguity from Lesson 4 plan checkbox; provides executable blueprint enabling parallel implementation of generation, classification, and import scripts.
 
+### 2025-09-06 Taxonomy Generation Script (gen_graph_taxonomy.py)
+
+- Added `data/scripts/gen_graph_taxonomy.py` implementing resumable taxonomy enrichment pipeline.
+- Concept synthesis: single structured JSON call producing ~50 categories & ~20 cuisines (code, name, description) with enforced schema + deterministic product sample (seed=42).
+- Classification: batched product assignment (default 40 products) mapping each product to 1–3 categories and 0–2 cuisines; truncates descriptions for context efficiency.
+- Resumability: `taxonomy_state.json` tracks concepts, completed_batches, total_batches, batch_size, product_ids, and cumulative token usage; safe restarts skip completed work.
+- Artifacts: `taxonomy_concepts.parquet`, `taxonomy_assignments.parquet` for downstream AGE import script; parquet chosen for compactness & schema evolution.
+- Token accounting aggregated per stage (concept_generation, assignment) logging prompt/completion/total; ETA estimation after each batch.
+- CLI flags: `--rebuild-concepts`, `--batch-size`; env overrides `TAXONOMY_BATCH_SIZE`, `TAXONOMY_STATE_PATH`.
+- Defensive design: atomic state writes (temp file swap), deterministic ordering, context size guards (truncate long descriptions), fallback to existing products parquet or simple_products.
+- Next step (separate script): import taxonomy nodes & edges into AGE with MERGE + optional versioning & confidence.
+
+### 2025-09-08 Taxonomy Graph Import Script (import_taxonomy_age.py)
+
+- Added `data/scripts/import_taxonomy_age.py` to ingest taxonomy artifacts into AGE graph.
+- Reads `taxonomy_concepts.parquet` & `taxonomy_assignments.parquet` produced by generation pipeline.
+- Creates / updates `Category` & `Cuisine` nodes (code, name, description) plus edges:
+   - `(Product)-[:IN_CATEGORY]->(Category)`
+   - `(Product)-[:IN_CUISINE]->(Cuisine)`
+- Pure MERGE approach (idempotent). Missing product nodes result in skipped edges via MATCH pattern without creation.
+- Optional `--reset-taxonomy` flag removes existing taxonomy nodes/edges only (non-destructive to Producer/Product graph core).
+- Batch execution pattern mirrors earlier graph import script (`--batch-size`, default 1000) with progress percentage.
+- Apostrophe normalization reused to avoid Cypher quoting pitfalls; long descriptions truncated (<=800 chars) for node property hygiene.
+- Pre-flight validation of required parquet columns with explicit error if schema drifts.
+
 ## 2025-08-24 Semantic Cache Service Integration
 
 - Added `SemanticCacheService` (`agents/dreamfarm-agent/src/services/semantic_cache_service.py`) implementing high-threshold vector lookup against `semantic_cache` table.
