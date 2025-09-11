@@ -85,6 +85,8 @@ uv run configure_postgresql.py
 - `sql/tables/02_create_stock.sql` - Creates stock table
 - `sql/tables/03_create_products.sql` - Creates production products table (hybrid: pgvector + FTS)
 - `sql/tables/04_init_age_graph.sql` - Initializes the AGE graph `dreamfarm`
+- `sql/tables/05_create_semantic_cache.sql` - Defines semantic_cache table + HNSW index (first‑turn Q&A)
+- `sql/tables/06_create_concept_embeddings.sql` - Defines concept_embeddings table (taxonomy / certification / allergen semantic layer)
 
 #### 3. `embeddings_simple_products.py`
 **Purpose**: Processes product data and generates vector embeddings using OpenAI models.
@@ -237,6 +239,44 @@ uv run import_taxonomy_age.py --reset-taxonomy        # drop & rebuild taxonomy 
 1. Base graph initialized (`import_graph_age.py`).
 2. Taxonomy parquet files exist (run `gen_graph_taxonomy.py`).
 
+#### 11. `embeddings_concepts.py`
+**Purpose**: Generate semantic embeddings for conceptual graph layer entities (Categories, Cuisines, Certifications, Allergens) to enable semantic → structural hybrid traversal (e.g. BFS starting from concept similarity rather than brittle text filters).
+
+**Features**:
+- Aggregates concepts from `taxonomy_concepts.parquet` plus `certifications.json` and `allergens.json`.
+- Normalizes text (lowercase, trimmed) and constructs unified representation for embedding.
+- Batches OpenAI embedding requests with retry (tenacity) and enforces 2000‑dimension vectors.
+- Writes `concept_embeddings.parquet` only (no direct DB writes – import is a separate step for consistency).
+
+**Output**: `../processed/concept_embeddings.parquet`
+
+**Usage**:
+```bash
+uv run embeddings_concepts.py
+```
+
+**Preconditions**:
+1. Taxonomy concepts generated (`gen_graph_taxonomy.py`).
+2. Base JSON inputs exist (`certifications.json`, `allergens.json`).
+
+#### 12. `import_concept_embeddings.py`
+**Purpose**: Import `concept_embeddings.parquet` into the `concept_embeddings` table (defined by `06_create_concept_embeddings.sql`).
+
+**Features**:
+- Validates embedding dimensionality (2000) and required columns.
+- Optional `--truncate` flag to fully replace data (dev friendly).
+- Uses `ON CONFLICT (concept_type, concept_id)` UPSERT semantics for idempotent updates.
+
+**Usage**:
+```bash
+uv run import_concept_embeddings.py            # upsert
+uv run import_concept_embeddings.py --truncate # full replace
+```
+
+**Preconditions**:
+1. `configure_postgresql.py` executed (table + index exist).
+2. Parquet file generated (`embeddings_concepts.py`).
+
 ### Additional Environment Variables (beyond earlier sections)
 
 ```env
@@ -313,6 +353,9 @@ gen_basic_data.py → embeddings_simple_products.py → import_simple_products.p
 
                                              Semantic Cache Flow:
                                              gen_qna.py → embeddings_qna.py → (05_create_semantic_cache.sql) → import_qna.py → first‑turn lookup
+
+                                   Concept Layer (Graph + Semantic Bridge):
+                                   gen_graph_taxonomy.py → embeddings_concepts.py → (06_create_concept_embeddings.sql) → import_concept_embeddings.py → DFS/BFS graph tools
 ```
 
 ## Configuration
@@ -447,6 +490,8 @@ data/scripts/
 ├── process_video.py                   # Video → frames + local Whisper + vision summary
 ├── gen_graph_taxonomy.py              # Generate taxonomy concepts + assignments (resumable)
 ├── import_taxonomy_age.py             # Import taxonomy into AGE graph (Category/Cuisine)
+├── embeddings_concepts.py             # Generate concept embeddings (categories/cuisines/certs/allergens)
+├── import_concept_embeddings.py       # Import concept embeddings parquet into DB
 └── sql/                               # SQL scripts
     ├── README.md                      # SQL documentation
     ├── extensions/                    # Database extensions
@@ -455,7 +500,8 @@ data/scripts/
     └── tables/                        # Table definitions
       ├── 01_create_simple_products.sql
       ├── 02_create_stock.sql
-      ├── 03_create_products.sql
+   ├── 03_create_products.sql
    ├── 04_init_age_graph.sql
-   └── 05_create_semantic_cache.sql
+   ├── 05_create_semantic_cache.sql
+   └── 06_create_concept_embeddings.sql
 ```

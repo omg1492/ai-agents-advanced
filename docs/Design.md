@@ -160,6 +160,9 @@ The platform provides two complementary retrieval modes:
 1. Hybrid RAG (semantic + keyword fusion) – prompt inlined context blocks (internal fusion logic)
 2. Agentic tool-based iterative search (function calling) – LLM chooses which retrieval tool(s) to call (no backend fusion)
 
+Planned augmentation (Lesson 4 end):
+3. Graph (Cypher) traversal tools – breadth-first taxonomy expansion and depth-first similarity exploration over Apache AGE graph
+
 VIP fencing (row-level filtering) currently applies only to the agentic tool-based retrieval path; hybrid RAG remains unrestricted (shows full catalog) unless extended later.
 
 #### Hybrid RAG (Semantic + Keyword with RRF)
@@ -873,6 +876,263 @@ Return schema (for each call) list of products `[product_id, product_name, produ
 No backend fusion: model may call tools multiple times and integrate / compare results itself.
 
 Telemetry: Each invocation emits `DF_META` line (`search_tool_call`) with counts pre/post VIP filter.
+
+#### Graph Traversal Retrieval (Planned – Lesson 4 Final Task)
+
+Objective: Expose the knowledge graph (Apache AGE) as an additional retrieval surface complementary to vector/FTS tools, enabling the LLM to:
+- Start from abstract user intent → hypothesize likely higher‑level concepts (categories, cuisines, allergens, certifications) → fan out to candidate products (breadth-first taxonomy expansion).
+- Start from a specific product (identified via prior retrieval/tool output or user mention) → walk outward to discover closely related products sharing multiple relationship traits (depth-first similarity traversal).
+
+Feature Flag:
+`ENABLE_GRAPH_SEARCH` (default: false). When true and agentic search enabled, two new function-call tools are registered.
+
+Tools (proposed JSON schemas):
+1. `graph_bfs_taxonomy_search` arguments:
+  - `hypothesis_text: string` – free-form natural language; model may embed conceptual cues (e.g., "looking for mild Italian cheeses without nuts")
+  - `max_hops: int` (optional, default 2, max 3) – breadth expansion depth (Category/Cuisine → Product, optionally via Producer)
+  - `limit: int` (optional, default 10, max 25) – cap on returned products
+  Returns: `{ products: [ { product_id, product_name, producer_name, via: [conceptIds], match_score } ], concepts: [ { id, type, name } ] }`
+
+2. `graph_dfs_similarity_search` arguments:
+  - `product_id: string` (UUID – starting product)
+  - `max_depth: int` (optional, default 3, max 4) – DFS depth exploring similarity edges (shared Category/Cuisine/Allergen/Certification/Producer)
+  - `limit: int` (optional, default 10, max 25)
+  Returns: `{ start_product: { product_id, product_name }, similar_products: [ { product_id, product_name, shared_traits: [ { kind, id, name } ], similarity_score } ] }`
+
+##### Clarification: DFS Similarity Tool Rationale
+The `graph_dfs_similarity_search` tool intentionally centers on trait overlap (Categories, Cuisines, Certifications, Allergens, Producer) to surface products that are *structurally* similar in the knowledge graph. It does NOT perform semantic embedding similarity itself — that happens earlier (e.g., via semantic product search) and this DFS tool refines or broadens recommendations by relationship structure. Its scoring (weights per trait family) is documented below; no changes needed at this time.
+
+---
+
+### Breadth-First Taxonomy Search (Updated Design: Semantic Concept Matching First)
+
+Earlier draft examples showed ad‑hoc text matching (ILIKE / CONTAINS) against concept names/descriptions. We are replacing that with a semantic concept selection phase to produce more robust recall and nuanced alignment with user intent. This section supersedes any prior LIKE‑based concept matching references.
+
+#### Design Motivation
+User queries describing desired attributes (e.g., “mild Italian cheese without nuts certified organic”) combine multiple abstract facets. Literal substring filtering is brittle (pluralization, synonyms, language drift). A semantic embedding layer over higher‑level concept entities (Category, Cuisine, Certification, Allergen) provides resilient matching and ranking before graph expansion.
+
+#### Key Decisions
+1. Do **not** store embeddings directly inside AGE vertex properties for similarity search. While AGE lives in PostgreSQL, AGE itself does not expose native vector indexing operators; we instead leverage **pgvector** in dedicated relational tables and then bridge via shared IDs.
+2. Maintain a **unified concept embeddings table** covering all supported concept types instead of one table per type to simplify maintenance and multi‑type ranking.
+3. Keep graph vertices lean (IDs + minimal display properties) and perform semantic retrieval outside the graph; then pass selected vertex IDs into controlled BFS expansion.
+4. Support **negative constraints** (e.g., “without nuts”, “no dairy”) via lightweight structured extraction so we can exclude or penalize conflicting traits early.
+5. Provide explicit configurability for per‑type weights and similarity thresholds to tune precision vs. recall.
+
+#### Data Structures (Relational Layer)
+`concept_embeddings` (new table – conceptual schema):
+| Column | Type | Notes |
+| ------ | ---- | ----- |
+| concept_type | enum(text) | one of: category, cuisine, certification, allergen |
+| concept_id | text/uuid | Matches the corresponding vertex property (e.g., categoryId) |
+| name | text | Canonical name |
+| description | text | Concise neutral description (same source as graph) |
+| normalized_text | text | Preprocessed (lowercased, de-accented) concatenation used for embedding source (name + description) |
+| embedding | vector(2000) | pgvector embedding (text-embedding-3-large) |
+| created_at | timestamptz | audit |
+| updated_at | timestamptz | audit |
+
+Indexes / Performance:
+- HNSW index on `embedding` (cosine) for similarity.
+- Composite btree on (`concept_type`, `concept_id`).
+- Optional partial index for active concepts if future soft deletes are introduced.
+
+#### Environment / Config Additions
+| Variable | Purpose | Default |
+| -------- | ------- | ------- |
+| `GRAPH_BFS_CONCEPT_TOP_K_PER_TYPE` | Max semantic matches kept per type before expansion | 5 |
+| `GRAPH_BFS_MIN_SIMILARITY` | Minimum similarity (cosine) to accept a concept | 0.75 |
+| `GRAPH_BFS_GLOBAL_MAX_CONCEPTS` | Absolute cap after merging types (pre‑BFS) | 15 |
+| `GRAPH_BFS_TYPE_WEIGHTS` | JSON map of weights, e.g. `{"category":1.0,"cuisine":1.0,"certification":0.6,"allergen":0.5}` | (shown) |
+| `GRAPH_BFS_NEGATIVE_ENFORCE` | If true, exclude products violating negative constraints | true |
+| `GRAPH_BFS_NEGATIVE_PENALTY` | If enforcement is soft, scalar penalty applied | 0.8 |
+| `GRAPH_BFS_PRODUCT_DIVERSITY_PENALTY` | Penalize overrepresentation of a single concept | 0.15 |
+| `GRAPH_BFS_SCORE_NORMALIZE` | Normalize final product scores to 0..1 | true |
+
+#### Input & Structured Extraction
+Tool input: `hypothesis_text` (free form), `max_hops`, `limit`.
+
+Pre‑processing (LLM structured extraction schema conceptually):
+```
+{
+  "positive_cues": ["mild", "Italian", "cheese", "organic"],
+  "negative_cues": ["nuts"]
+}
+```
+This step is optional but improves negative constraint handling. If extraction fails, proceed with raw text embedding and skip negative filtering (fail‑open, transparent in telemetry).
+
+#### Semantic Concept Selection Algorithm (Pseudo Steps)
+1. Receive `hypothesis_text`.
+2. (Optional) Extract positive/negative cues.
+3. Generate embedding for `hypothesis_text` (single pass; do **not** split unless text length exceeds model safe window – future optimization).
+4. Perform vector similarity search over `concept_embeddings` retrieving top `GRAPH_BFS_CONCEPT_TOP_K_PER_TYPE * (#types)` raw candidates.
+5. Group by `concept_type`, apply similarity threshold & per‑type top‑k trimming.
+6. Merge groups, apply `GRAPH_BFS_GLOBAL_MAX_CONCEPTS` cap using interleaving for type diversity (round‑robin or weighted).
+7. Record telemetry: counts per type, filtered out below threshold, final selected.
+8. Produce ordered concept seed list with (concept_id, concept_type, similarity_score, weight = type_weight * similarity_score).
+
+#### BFS Expansion (Concept → Product)
+1. Initialize frontier with selected concept vertex IDs (Category/Cuisine/Certification). Allergens appear only if user *explicitly* wants inclusion; otherwise they act mainly as negative constraints (avoidance). We keep allergen vertices optional in frontier to avoid recommending allergen-rich items when user intent is exclusionary.
+2. Execute constrained breadth expansion up to `max_hops` (default 2):
+   - Hop 1: Concept → Product edges (`HAS_CATEGORY`, `HAS_CUISINE`, `HAS_CERTIFICATION`).
+   - Optional Hop 2 (only if room and diversity low): Producer pivot (Concept → Product ← Producer → Product) to widen variety.
+3. Collect candidate product IDs with per‑product matched concept set (and path metadata for explainability).
+4. Early stop if candidate set exceeds safety bound (e.g., 5 * requested limit) – mark `truncated=true` in telemetry and continue to scoring subset.
+
+#### Product Scoring (Heuristic)
+For each candidate product:
+```
+base_score = Σ (concept_weight for each matched concept)
+trait_coverage = matched_concept_count / min(total_selected_concepts, coverage_denominator)
+diversity_adjustment = (1 - repetition_factor) * GRAPH_BFS_PRODUCT_DIVERSITY_PENALTY
+score = base_score * (0.5 + 0.5 * trait_coverage) + diversity_adjustment
+```
+Negative constraints:
+* If `GRAPH_BFS_NEGATIVE_ENFORCE=true` and product contains excluded allergen → drop.
+* Else apply `score *= GRAPH_BFS_NEGATIVE_PENALTY`.
+Normalize scores if configured.
+
+Return top `limit` products with:
+```
+{
+  "products": [ { product_id, product_name, producer_name, via: [concept_ids], match_score } ],
+  "concepts": [ { id, type, name, similarity_score } ],
+  "meta": { truncated, negative_constraints_applied, concept_counts, elapsed_ms }
+}
+```
+
+#### VIP Filtering Interaction
+Apply VIP fencing *after* BFS product scoring but before final truncation: remove VIP products if user not VIP, then re-rank remaining (no score recomputation unless large removals force re-normalization). Telemetry records pre/post counts.
+
+#### Observability & Telemetry
+`DF_META` line (kind: `graph_tool_call`) fields:
+```
+{
+  "tool": "graph_bfs_taxonomy_search",
+  "concept_candidates": {"category": N1, "cuisine": N2, ...},
+  "concept_selected": total_selected,
+  "products_expanded": raw_product_count,
+  "products_after_vip": filtered_count,
+  "negative_constraints": {"count": M, "mode": "enforce|penalize|none"},
+  "truncated": bool,
+  "elapsed_ms": int
+}
+```
+
+#### Failure & Fallback Behavior
+| Condition | Action |
+| --------- | ------ |
+| No concept passes threshold | Fallback to hybrid product RAG (semantic + keyword) and note `concept_fallback=true` |
+| Empty product expansion | Return empty list (not an error) + suggestion for user clarification |
+| Extraction timeout | Skip extraction; proceed with raw text embedding |
+| Vector search timeout | Reduce per-type top-k (halve) and retry once; else fallback |
+
+#### Advantages of This Approach
+- Robust to synonymy / paraphrasing (“nut-free”, “without nuts”).
+- Encourages explainable output (assistant can cite matched concept names and why chosen).
+- Clean separation of concerns: semantic retrieval (relational + pgvector) → structural expansion (graph) → heuristic fusion.
+- Extensible: new concept layers (Season, DietaryPattern) simply add rows to `concept_embeddings` and graph vertices/edges.
+
+#### Future Enhancements
+1. Adaptive threshold: dynamic similarity floor based on distance gap between top and median candidate.
+2. Embedding caching: reuse embedding for subsequent refinement turns if user rephrases intent.
+3. Per‑concept decay: reduce weight for extremely common concepts (e.g., “organic”) using inverse document frequency style factor.
+4. Lightweight learned reranker: train small logistic model on interaction feedback to replace heuristic scoring.
+5. Multi‑lingual support: add language column + parallel embeddings; pick embedding space by detected query language.
+
+---
+
+### Summary of Graph Tools After Update
+| Tool | Primary Purpose | Similarity Basis | Expansion Mode |
+| ---- | ----------------| ---------------- | -------------- |
+| `semantic_search` | Product-level semantic retrieval | Vector (products.embedding) | None (direct) |
+| `keyword_search` | Product full-text retrieval | FTS rank | None |
+| `graph_bfs_taxonomy_search` | Abstract intent → concept semantic match → product breadth | Vector (concept_embeddings) + graph structure | BFS (concept-frontier) |
+| `graph_dfs_similarity_search` | Given product → structurally similar products | Graph trait overlap weights | DFS-style trait aggregation |
+
+This updated design removes dependence on ad‑hoc textual LIKE scanning for high‑level concepts and formally introduces a semantic concept retrieval layer feeding the BFS expansion.
+
+Cypher Query Patterns (conceptual):
+
+Breadth-First (taxonomy expansion):
+```
+-- Pseudocode Cypher (executed through cypher('dreamfarm', $$ ... $$))
+// 1) Identify candidate concept vertices by fuzzy/ILIKE matching names/descriptions against tokens derived from hypothesis_text
+MATCH (c:Category)
+WHERE toLower(c.name) CONTAINS $token OR toLower(c.description) CONTAINS $token
+WITH DISTINCT c LIMIT 40
+OPTIONAL MATCH (c)<-[:HAS_CATEGORY]-(p:Product)
+OPTIONAL MATCH (p)-[:PRODUCES]-(:Producer) // lightweight enrichment
+RETURN c.categoryId AS concept_id, c.name AS concept_name, collect(DISTINCT p.productId)[0..$limit] AS product_ids
+```
+Follow-up: Resolve `product_ids` to relational `products` table for names + ranking heuristic:
+`match_score = (#matched_concepts_for_product) + 0.1 * diversity_bonus`.
+
+Depth-First (similarity from a product):
+```
+// Gather traits of the starting product
+MATCH (p:Product {productId: $product_id})
+OPTIONAL MATCH (p)-[:HAS_CATEGORY]->(cat:Category)
+OPTIONAL MATCH (p)-[:HAS_CUISINE]->(cui:Cuisine)
+OPTIONAL MATCH (p)-[:CONTAINS_ALLERGEN]->(alg:Allergen)
+OPTIONAL MATCH (p)<-[:PRODUCES]-(prod:Producer)
+WITH p, collect(DISTINCT cat) AS cats, collect(DISTINCT cui) AS cuis,
+    collect(DISTINCT alg) AS algs, prod
+// Find other products sharing traits
+MATCH (other:Product)
+WHERE other <> p
+OPTIONAL MATCH (other)-[:HAS_CATEGORY]->(cat2:Category)
+OPTIONAL MATCH (other)-[:HAS_CUISINE]->(cui2:Cuisine)
+OPTIONAL MATCH (other)-[:CONTAINS_ALLERGEN]->(alg2:Allergen)
+OPTIONAL MATCH (other)<-[:PRODUCES]-(prod2:Producer)
+WITH other,
+    size([x IN cats WHERE x IN collect(DISTINCT cat2)]) AS cat_overlap,
+    size([x IN cuis WHERE x IN collect(DISTINCT cui2)]) AS cui_overlap,
+    size([x IN algs WHERE x IN collect(DISTINCT alg2)]) AS alg_overlap,
+    CASE WHEN prod2 = prod THEN 1 ELSE 0 END AS same_producer
+WITH other,
+    (cat_overlap * 1.0) + (cui_overlap * 0.8) + (alg_overlap * 0.5) + (same_producer * 0.3) AS similarity_score,
+    cat_overlap, cui_overlap, alg_overlap, same_producer
+WHERE similarity_score > 0
+ORDER BY similarity_score DESC
+LIMIT $limit
+RETURN other.productId AS product_id, similarity_score, cat_overlap, cui_overlap, alg_overlap, same_producer
+```
+Post-processing: build `shared_traits` array by re-matching only required trait vertices for top results.
+
+Scoring Rationale:
+- Categories & cuisines express conceptual similarity → higher weights.
+- Allergens reflect composition overlap (useful but weaker for recommendation diversity).
+- Same producer suggests catalog adjacency (mild boost; avoids monopolizing list).
+
+Security / Fencing:
+- VIP filtering applied after relational join (same rules as other tools) unless future policy extends VIP property to graph vertices.
+- Depth-first traversal restricts max node/edge expansions (`max_depth`, LIMIT) to avoid runaway cost.
+
+Error Handling & Timeouts:
+- Each graph tool call bounded by server-side statement timeout (e.g., 2s) – on timeout: return partial results (if any) with `incomplete=true` meta.
+- Empty match gracefully returns empty arrays (never an error unless Cypher failure).
+
+Observability:
+- Emit `DF_META` lines with `graph_tool_call` including: tool_name, elapsed_ms, candidate_concepts, expanded_products, post_vip_count, truncated (bool).
+- Log raw Cypher (parameterized form) at DEBUG only (no sensitive data) for troubleshooting.
+
+Integration Flow (LLM side):
+1. Model may call `semantic_search` first to anchor concrete product(s).
+2. Then call `graph_dfs_similarity_search` with a chosen `product_id` to propose related products.
+3. Alternatively, model starts with `graph_bfs_taxonomy_search` when the user provides abstract intent lacking explicit product names.
+4. Final answer cites concept names or shared traits for explainability (encouraged by tool descriptions).
+
+Future Enhancements:
+- Add hybrid reranking (vector similarity + graph similarity) for candidate fusion.
+- Introduce precomputed similarity edges (RELATED) from batch analytics to speed DFS queries.
+- Cache high-frequency taxonomy BFS expansions keyed by normalized hypothesis tokens.
+
+Testing Strategy:
+- Unit tests: mock Cypher responses to validate ranking & post-processing.
+- Integration tests (flagged): require running AGE-enabled PostgreSQL; will skip if `ENABLE_GRAPH_SEARCH` false or AGE absent.
+- Performance smoke: assert BFS/DFS tool calls complete under threshold on sample dataset.
+
+Documentation: This section formalizes design prior to implementation; code will adhere to schemas & flags above.
   - Purpose: real-time internet search and extraction to augment answers beyond local data.
   - Integration: connect to Tavily’s remote MCP server as an MCP tool in the LLM call. Server URL: `https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>` (requires a Tavily API key).
   - Capabilities: search, extract, map, crawl (we primarily use `tavily-search` and `tavily-extract`).

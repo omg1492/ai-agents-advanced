@@ -13,4 +13,28 @@
 - [x] Add fencing into searches so when LLM calls semantic or keyword search tool, we automatically add isVip attribute to the search and use it for filtering results - non-vip user can see only non-vip items, vip user can see everything
 - [x] Use AGE to build graph and import to database using producers.json (producer and product relations) and allergens and certifications
 - [x] Create import script and ingest data into AGE graph
-- [ ] Create pipeline to enhance knowledge graph using LLM - create two higher level concepts - category and cuisine. First we must define about 50 categories (meat, vegetables, ...) and 20 cuisines (italian, japanese, ..) by looking into our data and for each create some summary (description of this category or cuisine). Categories and cuisines will be stored as nodes. Than we need to assign products to those two concept and create graph (add edges). This calculation must be stored in some format (JSON? Parquet?) and than we create script to import it to database.
+- [x] Create pipeline to enhance knowledge graph using LLM - create two higher level concepts - category and cuisine. First we must define about 50 categories (meat, vegetables, ...) and 20 cuisines (italian, japanese, ..) by looking into our data and for each create some summary (description of this category or cuisine). Categories and cuisines will be stored as nodes. Than we need to assign products to those two concept and create graph (add edges). This calculation must be stored in some format (JSON? Parquet?) and than we create script to import it to database.
+---
+### Next Phase (Simplified High-Level Goals)
+
+1. Graph & Semantic Readiness
+	- [x] Create `concept_embeddings` table + script to embed categories, cuisines, certifications, allergens.
+	- [x] Add separate parquet -> DB import script (`import_concept_embeddings.py`) after embeddings generation.
+
+2. Implement DFS Similarity Tool
+	- [ ] Add `graph_dfs_similarity_search` (trait overlap scoring, VIP filtering) with unit & integration tests.
+	- [ ] Update system prompt with guidance: use DFS after a concrete product is identified.
+
+3. Implement BFS Taxonomy Tool
+	- [ ] Add semantic concept selection (vector search over concept embeddings) + BFS expansion to products.
+	- [ ] Scoring + VIP filtering, tests (unit + integration) and prompt guidance for abstract intent.
+
+4. Telemetry & Minimal Observability
+	- [ ] Emit DF_META lines for both tools (counts, timing, truncation) and surface in frontend meta panel.
+
+5. Optional Enhancements (after core works)
+	- [ ] Negative cue handling ("without nuts") and diversity penalty tuning.
+	- [ ] Basic metrics counters & small debug endpoint.
+	- [ ] Caching concept semantic results.
+
+---
