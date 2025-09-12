@@ -1,11 +1,9 @@
-
-
 ## Lekce 04 – Agentic Search, Knowledge Graph & RAG Fencing
 
 V této lekci jsme nad předchozí hybridní RAG architekturou (Lekce 03) přidali řízené (agentic) vyhledávání pomocí nástrojů, základ znalostního grafu v PostgreSQL/AGE a řízení přístupu k produktům (fencing) podle VIP příznaku uživatele. Součástí je autentizace přes Keycloak a filtrování výsledků uživateli ještě předtím, než se dostanou do promptu LLM.
 
 ### Byznys motivace
-Ne všichni zákazníci mají mít přístup k prémiovým (VIP) produktům. Potřebujeme schopnost řídit přístup a zároveň umožnit hlubší iterativní (multi‑step) vyhledávání – LLM si samo zvolí, kdy použije sémantické nebo klíčové (keyword) hledání, případně je zkombinuje přes několik kroků.
+Ne všichni zákazníci mají mít přístup k prémiovým (VIP) produktům. Potřebujeme schopnost řídit přístup a zároveň umožnit hlubší iterativní (multi‑step) vyhledávání – LLM si samo zvolí, kdy použije sémantické nebo klíčové (keyword) hledání, použití grafu, nadřazených konceptů a tak podobně.
 
 ### Novinky oproti lekci 03
 1. Autentizace a autorizace přes Keycloak + extrakce identity (userId, isVip) na backendu i frontendu.
@@ -23,7 +21,7 @@ Ne všichni zákazníci mají mít přístup k prémiovým (VIP) produktům. Pot
 ### Koncepty v praxi
 - Agentic / iterativní vyhledávání řízené LLM (function calling)
 - RAG fencing (row‑level bezpečnost na aplikační vrstvě před promptem)
-- Knowledge graph (AGE) jako budoucí dodatečný zdroj kontextu
+- Knowledge graph (AGE) jako dodatečný zdroj kontextu
 - HyDE (hypotetický dokument) pro zlepšení sémantického dotazu v semantic toolu
 
 ### Technologie
@@ -135,7 +133,6 @@ Modelu můžete explicitně naznačit šíři dotazu:
 3. Vzít první produkt z BFS výsledků → požádat: "Najdi podobné k tomuto produktu" (DFS).
 4. Ukázat multi‑step: "Nejdřív zjisti širokou nabídku italských sýrů a potom podobné k prvnímu".
 5. Porovnat s jednoduchým RAG (vypnout agentic & graph, zapnout RAG) – menší flexibilita.
-6. Krátce zobrazit `CommonErrors.md` sekci o Cypher jako ukázku lessons‑learned dokumentace.
 
 ### Bezpečnost a omezení
 Aktuálně je fencing aplikační (na úrovni nástrojových odpovědí). Budoucí krok by mohl být posun logiky filtrace níže (row‑level policy na DB) nebo doplnění kategorie/kuchyní automatické klasifikace.
