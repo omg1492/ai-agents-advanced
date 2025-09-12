@@ -86,32 +86,40 @@ Asistent kombinuje interní API, MCP nástoje a web-search, aby ukázal aktuáln
 - ffmpeg
 - PostgreSQL full-text search
 
-## 4. lekce: Deep Research a Knowledge Graph
+## 4. lekce: Agentic Search, Knowledge Graph & RAG Fencing
 
-Znalostní graf propojí suroviny, recepty a sezónnost, takže AI doporučí ideální košík pro konkrétní událost i roční dobu. Díky cíleným doporučením se zvyšuje upsell a snižuje plýtvání sezónních produktů. Nicméně, některé dokumenty nejsou určeny pro každého zákazníka, takže potřebujeme zajistit bezpečnost přístupu k nim.
+Implementace agentic (nástrojového) vyhledávání kde LLM rozhoduje o výběru vyhledávacích strategií, základ znalostního grafu v PostgreSQL/AGE pro strukturální podobnost produktů, a VIP fencing pro řízený přístup k prémiovým produktům s autentizací přes Keycloak.
 
-- Hierarchické hledání (depth first vs. breadth first)  
-- Uspořádání informací do grafu (Knowledge Graph)  
-- Agentic search (iterativní vyhledávání řízené AI)
-- RAG fencing
+- Agentic search s function calling (semantic search, keyword search, graph tools)
+- VIP fencing - filtrování produktů podle uživatelských oprávnění před promptem
+- Keycloak autentizace s demo uživateli (user1, vipuser)
+- Knowledge graph v Apache AGE (producenti, produkty, alergeny, certifikace)
+- Dva grafové nástroje: BFS taxonomy search a DFS similarity search
+- HyDE enhancement pro sémantické vyhledávání
 
 **Praktické cvičení:** 
 
-- Vytvoření jednoduché hierarchie využitím LLM sumarizací  
-- Sestavení základního grafu informací a uložení v databázi  
-- Jednoduchý agentic multi-step search
-- Autentizace uživatele
+- Implementace nástrojového vyhledávání (function calling)
+- Nastavení Keycloak autentizace a VIP fencing
+- Import znalostního grafu do AGE
+- Vytvoření BFS/DFS grafových nástrojů
+- Testování s různými uživatelskými oprávněními
 
 **Výstupy z lekce:** (Umím…)
 
-- Vytvořit a využít hierarchický model dat  
-- Vytvořit graf informací a uložit v databázi  
-- Vytvořit agentic multi-step search
+- Implementovat agentic search s tool calling
+- Nastavit autentizaci a autorizaci s Keycloak
+- Vytvořit a využít znalostní graf v PostgreSQL/AGE
+- Implementovat VIP fencing pro bezpečný přístup k datům
+- Použít grafové traversal algoritmy (BFS/DFS)
 
 **Použité technologie:**
 
 - AGE extension pro PostgreSQL
 - Keycloak pro autentizaci
+- OpenAI function calling
+- FastAPI backend s tool integration
+- React frontend s OAuth2 flow
 
 ## 5. lekce: Multimodalita, paměť a Real Voice Chat
 

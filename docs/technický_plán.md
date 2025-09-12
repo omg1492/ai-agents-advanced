@@ -90,21 +90,30 @@ Tím pomáhá zákazníkovi lépe plánovat nákup a zvyšuje průměrnou hodnot
 - OpenAI embeddings  
 - PostgreSQL (pgvector)
 
-### Lekce 04 – Deep Research & Knowledge Graph
+### Lekce 04 – Agentic Search, Knowledge Graph & RAG Fencing
 
 #### Popis vylepšení a business přínos
-Znalostní graf propojí suroviny, recepty a sezónnost, takže AI doporučí ideální košík pro konkrétní událost i roční dobu.  
-Díky cíleným doporučením se zvyšuje upsell a snižuje plýtvání sezónních produktů.
+Implementace agentic (nástrojového) vyhledávání kde LLM rozhoduje o výběru vyhledávacích strategií, základ znalostního grafu v PostgreSQL/AGE pro strukturální podobnost produktů, a VIP fencing pro řízený přístup k prémiovým produktům s autentizací přes Keycloak. Umožňuje personalizované vyhledávání s bezpečností a hlubší analýzu vztahů mezi produkty.
 
 #### Technické aspekty plné verze
-- Knowledge Graph + agentic RAG
+- Agentic search s function calling (semantic, keyword, graph tools)
+- VIP fencing na aplikační vrstvě
+- Knowledge Graph v Apache AGE s BFS/DFS algoritmy
+- Keycloak OAuth2/OIDC autentizace
+- Feature flags pro postupné zapínání funkcí
 
 #### Technické kroky – kódování naživo
-- Základní graf + jednoduchý dotazovací agent
+- Implementace tool-based search s function calling
+- Nastavení Keycloak autentizace
+- Import základního grafu do AGE
+- Vytvoření grafových search nástrojů
 
 #### Použité technologie a nástroje
-- Neo4j / Memgraph (knowledge graph)  
-- LangGraph (agentic RAG)  
+- PostgreSQL + Apache AGE (knowledge graph)
+- Keycloak (OAuth2/OIDC autentizace)
+- OpenAI function calling
+- FastAPI (backend tool integration)
+- React (assistant-ui s OAuth flow)
 - Python
 
 ### Lekce 05 – Multimodalita, paměť & Real Voice Chat

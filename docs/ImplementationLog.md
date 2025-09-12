@@ -1,3 +1,32 @@
+## 2025-12-09
+
+### Updated Agenda Documentation for Lesson 04 Implementation
+
+**Background**: The agenda documentation (agenda.md, final_agenda.md, technický_plán.md) needed to be aligned with the actual implementation of Lesson 04 - Agentic Search, Knowledge Graph & RAG Fencing.
+
+**Changes Made**:
+1. **Updated lesson title**: Changed from "Deep Research & Knowledge Graph" to "Agentic Search, Knowledge Graph & RAG Fencing" to better reflect the actual implementation
+2. **Corrected concepts**: Added missing key concepts like:
+   - Agentic search with function calling
+   - VIP fencing and RAG security
+   - OAuth2/OIDC authentication with Keycloak
+   - HyDE (Hypothetical Document Embedding)
+   - BFS/DFS graph traversal algorithms
+   - Feature flags for progressive enablement
+3. **Updated technologies**: Corrected the technology stack to match actual implementation:
+   - Apache AGE (instead of Neo4j/Memgraph as originally planned)
+   - OpenAI function calling (instead of LangGraph for this lesson)
+   - Keycloak for OAuth2/OIDC
+   - FastAPI backend with tool integration
+   - React frontend with authentication flow
+4. **Enhanced practical exercises**: Updated to reflect the actual hands-on components implemented
+5. **Aligned learning objectives**: Ensured the "Umím..." (I can...) outcomes match what was actually built
+
+**Architecture Decision Context**: 
+- Chose Apache AGE over standalone graph databases (Neo4j/Memgraph) to maintain unified PostgreSQL infrastructure
+- Implemented direct OpenAI function calling instead of LangGraph framework for simpler, more controlled tool execution
+- Added comprehensive VIP fencing at application layer before LLM prompt processing
+
 ### Added Stock Custom Tool (Local REST Proxy)
 
 Implemented a local custom tool `StockService` that proxies to the `api_stock` REST service.

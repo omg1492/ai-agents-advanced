@@ -54,21 +54,25 @@ Zpracování PDF, obrázků, audia (Whisper) i krátkých videí (extrakce zvuku
 - OpenAI embeddings
 - PostgreSQL (pgvector + full‑text)
 
-### Lekce 04 – Deep Research & Knowledge Graph
-Hierarchické a iterativní (agentic) vyhledávání, sestavení znalostního grafu (suroviny, recepty, sezónnost) a RAG fencing s řízeným přístupem, včetně autentizace.  
+### Lekce 04 – Agentic Search, Knowledge Graph & RAG Fencing
+Implementace agentic (nástrojového) vyhledávání kde LLM rozhoduje o výběru vyhledávacích strategií, základ znalostního grafu v PostgreSQL/AGE pro strukturální podobnost produktů, a VIP fencing pro řízený přístup k prémiovým produktům s autentizací přes Keycloak.
 
 **Koncepty:**
-- Hierarchické hledání
-- Knowledge graph
-- Agentic search (Agentic RAG)
-- Deep research
-- RAG fencing
-- Autentizace
+- Agentic search (tool-based, function calling)
+- Knowledge graph (producers, products, allergens, certifications)
+- RAG fencing (VIP filtering před LLM)
+- Autentizace a autorizace (OAuth2/OIDC)
+- HyDE (Hypothetical Document Embedding)
+- BFS/DFS graph traversal
+- Feature flags
 
 **Technologie:**
 - AGE (PostgreSQL extension)
-- Keycloak
+- Keycloak (OAuth2/OIDC)
+- OpenAI function calling
+- FastAPI (backend tools)
 - Python
+- React (assistant-ui s autentizací)
 
 ### Lekce 05 – Multimodalita, paměť & Real Voice Chat
 Lekce rozšiřuje asistenta o Real Voice Chat (hands‑free) a dlouhodobou paměť s preferencemi, dietami a alergeny pro vyšší personalizaci a retenci.  
