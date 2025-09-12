@@ -10,6 +10,8 @@ Vars:
 - KEYCLOAK_DEMO_REDIRECT_URIS (comma list, default http://localhost:3000/*)
 - KEYCLOAK_DEMO_USERS (comma list, last becomes VIP; default user1,user2,vipuser)
 - KEYCLOAK_VIP_ROLE (default vip)
+- KEYCLOAK_ACCESS_TOKEN_LIFESPAN (in seconds, default 3600 = 1 hour)
+- KEYCLOAK_REFRESH_TOKEN_LIFESPAN (in seconds, default 86400 = 1 day)
 
 Usage:
   uv run python identity/provision_keycloak.py
@@ -40,6 +42,8 @@ VIP_ROLE = env("KEYCLOAK_VIP_ROLE", "vip")
 CLIENT_ID = env("KEYCLOAK_DEMO_CLIENT_ID", "dreamfarm-frontend")
 REDIRECT_URIS = [u.strip() for u in env("KEYCLOAK_DEMO_REDIRECT_URIS", "http://localhost:3000/*").split(",") if u.strip()]
 USER_NAMES = [u.strip() for u in env("KEYCLOAK_DEMO_USERS", "user1,user2,vipuser").split(",") if u.strip()]
+ACCESS_TOKEN_LIFESPAN = int(env("KEYCLOAK_ACCESS_TOKEN_LIFESPAN", "3600"))  # 1 hour in seconds
+REFRESH_TOKEN_LIFESPAN = int(env("KEYCLOAK_REFRESH_TOKEN_LIFESPAN", "86400"))  # 1 day in seconds
 
 
 def get_admin_token() -> str:
@@ -74,6 +78,42 @@ def ensure_realm(token: str) -> None:
     else:
         print(f"Creating realm '{REALM}'")
         create_realm(token)
+
+
+def configure_realm_tokens(token: str) -> None:
+    """Configure realm token lifespans for access and refresh tokens."""
+    # Get current realm configuration
+    r = httpx.get(f"{BASE_URL}/admin/realms/{REALM}", headers={"Authorization": f"Bearer {token}"}, timeout=30)
+    r.raise_for_status()
+    realm_config = r.json()
+    
+    # Update token lifespans
+    # Access token settings
+    realm_config.update({
+        "accessTokenLifespan": ACCESS_TOKEN_LIFESPAN,
+        "accessTokenLifespanForImplicitFlow": ACCESS_TOKEN_LIFESPAN,
+        # Refresh token lifespan is controlled by SSO session settings
+        "ssoSessionIdleTimeout": REFRESH_TOKEN_LIFESPAN,
+        "ssoSessionMaxLifespan": REFRESH_TOKEN_LIFESPAN,
+        # Client session settings (also affect refresh tokens)
+        "clientSessionIdleTimeout": REFRESH_TOKEN_LIFESPAN,
+        "clientSessionMaxLifespan": REFRESH_TOKEN_LIFESPAN,
+        # Refresh token configuration
+        "revokeRefreshToken": False,  # Don't revoke refresh token on use
+        "refreshTokenMaxReuse": 0,  # Refresh tokens can be reused
+    })
+    
+    # Update the realm
+    r2 = httpx.put(
+        f"{BASE_URL}/admin/realms/{REALM}",
+        headers={"Authorization": f"Bearer {token}", "Content-Type": "application/json"},
+        json=realm_config,
+        timeout=30,
+    )
+    if r2.status_code not in (204,):
+        print(f"Configure realm tokens failed: {r2.status_code} {r2.text}", file=sys.stderr)
+        r2.raise_for_status()
+    print(f"Configured realm tokens: access={ACCESS_TOKEN_LIFESPAN}s, refresh={REFRESH_TOKEN_LIFESPAN}s")
 
 
 def get_roles(token: str) -> List[dict]:
@@ -246,6 +286,7 @@ def ensure_user_role(token: str, user: dict, role: dict, assign: bool) -> None:
 def main() -> None:
     token = get_admin_token()
     ensure_realm(token)
+    configure_realm_tokens(token)
     role = ensure_role(token, VIP_ROLE)
     client = ensure_client(token)
     for idx, username in enumerate(USER_NAMES):
@@ -263,6 +304,8 @@ def main() -> None:
         "redirectUris": REDIRECT_URIS,
         "client_uuid": client.get("id"),
         "base_url": BASE_URL,
+        "access_token_lifespan": ACCESS_TOKEN_LIFESPAN,
+        "refresh_token_lifespan": REFRESH_TOKEN_LIFESPAN,
     }
     print("\n=== Provision Summary ===")
     print(json.dumps(summary, indent=2))
