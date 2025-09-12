@@ -25,6 +25,7 @@ from typing import Optional, List, Any
 
 from src.services.config_service import ConfigService, OpenAIConfig, AppConfig
 from src.services.agentic_search import AgenticSearchService
+from src.services.graph_search_service import GraphSearchService
 from src.services.stock_service import StockService
 
 from openai import AsyncOpenAI
@@ -76,18 +77,25 @@ class OpenAIService:
         self.model_name = self._get_model_name()
         # Agentic search service (function tools) optional
         self._agentic_search: AgenticSearchService | None = None
+        self._graph_search: GraphSearchService | None = None
         try:
             if getattr(self._app_config, "agentic_search", None) and self._app_config.agentic_search.enabled:  # type: ignore[attr-defined]
                 self._agentic_search = AgenticSearchService(self._app_config)
         except Exception as ae:  # pragma: no cover
             logger.warning(f"Agentic search init failed: {ae}")
+        try:
+            if getattr(self._app_config, "graph_search", None) and self._app_config.graph_search.enabled:  # type: ignore[attr-defined]
+                self._graph_search = GraphSearchService(self._app_config)
+        except Exception as ge:  # pragma: no cover
+            logger.warning(f"Graph search init failed: {ge}")
         logger.info(
-            "Initialized OpenAI service base_url=%s model=%s stock_tool=%s tavily=%s agentic=%s",
+            "Initialized OpenAI service base_url=%s model=%s stock_tool=%s tavily=%s agentic=%s graph=%s",
             getattr(self.client, "base_url", None),
             self.model_name,
             bool(self._stock_service and self._stock_service.enabled),
             bool(self._tavily and self._tavily.enabled),
             bool(self._agentic_search and self._agentic_search.enabled),
+            bool(self._graph_search and self._graph_search.enabled),
         )
 
     def get_tools(self) -> Optional[list[dict]]:
@@ -231,6 +239,54 @@ class OpenAIService:
                     },
                 }
             )
+        # Graph DFS similarity tool
+        if self._graph_search and self._graph_search.enabled:
+            tools.append(
+                {
+                    "type": "function",
+                    "name": "graph_dfs_similarity_search",
+                    "description": "Depth-first similarity style structural traversal starting from a concrete product UUID (find structurally similar alternatives). Use only after a product has been identified.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "product_id": {
+                                "type": "string",
+                                "description": "UUID of a previously grounded product (must have appeared in prior tool output or RAG block)."
+                            },
+                            "k": {
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 10,
+                                "description": "How many similar products to retrieve (3-10)."
+                            }
+                        },
+                        "required": ["product_id"],
+                    },
+                }
+            )
+            tools.append(
+                {
+                    "type": "function",
+                    "name": "graph_bfs_taxonomy_search",
+                    "description": "Breadth-style taxonomy expansion using semantic concepts (categories, cuisines, certifications, allergens) for ambiguous or high-level intent.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "Abstract or high-level user intent text to ground into taxonomy concepts."
+                            },
+                            "k": {
+                                "type": "integer",
+                                "minimum": 3,
+                                "maximum": 10,
+                                "description": "How many representative products to retrieve (3-10)."
+                            }
+                        },
+                        "required": ["query"],
+                    },
+                }
+            )
         return tools or None
 
     def _get_openai_client(self) -> AsyncOpenAI:
@@ -306,6 +362,7 @@ class OpenAIService:
             if not fn_calls:
                 break
             tool_outputs: list[dict[str, str]] = []
+            last_graph_products: List[dict] = []  # capture latest graph tool result for fallback
             for call in fn_calls:
                 name = call.get("name")
                 call_id = call.get("id")
@@ -347,6 +404,29 @@ class OpenAIService:
                             output_payload = {"products": []}
                     else:
                         output_payload = {"products": []}
+                elif name in {"graph_dfs_similarity_search", "graph_bfs_taxonomy_search"}:
+                    if self._graph_search and self._graph_search.enabled:
+                        try:
+                            parsed = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                        except Exception:
+                            parsed = {}
+                        try:
+                            output_json = await self._graph_search.execute(name, parsed, user_is_vip=user_is_vip)
+                            output_payload = json.loads(output_json)
+                            if isinstance(output_payload, dict) and "products" in output_payload:
+                                prods = output_payload.get("products") or []
+                                if isinstance(prods, list):
+                                    last_graph_products = prods
+                                logger.info(
+                                    "Graph tool executed name=%s args=%s products=%d", name, parsed, len(last_graph_products)
+                                )
+                                if last_graph_products:
+                                    logger.debug("Graph tool sample product_ids=%s", [p.get("product_id") for p in last_graph_products[:5]])
+                        except Exception as ge:  # pragma: no cover
+                            logger.warning(f"Graph search execution failed: {ge}")
+                            output_payload = {"products": []}
+                    else:
+                        output_payload = {"products": []}
                 else:
                     logger.info("Ignoring unsupported function call name=%s", name)
                     continue
@@ -369,6 +449,13 @@ class OpenAIService:
                 logger.warning("High number of function call loops executed: %s", loop_count)
 
         text = getattr(response, "output_text", None) or ""
+        # Fallback synthesis if model produced no natural language but we have graph products
+        if not text and 'last_graph_products' in locals() and last_graph_products:
+            lines = ["(Auto‑summary) Výsledky z grafového nástroje:"]
+            for p in last_graph_products[:10]:
+                lines.append(f"- {p.get('product_name')} ({p.get('producer_name')}) score={p.get('similarity_score')}")
+            text = "\n".join(lines)
+            logger.info("Synthesized fallback text from %d graph products", len(last_graph_products))
         resp_id = getattr(response, "id", None) or ""
         return text, resp_id
 

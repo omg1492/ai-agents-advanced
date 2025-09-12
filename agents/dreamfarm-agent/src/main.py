@@ -542,6 +542,8 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
     async def token_generator():
         """Loop-based streaming generator following proven GPT-5 reasoning pattern."""
         nonlocal input_messages, response_id_local, full_text, tools
+        # Capture last graph search products for optional fallback if model emits no text
+        last_graph_products: list[dict] = []
         
         while True:
             try:
@@ -616,7 +618,8 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                                     yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
                                     
                                     # Execute get_stock function
-                                    if getattr(item, "name", None) == "get_stock":
+                                    name = getattr(item, "name", None)
+                                    if name == "get_stock":
                                         try:
                                             raw_args = getattr(item, "arguments", "{}")
                                             parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else {}
@@ -658,7 +661,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                                             
                                         except Exception as exec_e:  # noqa: BLE001
                                             logger.warning(f"Function execution error: {exec_e}")
-                                    elif getattr(item, "name", None) in {"semantic_product_search", "keyword_product_search"}:
+                                    elif name in {"semantic_product_search", "keyword_product_search"}:
                                         try:
                                             if agentic_search_service and agentic_search_service.enabled:
                                                 raw_args = getattr(item, "arguments", "{}")
@@ -683,6 +686,57 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                                                 })
                                         except Exception as exec_e:  # noqa: BLE001
                                             logger.warning(f"Agentic search function execution error: {exec_e}")
+                                    elif name in {"graph_dfs_similarity_search", "graph_bfs_taxonomy_search"}:
+                                        try:
+                                            # Access underlying graph search service via openai_service (if initialized)
+                                            gs = getattr(openai_service, "_graph_search", None)
+                                            if gs and getattr(gs, "enabled", False):
+                                                raw_args = getattr(item, "arguments", "{}")
+                                                try:
+                                                    parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                                                except Exception:
+                                                    parsed_args = {}
+                                                try:
+                                                    output_json = await gs.execute(name, parsed_args, user_is_vip=is_vip)  # type: ignore[func-returns-value]
+                                                except Exception as ge:  # noqa: BLE001
+                                                    logger.warning(f"Graph search execution failed (stream) {ge}")
+                                                    output_json = json.dumps({"products": []})
+                                                # Parse for fallback products capture
+                                                try:
+                                                    payload = json.loads(output_json)
+                                                except Exception:
+                                                    payload = {"products": []}
+                                                prods = payload.get("products") if isinstance(payload, dict) else []
+                                                if isinstance(prods, list):
+                                                    last_graph_products = prods
+                                                logger.info(
+                                                    "Graph tool executed (stream) name=%s products=%d", name, len(last_graph_products)
+                                                )
+                                                if last_graph_products:
+                                                    logger.debug(
+                                                        "Graph tool sample product_ids=%s",
+                                                        [p.get("product_id") for p in last_graph_products[:5]],
+                                                    )
+                                                pending_outputs.append({
+                                                    "type": "function_call_output",
+                                                    "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                    "output": output_json,
+                                                })
+                                                submit_meta = {
+                                                    "kind": "tool_event",
+                                                    "event_type": "tool.outputs_executed",
+                                                    "tool_name": name,
+                                                    "products_count": len(last_graph_products),
+                                                }
+                                                yield "\nDF_META:" + json.dumps(submit_meta, ensure_ascii=False) + "\n"
+                                            else:
+                                                pending_outputs.append({
+                                                    "type": "function_call_output",
+                                                    "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                    "output": json.dumps({"products": []}),
+                                                })
+                                        except Exception as exec_e:  # noqa: BLE001
+                                            logger.warning(f"Graph search function execution error: {exec_e}")
                         
                         # Tool event meta for UI (for added events)
                         elif et == "response.output_item.added":
@@ -712,6 +766,21 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                 logger.error(f"Streaming loop failed: {e}")
                 break
         
+        # Auto-fallback if model produced no text but we have graph products
+        if not full_text and last_graph_products:
+            lines = ["(Auto-summary) Výsledky z grafového nástroje:"]
+            for p in last_graph_products[:10]:
+                lines.append(
+                    f"- {p.get('product_name')} ({p.get('producer_name')}) score={p.get('similarity_score')}"
+                )
+            fallback_text = "\n".join(lines)
+            full_text = fallback_text
+            logger.info(
+                "Synthesized fallback text (stream) from %d graph products", len(last_graph_products)
+            )
+            # Yield fallback to client
+            yield fallback_text
+
         # Update server-side state when completely done
         if response_id_local:
             _last_response_id[thread_id] = response_id_local

@@ -12,6 +12,29 @@ Key points:
 
 ## 2025-08-19
 
+### Graph Search Service - AGE Compatibility Issues Resolved
+
+**Background**: Attempted to implement graph traversal search functionality using Apache AGE for BFS taxonomy searches and DFS similarity searches.
+
+**Issues Encountered**:
+1. `function cypher(unknown, unknown) does not exist` - solved with `ag_catalog.cypher` qualification
+2. SQLAlchemy parameter binding conflicts with AGE - resolved with `exec_driver_sql` direct execution
+3. Agtype value extraction with embedded quotes - resolved with `_extract_agtype_value` helper
+4. Mysterious `@>` operator errors even with simplified cypher queries
+5. AGE syntax limitations: no ORDER BY support, limited WHERE clause compatibility
+
+**Resolution Strategy**: 
+- Implemented graceful degradation by disabling both `bfs_taxonomy` and `dfs_similarity` methods
+- Methods now return empty results with appropriate warning logs
+- Service interface preserved for future re-enablement when AGE is upgraded
+- Hybrid architecture remains viable: PostgreSQL for complex queries, AGE for simple relationships
+
+**Architecture Decision**: Keep graph infrastructure but disable complex traversal until AGE syntax limitations are resolved. This maintains system stability while preserving the foundation for future graph functionality.
+
+**Next Steps**: Monitor Apache AGE updates for ORDER BY and advanced cypher support.
+
+---
+
 - agents/dreamfarm-agent: Updated `RAGService.format_search_results` to a clearer block format and included `product_id` in the output. Adjusted unit and integration tests to match the new labels and headers. Added docstring to the method.
 
 ## Implementation Log (consolidated)
@@ -397,3 +420,22 @@ Deferred (future work): refresh token rotation, silent renew, backend JWT valida
 - Added pytest session-scoped dependency override in `agents/dreamfarm-agent/tests/conftest.py` to bypass JWT validation during tests.
 - Rationale: Keep new auth enforcement from breaking existing fast unit/integration tests (Option A from analysis). Provides synthetic user `test-user` (non‑VIP) so behavior relying on user identity remains consistent.
 - Cleanup performed after session; production runtime unchanged.
+
+### 2025-09-11 Graph Search Cypher Invocation Stabilization
+
+- Simplified `GraphSearchService` to always use the 2‑argument Apache AGE form with explicit casts: `cypher((:graph)::name, $$...$$::cstring)`.
+- Removed dynamic signature detection (pg_proc introspection + 3‑arg fallback) to reduce surface for errors and eliminate extra connection queries.
+- Added early smoke test in `__init__` executing `MATCH (n) RETURN 1` to fail fast if extension/search_path not applied to pooled connections.
+- Motivation: Persistent `function cypher(unknown, unknown)` errors indicated argument type inference issues; explicit `name` + `cstring` casting stabilizes resolution after `LOAD 'age'; SET search_path=ag_catalog, public;` hook.
+- Next: validate BFS & DFS end‑to‑end and then update `docs/CommonErrors.md` to reflect the simplified guidance.
+
+### 2025-09-11 Graph Search Finalization & Logging (Update)
+
+- Removed the previously described explicit `::name` / `::cstring` casting – empirical tests showed the **pure 2‑arg form** (`cypher(:graph, $$...$$)`) is the only stable variant; casts were unnecessary once the body was fully dollar‑quoted and only `:graph` remained as a bind.
+- Deleted all dynamic / probing logic in favor of a single helper `_build_cypher_sql` returning the fixed pattern (reduction in complexity + fewer failure branches).
+- Rewrote `docs/CommonErrors.md` Cypher section: deprecated 3‑arg guidance, added smoke test + concise troubleshooting matrix, emphasized isolation of colon tokens inside the dollar block.
+- Enhanced observability for agentic transparency:
+   - DFS: structured INFO log with `raw_rows`, `kept`, `skipped_vip`, `technique=graph_dfs_similarity`.
+   - BFS: concept selection log (total + per‑type counts) and final metrics (`raw_candidates`, `scored`, `kept`, `skipped_vip`, `technique=graph_bfs_taxonomy`).
+- Chose flat key=value format (single log line) to simplify downstream parsing / potential structured log ingestion without adding a dependency.
+- Rationale: removes ambiguity for future maintainers, prevents regressions to unsupported signatures, and surfaces enough metrics for debugging empty / sparse graph results.

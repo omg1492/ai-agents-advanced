@@ -22,8 +22,8 @@
 	- [x] Add separate parquet -> DB import script (`import_concept_embeddings.py`) after embeddings generation.
 
 2. Implement DFS Similarity Tool
-	- [ ] Add `graph_dfs_similarity_search` (trait overlap scoring, VIP filtering) with unit & integration tests.
-	- [ ] Update system prompt with guidance: use DFS after a concrete product is identified.
+	- [x] Add `graph_dfs_similarity_search` (trait overlap scoring, VIP filtering) with unit & integration tests.
+	- [x] Update system prompt with guidance: use DFS after a concrete product is identified.
 
 3. Implement BFS Taxonomy Tool
 	- [ ] Add semantic concept selection (vector search over concept embeddings) + BFS expansion to products.
