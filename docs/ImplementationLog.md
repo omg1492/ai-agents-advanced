@@ -468,3 +468,12 @@ Deferred (future work): refresh token rotation, silent renew, backend JWT valida
    - BFS: concept selection log (total + per‑type counts) and final metrics (`raw_candidates`, `scored`, `kept`, `skipped_vip`, `technique=graph_bfs_taxonomy`).
 - Chose flat key=value format (single log line) to simplify downstream parsing / potential structured log ingestion without adding a dependency.
 - Rationale: removes ambiguity for future maintainers, prevents regressions to unsupported signatures, and surfaces enough metrics for debugging empty / sparse graph results.
+
+### 2025-09-13 Unified Design Document Restructure
+
+Refactored `docs/Design.md` from lesson-centric narrative into a thematic architecture document:
+- Introduced top-level sections: Purpose, Principles, Architecture, Components, Configuration, Security, Conversation Management, Tool Strategy, Grounding & Retrieval, Knowledge Graph, Memory, Voice, Schemas, API Surface, Tools, Observability, Deployment, Roadmap, Glossary.
+- Consolidated previously scattered lesson 5 memory & voice additions under Memory & Voice chapters.
+- Preserved all technical content (schemas, env vars, tool definitions, retrieval algorithms) while removing “Lesson X” headings for improved maintainability.
+- Added roadmap & glossary for onboarding clarity.
+No functional code changes; documentation-only refactor improving discoverability.

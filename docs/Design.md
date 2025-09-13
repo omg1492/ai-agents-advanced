@@ -1,50 +1,347 @@
-# Advanced AI Applications - Design Document
+# Dream Farm AI Platform – Unified Architecture & Design
 
-## Overview
+This document describes the **overall architecture** of the Dream Farm AI platform (chat assistant, retrieval, memory, personalization, knowledge graph, tools, multimodal voice). Previous lesson-based increments have been unified into coherent thematic sections for maintainability and onboarding clarity. All feature details are preserved without per‑lesson segmentation.
 
-This document describes the architecture and design of our advanced AI applications project - **Dream Farm**, a virtual farmers' marketplace that connects local farmers with customers through AI-powered assistance.
+---
 
-## Current Phase: Lesson 1 - Basic Architecture
+## 1. Purpose & Vision
 
-### Business Requirements
+Dream Farm is a virtual marketplace connecting local farmers with customers via an AI assistant that can:
+- Answer product availability & provenance questions grounded in current catalog + stock
+- Retrieve and combine structured & unstructured knowledge (documents, images, taxonomy, graph relations)
+- Use tools (internal APIs, MCP servers, web search) safely
+- Personalize responses through privacy-preserving memory & user profile preferences
+- Support voice-based interaction (hands-free mode)
+- Evolve toward multi-agent collaboration & workflow orchestration
 
-- Create a basic chatbot interface for the Dream Farm marketplace
-- Allow customers to interact with an AI assistant about farm products
-- Provide a foundation for future enhancements (RAG, tools, multimodal features)
+Key non-functional goals: transparency, extensibility, data security (VIP & per-user fencing), reproducibility, minimized hallucination, auditability of personalization.
 
-### Architecture Overview
+---
 
-**Lesson 1 - Simple Architecture with RAG:**
-```mermaid
-graph LR
-    A[React Frontend<br/>assistant-ui] -->|HTTP/REST| B[DreamFarm<br/>Agent]
-    B -->|OpenAI API| C[Azure OpenAI<br/>or OpenAI]
-    B -->|SQL Query| D[PostgreSQL<br/>with pgvector]
-    D -->|Product Data<br/>+ Embeddings| B
-```
+## 2. Core Architectural Principles
+1. **Grounded Generation First** – All product-specific claims must originate from retrieved, fenced data.
+2. **Separation of Concerns** – Retrieval, reasoning, memory, and tool orchestration are isolated services/modules.
+3. **Incremental Feature Flags** – Each capability can be enabled independently (RAG, agentic search, graph, memory, voice).
+4. **Provider-Agnostic LLM Access** – Unified OpenAI/Azure client abstraction.
+5. **Explainability** – Tool and retrieval steps stream structured meta events (`DF_META`) for UI & logging.
+6. **Security-by-Default** – Row-level fencing for VIP products and per-user memory search at SQL layer (not delegated to model).
+7. **Lean Prompts** – Profile + memory + retrieval context are bounded with measurable token budgets.
+8. **Deterministic Data Pipelines** – Artifacts (taxonomy, embeddings, summaries) versioned & reproducible.
 
-**Lesson 2+ - MCP Tool Integration:**
-```mermaid
-graph TD
-    A[React Frontend<br/>assistant-ui] -->|HTTP/REST| B[DreamFarm<br/>Agent]
-    B -->|OpenAI API| C[Azure OpenAI<br/>or OpenAI]
-    B -->|MCP Protocol| D[MCP Gateway<br/>Routing]
-    D -->|MCP Protocol| E[RAG MCP Server]
-    D -->|MCP Protocol| F[Web Search MCP<br/>Server]
-    D -->|MCP Protocol| G[Knowledge Graph<br/>MCP Server]
-```
+---
 
-**Lesson 8+ - Multi-Agent Architecture:**
+## 3. High-Level Architecture
+
 ```mermaid
 graph TD
-    A[React Frontend<br/>assistant-ui] -->|HTTP/REST| B[DreamFarm<br/>Agent<br/>Orchestrator]
-    B -->|HTTP/REST + MCP| C[Chef Agent]
-    B -->|HTTP/REST + MCP| D[Other Agents]
-    B -->|MCP| E[MCP Tools]
+  FE[React Frontend<br/>assistant-ui] -->|REST/WebSocket| AG[DreamFarm Agent Backend]
+  AG -->|LLM API| LLM[OpenAI / Azure OpenAI]
+  AG -->|SQL / Vector| PG[(PostgreSQL + pgvector + AGE)]
+  AG -->|HTTP / MCP| TOOLS[MCP & REST Tools]
+  PG -->|Embeddings & FTS| AG
+  PG -->|Graph (AGE)| AG
+  AG -->|Streaming DF_META| FE
 ```
 
-**Optional: nginx/Envoy for Production (Lesson 10):**
-For production deployment, you can add nginx or Envoy for load balancing, SSL, and static files - but not as a custom service, just as infrastructure.
+Deployment (local dev): Docker Compose runs: frontend, agent, PostgreSQL(+extensions), optional tools (stock API, farmer MCP), Keycloak (auth), future voice pipeline.
+
+---
+
+## 4. System Components
+
+### 4.1 Frontend (React + assistant-ui)
+- Chat + streaming token rendering with meta event panel
+- Auth (OIDC PKCE) with Keycloak (VIP badge detection)
+- Runtime config via `public/config.js` (build-once, deploy-anywhere)
+- Planned additions: voice capture UI (WebSocket), memory search visualization
+
+### 4.2 Agent Backend (FastAPI)
+- Endpoints: chat, threads, streaming, tools integration, (planned) memory & voice
+- Orchestrates: RAG, agentic tool calls, semantic cache, memory injection
+- Emits structured DF_META lines for: tool calls, reasoning, cache hits, graph usage
+- Feature flags via environment variables
+
+### 4.3 Data Layer (PostgreSQL + Extensions)
+- **pgvector**: product embeddings, semantic cache, conversation summaries
+- **Full-Text Search**: `fts_document / fts_combined` GIN indexes
+- **Apache AGE**: taxonomy & relationship graph (BFS taxonomy + DFS similarity)
+- **Retentions**: raw conversations (memory), optional summary pruning
+
+### 4.4 Tool Ecosystem
+- Internal REST (stock API)
+- MCP servers (public farmer tools, web search / Tavily)
+- Internal function tools (semantic_search, keyword_search, graph_bfs_taxonomy_search, graph_dfs_similarity_search, memory tools)
+- Controlled registration based on feature flags
+
+### 4.5 Authentication & Authorization
+- Keycloak OIDC (roles → VIP enforcement)
+- JWT verification middleware (issuer, audience, signature)
+- VIP fencing at SQL query layer only (never trusting LLM filtering)
+
+### 4.6 Observability
+- Streaming meta events
+- Structured INFO logs for retrieval/graph/memory metrics
+- Future: OpenTelemetry tracing & Langfuse evaluation hooks
+
+---
+
+## 5. Configuration & Environment
+
+Unified environment variables (selected, grouped):
+
+| Category | Key | Purpose |
+|----------|-----|---------|
+| Core LLM | OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_API_VERSION | Provider config |
+| RAG | ENABLE_RAG, RAG_SIMILARITY_THRESHOLD, RAG_MAX_RESULTS | Baseline semantic retrieval |
+| Agentic Search | ENABLE_AGENTIC_SEARCH, AGENTIC_MAX_RESULTS | Function/tool search mode |
+| Graph | ENABLE_GRAPH_SEARCH, GRAPH_BFS_* vars | Graph BFS/DFS controls |
+| Embeddings | OPENAI_EMBEDDING_MODEL | Standard embedding model |
+| Semantic Cache | SEMANTIC_CACHE_ENABLED, SEMANTIC_CACHE_SIMILARITY_THRESHOLD | First-turn cache |
+| Auth | REQUIRE_AUTH, KEYCLOAK_ISSUER, KEYCLOAK_AUDIENCE | JWT validation |
+| VIP | (implicit via user claims) | Product filtering |
+| Memory | MEMORY_ENABLED, MEMORY_CONVERSATION_RETENTION_DAYS, USER_PROFILE_MAX_TOKENS, MEMORY_AUDIT_ENABLED, MEMORY_SUMMARY_* | Conversation storage & summarization |
+| Voice | VOICE_ENABLED, VOICE_MODEL, VOICE_ALLOW_AGENTIC_TOOLS, VOICE_ENABLE_MEMORY_SEARCH | Voice pipeline flags |
+| Taxonomy | TAXONOMY_* | Category/cuisine generation & classification |
+
+All new memory & voice variables documented in section 11.
+
+---
+
+## 6. Security & Privacy Model
+| Layer | Control |
+|-------|---------|
+| AuthN | OIDC + JWT verification |
+| AuthZ | VIP role claim → SQL predicate for product queries |
+| Memory Isolation | Hard SQL `WHERE user_id = :current_user` in memory_search |
+| Data Minimization | Summaries replace raw logs for semantic recall |
+| Prompt Hygiene | Token caps for profile + retrieval blocks |
+| Observability Safety | DF_META excludes PII / secrets |
+| Retention | Raw conversations purged after configurable window |
+
+---
+
+## 7. Conversation & Session Management
+- Lightweight `/threads` API issues session IDs.
+- Backend persists minimal mapping + (planned) full transcript store in `conversations_raw` (when memory enabled).
+- Responses API `previous_response_id` maintains provider-side continuity.
+- Streaming endpoint reconstructs conversation context via stored messages + profile injection.
+- Semantic cache only applies to first user turn.
+
+---
+
+## 8. Tool Integration Strategy
+**Categories:**
+1. Internal DB-backed retrieval tools (semantic_search, keyword_search)
+2. Graph traversal tools (BFS taxonomy, DFS similarity)
+3. External MCP tools (farmer utilities, web search)
+4. Domain tools (stock API, memory_search, memory_write_profile)
+
+**Registration Flow:**
+At request time, the backend builds a tool list conditioned by feature flags + user capabilities (e.g., omit memory tools if MEMORY_ENABLED=false).
+
+**Execution Pattern (Responses API):**
+1. Model emits reasoning + function_call items.
+2. Backend executes tool(s), accumulates outputs.
+3. Submits tool outputs → model continues reasoning.
+4. Meta events emitted for transparency (counts, VIP filtering, concept selection, etc.).
+
+---
+
+## 9. Grounding & Retrieval (Data Access Stack)
+
+### 9.1 Simple Semantic RAG
+Vector similarity (cosine) over `simple_products.embedding` / `products.embedding` using pgvector. Inject results as `<relevant_products>` block. Feature flag: `ENABLE_RAG`.
+
+### 9.2 Hybrid Retrieval (Semantic + Keyword + RRF)
+Pipeline:
+1. Semantic similarity list S
+2. Keyword extraction (LLM structured) → FTS query list K
+3. Reciprocal Rank Fusion (k=60) merges S & K → fused list F
+4. F injected into prompt with fused score used as similarity proxy
+Resilient to failure (fallback to semantic only). Logging includes counts & fusion specifics.
+
+### 9.3 Agentic Tool-Based Search
+Instead of backend fusion, LLM orchestrates multiple tool calls:
+- `semantic_search(text)` – vector similarity (+ HyDE optional doc synthesis)
+- `keyword_search(keywords[])` – FTS search
+VIP fencing enforced inside queries: `WHERE (is_vip = false OR :user_is_vip)`.
+Model integrates results; ordering & reasoning handled in LLM layer.
+
+### 9.4 Graph-Augmented Retrieval
+Two function-call tools (flagged by `ENABLE_GRAPH_SEARCH`):
+- `graph_bfs_taxonomy_search(hypothesis_text, max_hops, limit)` – semantic concept embedding → BFS expansion over Category/Cuisine/Certification to products
+- `graph_dfs_similarity_search(product_id, max_depth, limit)` – trait-overlap scoring via shared categories, cuisines, allergens, producer
+Concept embeddings stored in relational `concept_embeddings` table with HNSW index; BFS uses semantic selection + constrained expansion. VIP filtering applied post-scoring.
+
+### 9.5 Semantic Cache (First-Turn Accelerator)
+Table: `semantic_cache(question, answer, embedding)` with high similarity threshold (e.g., ≥0.90). Used ONLY on first user message; bypasses model call on hit. Answers intentionally generic & time-insensitive.
+
+### 9.6 Retrieval Prompt Grounding Policy
+- Product-related claims must originate from `<relevant_products>` or explicit tool results.
+- Zero-hit behavior: discourage hallucination; suggest alternative phrasing or general domain advice without inventory claims.
+- Graph-derived expansions must reference underlying product IDs for traceability.
+
+---
+
+## 10. Knowledge Graph & Taxonomy
+Graph (Apache AGE) complements relational store for multi-hop relationships.
+
+**Vertices:** Producer, Product (lightweight), Category, Cuisine, Certification, Allergen, (optional) RELATED edges.
+
+**Taxonomy Pipeline:**
+1. Generate categories + cuisines (structured LLM) → versioned JSON
+2. Batch classify products (multi-label) → parquet assignments with confidences
+3. Import vertices + edges with `IN_CATEGORY` / `IN_CUISINE` relationships
+4. Populate concept embeddings table for BFS semantic selection
+
+**Scoring & Expansion:** BFS concept weighting + trait coverage; DFS similarity weighting (categories > cuisines > allergens > same producer).
+
+**Extensibility:** Future seasonal tags, hierarchical layers, feedback-based reranking.
+
+---
+
+## 11. Memory & Personalization
+Three layers: raw transcripts, summaries (semantic recall), user profile.
+
+### 11.1 Tables (Summarized)
+| Table | Purpose |
+|-------|---------|
+| conversations_raw | Store full JSON conversation (7-day retention) |
+| conversation_summaries | Summarized + embedded recaps + salient facts |
+| user_profiles | Stable personalization facts (diet, allergens, preferences) |
+| memory_enrichment_audit (optional) | Track profile mutation diffs |
+
+### 11.2 Tools
+- `memory_search(query, k)` – vector similarity over user’s own summaries only
+- `memory_write_profile(...)` – write-only patch (diet, allergens, liked products, goals, notes)
+
+### 11.3 Summarization Batch
+Script selects finished conversations (`summary_status='pending'`, idle > threshold), generates structured summary + optional profile updates, stores embedding & title, applies merges.
+
+### 11.4 Profile Injection
+`<user_profile>` block with token cap (`USER_PROFILE_MAX_TOKENS`). Field priority drop order: liked_products, disliked_products, notes tail. Hash-based dedupe avoids re-sending unchanged block.
+
+### 11.5 Privacy & Fencing
+Hard user_id constraint in all queries; no raw message retrieval by model; only summaries & structured facts surface.
+
+### 11.6 Retention
+Raw logs purged after `MEMORY_CONVERSATION_RETENTION_DAYS` (default 7). Summaries indefinite unless `MEMORY_SUMMARY_RETENTION_DAYS` set.
+
+---
+
+## 12. Voice Interaction (Hands-Free Mode)
+MVP: discrete-turn voice (not continuous token streaming) via WebSocket.
+
+Flow:
+1. Browser streams audio chunks
+2. Backend performs incremental STT (Whisper) → final transcript on silence (VAD)
+3. Transcript enters normal response pipeline (with optional restricted tools for latency)
+4. Assistant reply synthesized to audio (TTS) and streamed back
+5. Transcript & assistant text stored as standard conversation messages tagged `mode=voice`
+
+Flags: `VOICE_ENABLED`, `VOICE_ALLOW_AGENTIC_TOOLS`, `VOICE_ENABLE_MEMORY_SEARCH`.
+
+Upgrade path: full duplex low-latency streaming using Realtime API model (future) without altering session abstraction.
+
+---
+
+## 13. Data Schemas (Relational Extract)
+Key tables (abbreviated – detailed columns preserved from earlier sections):
+
+| Table | Highlights |
+|-------|-----------|
+| products | product_id (UUID), embedding (vector), fts_document, is_vip |
+| stock | (producer_id, product_id), on_stock |
+| simple_products | Legacy minimal seed table (teaching) |
+| semantic_cache | question, answer, embedding |
+| concept_embeddings | concept_type, concept_id, embedding |
+| conversations_raw | messages jsonb, expires_at |
+| conversation_summaries | summary, embedding, salient_facts |
+| user_profiles | profile jsonb |
+
+Indexes: HNSW for vectors, GIN for FTS, btree for lookup & retention scans.
+
+---
+
+## 14. API Surface (Representative)
+| Endpoint | Method | Purpose |
+|----------|--------|---------|
+| /chat | POST | Single-turn continuity chat (previous_response_id optional) |
+| /threads | POST | Create conversation thread |
+| /threads/{id}/messages | POST | Append message + get assistant response |
+| /threads/{id}/messages/stream | POST | Streaming assistant response |
+| /threads/{id}/messages | GET | Paged history (text mode) |
+| /memory/search | POST | (Optional) Expose memory_search tool via REST |
+| /memory/profile | PATCH | Update user profile (write-only) |
+| /voice/stream | WS | Bidirectional audio/text (voice mode) |
+| /health | GET | Liveness/readiness |
+
+All protected (when auth enabled) except /health.
+
+---
+
+## 15. Tool Specifications (JSON Schemas – Summaries)
+| Tool | Args | Returns | Notes |
+|------|------|---------|-------|
+| semantic_search | text | products[] | VIP-fenced |
+| keyword_search | keywords[] | products[] | FTS fallback |
+| graph_bfs_taxonomy_search | hypothesis_text, max_hops, limit | products + concepts | Semantic concept selection + BFS |
+| graph_dfs_similarity_search | product_id, max_depth, limit | similar_products | Trait overlap scoring |
+| memory_search | query, k | summaries[] | User-scoped |
+| memory_write_profile | patch fields | status, applied | Write-only personalization |
+| get_stock | productIds[] | stock entries | Local API bridge |
+| get_current_time / get_seasonal_tips / get_weather | provider-specific | structured | MCP mock utilities |
+
+---
+
+## 16. Observability & Telemetry
+DF_META event kinds (examples):
+- `search_tool_call` (tool, counts, vip_filtered)
+- `graph_tool_call` (concept_selected, expanded_products)
+- `hyde_generation` (hash, tokens)
+- `semantic_cache_hit` (question)
+- `memory_search` (k, hits)
+Logs: single-line structured key=value for graph & memory pipelines. Future: metrics export & tracing spans.
+
+---
+
+## 17. Deployment & Runtime
+- Local: Docker Compose (agent, frontend, postgres+extensions, keycloak, tools)
+- Production (future): Kubernetes (ingress/nginx), scaling per component, secrets via env/secret store, persistent volumes for DB.
+- Image build: pinned dependencies via `pyproject.toml` + `uv.lock` for Python, `package.json` for frontend.
+
+---
+
+## 18. Extensibility & Roadmap (Selected)
+| Area | Near-Term | Future |
+|------|-----------|--------|
+| Retrieval | Add reranker | Multi-vector facets |
+| Graph | Enable similarity edges | Learned graph embeddings |
+| Memory | PII redaction | Cross-session goal evolution analytics |
+| Voice | Realtime streaming tokens | Emotion-aware prosody tuning |
+| Security | Fine-grained data tagging | ABAC / policy engine |
+| Evaluation | Add Langfuse scoring | Automated regression gating |
+
+---
+
+## 19. Glossary
+| Term | Definition |
+|------|------------|
+| RAG | Retrieval-Augmented Generation – augment LLM with external context |
+| VIP Fencing | Pre-LLM row-level filtering of restricted catalog rows |
+| HyDE | Hypothetical Document Embedding to improve semantic recall |
+| BFS Taxonomy | Breadth-first product expansion through concept nodes |
+| DFS Similarity | Depth-first trait overlap exploration from a seed product |
+| Semantic Cache | High-similarity first-turn Q&A shortcut |
+
+---
+
+## 20. Appendices
+Historical lesson-based evolution has been refactored out of the main narrative; prior incremental notes remain in `ImplementationLog.md` for audit and reasoning about decisions.
+
+---
+
+End of unified design document.
 
 ### Technical Stack
 
@@ -1228,6 +1525,324 @@ This basic architecture will be extended with:
 - Multi-agent systems
 - Security and evaluation frameworks
 - Kubernetes deployment and observability
+
+---
+
+## Lesson 5 – Memory & Real Voice Chat Architecture
+
+Lesson 5 introduces two major capability families: (1) Long‑term & contextual memory (conversation retention, semantic recall, user profile personalization) and (2) Real Voice Chat (hands‑free interaction). Both are designed with strict user isolation (row‑level fencing) and modular feature flags to remain optional in lower environments.
+
+### 1. Memory Overview
+
+Memory is divided into three distinct layers, each with clear lifecycle & access semantics:
+
+| Layer | Purpose | Storage | Access by Model | Tool(s) | Retention |
+|-------|---------|---------|-----------------|---------|-----------|
+| Raw Conversation Log | Auditable replay, summarization source | `conversations_raw` (1 row per conversation) | Not injected directly | None (internal only) | 7 days (configurable) |
+| Summarized Conversations | Semantic recall of past topics | `conversation_summaries` | Via `memory_search` tool (fenced by user) | memory_search | Indefinite (configurable) |
+| User Profile | Stable personalization facts (diet, allergens, likes) | `user_profiles` | ALWAYS injected (truncated) in system prompt | memory_write_profile (write‑only) + batch enrichment | Until deletion |
+
+Design Principle: The model never “browses” raw message transcripts; it queries only distilled summaries (privacy & token efficiency). Profile injection is read-only from model perspective; writes require explicit tool invocation or scheduled batch inference.
+
+### 2. Database Schemas (Memory Tables)
+
+#### 2.1 `conversations_raw`
+Stores entire conversation payload as JSON for summarization & auditing.
+
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | UUID | PK | Conversation primary key (generated) |
+| user_id | text | not null, indexed | From auth subject (sub) |
+| session_id | text | not null | Frontend thread / session handle |
+| started_at | timestamptz | not null | First user message time |
+| ended_at | timestamptz | null | Set when conversation idle > timeout or explicitly closed |
+| title | text | null | LLM-generated (batch) short name (≤ 8 words) |
+| messages | jsonb | not null | Array of `{role, content, ts}`; includes both user and assistant turns |
+| token_usage | jsonb | null | Aggregated counters (prompt, completion, total) |
+| created_at | timestamptz | default now() | Insert timestamp |
+| expires_at | timestamptz | indexed | `started_at + INTERVAL '7 days'` (retention) |
+| summary_status | text | default 'pending' | pending | processing | done | failed |
+
+Indexes: `(user_id, started_at DESC)`, GIN on `messages` (optional if ad‑hoc analytics), btree on `expires_at` for purge job.
+
+#### 2.2 `conversation_summaries`
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| id | UUID | PK | |
+| conversation_id | UUID | FK -> conversations_raw(id) on delete cascade | |
+| user_id | text | not null, indexed | Redundant for fenced search |
+| summary | text | not null | ≤ ~120 words neutral recap |
+| embedding | vector(2000) | not null | pgvector (summary embedding) |
+| salient_facts | jsonb | null | Optional structured bullets extracted (list of short strings) |
+| created_at | timestamptz | default now() | |
+| updated_at | timestamptz | default now() | |
+
+Indexes: HNSW on `embedding (cosine)`, `(user_id, created_at DESC)`. Optional btree on `conversation_id`.
+
+#### 2.3 `user_profiles`
+| Column | Type | Constraints | Notes |
+|--------|------|-------------|-------|
+| user_id | text | PK | |
+| profile | jsonb | not null | Flexible schema (see structure) |
+| updated_at | timestamptz | default now() | Refresh on merge |
+| version | integer | default 1 | For future migrations |
+
+JSON Structure (example):
+```json
+{
+  "dietary_preferences": ["vegetarian"],
+  "allergens": ["peanuts"],
+  "liked_products": ["<uuid>", "<uuid>"] ,
+  "disliked_products": [],
+  "favorite_categories": ["fresh-cheese-d4f2"],
+  "goals": ["reduce sugar"],
+  "notes": "Prefers local dairy options.",
+  "last_enriched_at": "2025-09-12T10:00:00Z"
+}
+```
+
+Merge Semantics: set-union for list fields, overwrite for scalars/notes. Controlled by backend (model cannot read profile raw).
+
+#### 2.4 `memory_enrichment_audit` (optional, enabled if `MEMORY_AUDIT_ENABLED=true`)
+| Column | Type | Notes |
+|--------|------|-------|
+| id | UUID | PK |
+| user_id | text | Indexed |
+| conversation_id | UUID | Nullable (null if batch synthetic) |
+| change_set | jsonb | Captures diff / applied patch |
+| created_at | timestamptz | Timestamp |
+
+### 3. Tool Interfaces
+
+#### 3.1 `memory_search`
+Function-call / tool schema:
+```json
+{
+  "name": "memory_search",
+  "description": "Search your past conversation summaries (only your own) to recall earlier context.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "query": {"type": "string", "description": "Natural language description of what to recall"},
+      "k": {"type": "integer", "default": 5, "minimum": 1, "maximum": 10}
+    },
+    "required": ["query"]
+  }
+}
+```
+Execution Flow:
+1. Embed `query` with same embedding model as summaries.
+2. Vector similarity restricted by `user_id = current_user` (STRICT FENCING — enforced in SQL, not left to LLM).
+3. Return top `k` results with: `conversation_id`, `summary`, optional `salient_facts`, `age_days`.
+4. NO raw messages are ever returned.
+
+#### 3.2 `memory_write_profile`
+Write-only patch; model supplies structured update, backend merges & persists.
+```json
+{
+  "name": "memory_write_profile",
+  "description": "Add or update stable user preference facts (diet, allergens, likes). The tool cannot read current profile.",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "dietary_preferences_add": {"type": "array", "items": {"type": "string"}},
+      "allergens_add": {"type": "array", "items": {"type": "string"}},
+      "liked_products_add": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-fA-F-]{36}$"}},
+      "disliked_products_add": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-fA-F-]{36}$"}},
+      "goals_add": {"type": "array", "items": {"type": "string"}},
+      "notes_append": {"type": "string", "description": "Short freeform note to append"}
+    }
+  }
+}
+```
+Backend merges arrays with set semantics (dedupe, case-normalize) and appends note (bounded length, e.g. +500 chars max growth per call). Returns `{ "status": "ok", "applied": { ... } }` (model sees confirmation only).
+
+### 4. System Prompt Injection (Profile)
+
+At conversation start (and optionally every N turns if updated) we inject a compact profile block:
+```
+<user_profile>
+dietary_preferences: vegetarian
+allergens: peanuts
+favorite_categories: fresh-cheese-d4f2
+goals: reduce sugar
+notes: Prefers local dairy options.
+</user_profile>
+```
+Truncation Rules:
+- Hard cap: `USER_PROFILE_MAX_TOKENS` (default 250 tokens). If exceeded: drop least recently referenced fields (order: `liked_products`, `disliked_products`, `notes` tail) until under limit.
+- Updated profile within a session triggers updated injection next turn (memoized hashed snapshot to avoid re-sending identical prompt content if not required).
+
+### 5. Summarization & Batch Pipeline
+
+Script: `data/scripts/summarize_conversations.py` (planned).
+
+Processing Criteria:
+- Select rows from `conversations_raw` where `summary_status='pending'` AND (`ended_at` < now() - interval '5 minutes' OR inactive for > N minutes) AND age < retention.
+
+LLM Structured Output Schema:
+```json
+{
+  "conversation_title": "Up to 8 words",
+  "summary": "<= 120 words neutral recap (no hallucinated facts)",
+  "salient_facts": ["short bullet", "another"],
+  "profile_updates": {
+    "dietary_preferences_add": [],
+    "allergens_add": [],
+    "liked_products_add": [],
+    "disliked_products_add": [],
+    "goals_add": [],
+    "notes_append": ""
+  }
+}
+```
+
+Pipeline Steps:
+1. Fetch candidate conversations.
+2. For each, call model with compressed conversation (messages clipped if extremely long; keep last 30 turns + earlier system & first user messages).
+3. Validate JSON against schema; on failure mark `summary_status='failed'` (retryable with `--retry-failed`).
+4. Compute embedding for `summary`; insert into `conversation_summaries`.
+5. Update `conversations_raw.title`, `summary_status='done'`.
+6. Apply `profile_updates` via same merge logic as tool; record diff in `memory_enrichment_audit` if enabled.
+
+Idempotency: Script skips if `summary_status='done'` unless `--force` specified.
+
+### 6. Retention & Purging
+
+Policy (default): Raw conversations purged after `MEMORY_CONVERSATION_RETENTION_DAYS` (default 7). Summaries retained indefinitely unless `MEMORY_SUMMARY_RETENTION_DAYS` set (optional). Purge script (`data/scripts/purge_memory.py`) executes:
+```sql
+DELETE FROM conversations_raw WHERE expires_at < now();
+-- Optional summary purge
+DELETE FROM conversation_summaries WHERE created_at < now() - INTERVAL '<days> days';
+```
+Cascade ensures summaries removed if raw conversation deleted and FK ON DELETE CASCADE chosen. (If summaries should outlive raw logs, FK uses ON DELETE SET NULL; we retain cascade for simpler alignment and privacy.)
+
+### 7. Security & Fencing
+
+- All memory search queries constrain by `user_id` at SQL layer (no cross-user exposure).
+- Tool descriptions explicitly state “only your own conversations.”
+- Batch enrich process uses the same user_id seeded; never aggregates across users.
+- Profile injection sanitized (strip control chars, enforce UTF-8, length bounds). No secrets stored.
+- Optional audit table for regulatory traceability of profile mutation.
+
+### 8. Privacy Considerations
+
+| Risk | Mitigation |
+|------|------------|
+| Model infers other users’ data | Strict `WHERE user_id = :current_user` on vector search |
+| Over-collection / retention | 7‑day raw log purge + configurable summary retention |
+| Prompt bloat / leakage | Token cap & field prioritization for profile block |
+| Uncontrolled profile drift | Controlled merge semantics + audit diffs |
+| Hallucinated profile updates | Require explicit tool call OR batch schema fields; validation of categories (allowlist for diet/allergens) |
+
+### 9. Voice Chat Architecture
+
+Goal: Minimal, robust voice-only conversational mode (no mixing text + voice mid-session) delivering real-time or near-real-time audio responses while preserving a text transcript stored like any other conversation.
+
+#### 9.1 Modes
+1. **Text Mode** (existing) – unchanged.
+2. **Voice Mode** – separate session; UI toggles “Start Voice Chat” which establishes a WebSocket (preferred) or HTTP streaming connection.
+
+#### 9.2 MVP Flow (Low Complexity – Batch Turn Streaming)
+1. Browser captures microphone chunks (e.g., 16kHz mono PCM) → periodically sends to backend `/voice/stream` WebSocket.
+2. Backend performs incremental Speech-to-Text (STT) using streaming Whisper (or chunked fallback) producing interim transcript segments.
+3. On user pause (VAD silence or push-to-talk release) backend finalizes transcript, appends as user message, runs standard model response pipeline (including RAG/agentic/memory as configured – may be restricted for latency) and obtains text reply.
+4. Text reply synthesized via TTS (OpenAI `gpt-5-voice` style or fallback TTS model) to audio frames streamed back over the same WebSocket.
+5. Raw audio NOT stored; only transcript + assistant text stored in `conversations_raw` (same retention).
+
+#### 9.3 Future (Optional) Realtime API Integration
+Abstract service to swap STT + TTS with unified Realtime model (bi-directional low-latency tokens + audio). This requires expanded event loop management; out-of-scope for initial implementation but design leaves upgrade path (WebSocket abstraction preserved).
+
+#### 9.4 Latency Optimization Options
+- Disable high-latency tools in voice mode by default (`VOICE_ALLOW_AGENTIC_TOOLS=false`).
+- Memory search allowed (fast, single pgvector call) – gated by `VOICE_ENABLE_MEMORY_SEARCH=true`.
+- If latency target unmet: fallback to semantic cache for first utterance, skip RAG if cache hit.
+
+#### 9.5 Voice Session Identification
+- Voice sessions produce a normal conversation row with a `messages` array where user messages include `{ "mode": "voice", "transcript": "..." }` and assistant messages optionally include `{ "mode": "voice" }`.
+- Additional column `mode` (ENUM text) could be added to `conversations_raw` for analytics (values: `text`, `voice`).
+
+### 10. Environment Variables (New)
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| MEMORY_ENABLED | true | Master feature flag |
+| MEMORY_CONVERSATION_RETENTION_DAYS | 7 | Raw log retention |
+| MEMORY_SUMMARY_RETENTION_DAYS | (unset) | Optional summary purge |
+| MEMORY_SUMMARY_MODEL | (chat model) | Override summarization model |
+| MEMORY_SUMMARY_BATCH_LIMIT | 50 | Summaries per batch run |
+| MEMORY_SUMMARY_MIN_AGE_MINUTES | 5 | Avoid summarizing active convos |
+| USER_PROFILE_MAX_TOKENS | 250 | Prompt budget for profile block |
+| MEMORY_AUDIT_ENABLED | false | Enable audit table writes |
+| VOICE_ENABLED | false | Enable voice endpoints/UI |
+| VOICE_MODEL | gpt-5-voice | TTS/STT integrated model (placeholder) |
+| VOICE_ALLOW_AGENTIC_TOOLS | false | Permit agentic tool calling during voice |
+| VOICE_ENABLE_MEMORY_SEARCH | true | Allow memory_search in voice mode |
+| STT_ENGINE | whisper | STT provider (whisper / external) |
+| TTS_ENGINE | openai | TTS provider |
+| VAD_MIN_SILENCE_MS | 1200 | Silence threshold to finalize utterance |
+
+### 11. Services & Components Additions
+
+| Component | Responsibility |
+|-----------|----------------|
+| MemoryRepository | CRUD for conversations, summaries, profiles |
+| MemoryService | High-level orchestration (store turn, fetch profile, search, write) |
+| MemorySummarizer (script + lib) | Batch summarization & enrichment |
+| ProfileInjector | Builds/truncates `<user_profile>` block |
+| VoiceSessionManager | WebSocket orchestration, VAD, buffering, STT segmentation |
+| STTAdapter / TTSAdapter | Pluggable interfaces (OpenAI Whisper / TTS) |
+
+### 12. API Additions
+
+| Endpoint | Method | Description |
+|----------|--------|-------------|
+| `/memory/search` | POST | (Optional REST surface) returns same payload as tool (auth required) |
+| `/memory/profile` | PATCH | Apply profile updates (mirror of tool for UI forms) |
+| `/voice/stream` | WS | Bidirectional audio+events (MVP chunked text fallback) |
+| `/voice/health` | GET | STT/TTS readiness check |
+
+### 13. Sequence – User Turn with Memory & Voice (Text Mode)
+```
+User Message -> (Check semantic cache if first turn) -> Persist message draft -> Inject profile -> RAG / Tools / Memory tool calls -> Model response -> Persist assistant turn -> (Optionally schedule summarization if conversation ended) -> Return stream
+```
+
+### 14. Failure Handling & Edge Cases
+| Case | Handling |
+|------|----------|
+| Summarization failure | Mark failed, retain raw, retry later |
+| Oversized profile | Truncate fields with deterministic order, log WARN once per session |
+| memory_search no hits | Return empty list + encourage user to be more specific |
+| STT partial errors | Skip segment, continue; if fatal send user error event |
+| Tool latency in voice | Abort tool after timeout & proceed with partial answer (log DF_META) |
+
+### 15. Testing Strategy (Outline)
+| Layer | Tests |
+|-------|-------|
+| Unit | Profile merge, memory_search SQL fencing, summary schema validation |
+| Integration | End-to-end summarization on fixture conversations, voice transcript round-trip (mock STT/TTS) |
+| Property | Set-union idempotency for profile list fields |
+| Performance | memory_search P95 under threshold (e.g., < 60ms on dev dataset) |
+| Security | Attempt cross-user search -> zero results |
+
+### 16. Implementation Order Justification
+1. Schemas & migrations (enables incremental dev)
+2. Persistence layer & profile injection (unblocks conversation storage immediately)
+3. Batch summarizer (creates searchable memory dataset)
+4. memory_search tool (provides retrieval value quickly)
+5. memory_write_profile tool (personalization feedback loop)
+6. Voice streaming endpoint (isolated concerns; can piggyback storage)
+7. Latency tuning & optional constraints
+
+### 17. Non-Goals (Lesson 5 Scope)
+- Cross-user collaborative memory (explicitly out-of-scope)
+- Vector search over full raw message content (summary-level only)
+- Real-time token-by-token audio synthesis (initial MVP uses chunked playback)
+- Automated privacy redaction (manual policy; future work could add PII filters)
+
+---
+
+End of Lesson 5 additions.
 
 ### Notes
 
