@@ -1547,23 +1547,20 @@ Design Principle: The model never “browses” raw message transcripts; it quer
 ### 2. Database Schemas (Memory Tables)
 
 #### 2.1 `conversations_raw`
-Stores entire conversation payload as JSON for summarization & auditing.
+Schema for raw conversation transcripts used for summarization and retention.
 
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
-| id | UUID | PK | Conversation primary key (generated) |
-| user_id | text | not null, indexed | From auth subject (sub) |
-| session_id | text | not null | Frontend thread / session handle |
-| started_at | timestamptz | not null | First user message time |
-| ended_at | timestamptz | null | Set when conversation idle > timeout or explicitly closed |
-| title | text | null | LLM-generated (batch) short name (≤ 8 words) |
-| messages | jsonb | not null | Array of `{role, content, ts}`; includes both user and assistant turns |
-| token_usage | jsonb | null | Aggregated counters (prompt, completion, total) |
-| created_at | timestamptz | default now() | Insert timestamp |
-| expires_at | timestamptz | indexed | `started_at + INTERVAL '7 days'` (retention) |
-| summary_status | text | default 'pending' | pending | processing | done | failed |
+| id | serial | PK | Surrogate key |
+| thread_id | text | not null, UNIQUE | External conversation / thread handle |
+| user_id | text | not null, indexed | Auth subject (Keycloak `sub`) |
+| messages | jsonb | not null | Array of `{role, content, created_at, mode}` |
+| summary_status | text | not null default 'pending' | CHECK: pending | processing | done | error |
+| created_at | timestamptz | default now() | Creation time |
+| updated_at | timestamptz | default now() | Updated by trigger |
+| expires_at | timestamptz | default now()+7 days, indexed | Retention cutoff |
 
-Indexes: `(user_id, started_at DESC)`, GIN on `messages` (optional if ad‑hoc analytics), btree on `expires_at` for purge job.
+Indexes: user_id, expires_at, summary_status. Trigger maintains `updated_at`.
 
 #### 2.2 `conversation_summaries`
 | Column | Type | Constraints | Notes |

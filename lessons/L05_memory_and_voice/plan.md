@@ -2,7 +2,7 @@
 
 High-level steps only – aligned with unified design. Each step considered complete when minimal working implementation + basic test exists.
 
-- [ ] Create `conversations_raw` table (SQL script) and indexes (user_id, expires_at)
+- [x] Create `conversations_raw` table (SQL script) and indexes (user_id, expires_at)
 - [ ] Implement storing conversations (user & assistant turns) in agent backend
 - [ ] Expose & build UI to list and view prior conversations (basic pagination)
 - [ ] Create `conversation_summaries` table (summary + embedding)

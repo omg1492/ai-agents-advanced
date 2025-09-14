@@ -31,6 +31,7 @@ from src.services.stock_service import StockService
 from src.services.semantic_cache_service import SemanticCacheService
 from src.services.agentic_search import AgenticSearchService
 from src.services.auth_service import AuthService
+from src.services.conversation_store import ConversationStore
 
 
 # Load environment variables
@@ -62,6 +63,7 @@ stock_service: StockService | None = None
 semantic_cache_service: SemanticCacheService | None = None
 auth_service: AuthService | None = None
 agentic_search_service: AgenticSearchService | None = None
+conversation_store: ConversationStore | None = None
 # Minimal session and history stores (state remains in Responses API)
 _threads: dict[str, ThreadModel] = {}
 _history: dict[str, list[MessageModel]] = {}
@@ -145,6 +147,14 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("Auth disabled")
         logger.info("Services initialized successfully")
+        # Initialize conversation persistence
+        global conversation_store
+        try:
+            from src.services.conversation_store import ConversationStore as _CS
+            conversation_store = _CS(cfg)
+        except Exception as ce:  # pragma: no cover
+            logger.warning(f"ConversationStore initialization failed: {ce}")
+            conversation_store = None
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         raise
@@ -328,6 +338,16 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
         timestamp=now,
     )
     _history[thread_id].append(user_msg)
+    # Persist user message immediately for durability
+    if conversation_store is not None:
+        try:
+            conversation_store.upsert_message(
+                thread_id=thread_id,
+                user_id=username,
+                message=conversation_store.build_message("user", payload.message, mode="chat"),
+            )
+        except Exception as pe:  # pragma: no cover
+            logger.warning(f"Persist user message failed thread={thread_id}: {pe}")
 
     # Use provider state via Responses API (if we already have a provider-generated response)
     prev_resp_id = _last_response_id.get(thread_id)
@@ -420,6 +440,15 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
         timestamp=now,
     )
     _history[thread_id].append(assistant_msg)
+    if conversation_store is not None:
+        try:
+            conversation_store.upsert_message(
+                thread_id=thread_id,
+                user_id=username,
+                message=conversation_store.build_message("assistant", text, mode="chat"),
+            )
+        except Exception as pe:  # pragma: no cover
+            logger.warning(f"Persist assistant message failed thread={thread_id}: {pe}")
 
     # Update thread metadata
     thread.message_count = len(_history[thread_id])
@@ -458,6 +487,15 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
         timestamp=now_iso,
     )
     _history.setdefault(thread_id, []).append(user_msg)
+    if conversation_store is not None:
+        try:
+            conversation_store.upsert_message(
+                thread_id=thread_id,
+                user_id=username,
+                message=conversation_store.build_message("user", payload.message, mode="chat"),
+            )
+        except Exception as pe:  # pragma: no cover
+            logger.warning(f"Persist streaming user message failed thread={thread_id}: {pe}")
 
     prev_resp_id = _last_response_id.get(thread_id)
 
@@ -792,6 +830,15 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
             timestamp=datetime.now(timezone.utc).isoformat(),
         )
         _history[thread_id].append(assistant_msg)
+        if conversation_store is not None:
+            try:
+                conversation_store.upsert_message(
+                    thread_id=thread_id,
+                    user_id=username,
+                    message=conversation_store.build_message("assistant", full_text, mode="chat"),
+                )
+            except Exception as pe:  # pragma: no cover
+                logger.warning(f"Persist streaming assistant message failed thread={thread_id}: {pe}")
         thread.message_count = len(_history[thread_id])
         thread.updated_at = datetime.now(timezone.utc).isoformat()
 
@@ -808,6 +855,26 @@ async def get_messages(thread_id: str, limit: int = 50, offset: int = 0, user_ct
     total = len(msgs)
     paginated = msgs[offset : offset + limit]
     return GetMessagesResponse(thread_id=thread_id, messages=paginated, total_count=total)
+
+
+@app.delete("/threads/{thread_id}")
+async def delete_thread(thread_id: str, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
+    """Delete a conversation thread (memory + persistence)."""
+    username, _, _ = user_ctx
+    existed = thread_id in _threads
+    _threads.pop(thread_id, None)
+    _history.pop(thread_id, None)
+    _last_response_id.pop(thread_id, None)
+    _semantic_cache_bootstrap.pop(thread_id, None)
+    db_deleted = 0
+    if conversation_store is not None:
+        try:
+            db_deleted = conversation_store.delete_conversation(thread_id, username)
+        except Exception as de:  # pragma: no cover
+            logger.warning(f"Failed deleting persisted conversation thread={thread_id}: {de}")
+    if not existed and db_deleted == 0:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    return {"thread_id": thread_id, "deleted": True}
 
 
 def main():

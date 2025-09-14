@@ -477,3 +477,33 @@ Refactored `docs/Design.md` from lesson-centric narrative into a thematic archit
 - Preserved all technical content (schemas, env vars, tool definitions, retrieval algorithms) while removing “Lesson X” headings for improved maintainability.
 - Added roadmap & glossary for onboarding clarity.
 No functional code changes; documentation-only refactor improving discoverability.
+### 2025-09-14 Conversations Raw Table (Memory Foundation Step 1)
+
+- Added `07_create_conversations_raw.sql` creating `conversations_raw` table (raw transcript storage) with:
+   - `thread_id` (unique), `user_id`, `messages JSONB`, lifecycle fields (`summary_status`, `summary_attempts`, `error_last`, `locked_at`)
+   - Retention column `expires_at` (default now()+7 days) to allow scheduled purge of raw logs post-summarization
+   - Touch trigger maintaining `updated_at` on any row change
+   - Indexes on `user_id`, `expires_at`, and `summary_status` (batch summarization pickup)
+- Purpose: Foundation for memory pipeline (subsequent steps: summaries, profile enrichment, memory search tools).
+- Design choices: `user_id` stored as TEXT for IdP portability; lightweight status enum via CHECK constraint instead of custom type for simpler migrations.
+      - 2025-09-14 Update: Simplified schema per request—removed `locked_at`, `summary_attempts`, and later `error_last` columns; batch summarizer will rely solely on `summary_status` plus age-based retry (no explicit locking / attempt counters / per-row error field).
+
+### 2025-09-14 Unified Data Import Orchestrator
+
+- Added `data/scripts/import_all.py` to discover and execute all `import_*.py` scripts in a deterministic order.
+- Preferred order encodes soft dependencies: embeddings/tables first, then graph base, then taxonomy enrichment.
+- Features: `--dry-run`, `--only`, `--exclude`, `--pattern`, `--stop-on-error`, and `--list`.
+- Provides concise success/failure summary; isolates each script in its own subprocess for clean logging.
+- Rationale: One-command developer convenience to rebuild demo dataset reliably without memorizing individual script names.
+
+### 2025-09-14 Conversation Persistence (Memory Step 2)
+
+- Implemented `ConversationStore` service using SQLAlchemy for `conversations_raw` table writes.
+- Upserts after EACH individual message (user and assistant) to survive disconnects between turns.
+- Message JSON shape: {role, content, created_at, mode} aligned with future summarization pipeline expectations.
+- Integrated into `/threads/{id}/messages` (normal + streaming) endpoints; errors are non-fatal (logged, continue in-memory).
+- Added DELETE `/threads/{thread_id}` endpoint to remove both in-memory structures and persisted transcript (foundation for user-initiated deletion).
+- Added unit test `test_conversation_store_unit.py` validating append + delete behavior.
+- Added integration test `test_conversation_persistence_integration.py` (skips gracefully if DDL not applied) verifying DB insert & delete lifecycle.
+- Design choice: JSONB array concatenation via `messages || :append::jsonb` for atomic append; avoids race conditions of fetch/merge/write with separate SELECT.
+ - 2025-09-14 Fix: Replaced `:param::jsonb` cast style with `CAST(:param AS jsonb)` in `ConversationStore` due to psycopg2/SQLAlchemy tokenization quirk on Windows that left `:append` / `:messages` unbound causing `syntax error at or near ":"`. Logic unchanged (still UPDATE then conditional INSERT) but now portable across dev environments.
