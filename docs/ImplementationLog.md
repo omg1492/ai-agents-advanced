@@ -573,3 +573,38 @@ Updated Lesson 5 plan checkbox to reflect completion of this summarization step.
    - Message fetching unchanged for existing in-memory threads; pagination still applied to in-memory slice for now (future: DB-side windowing if long histories grow).
 - Implementation considerations: kept UPDATE-then-INSERT append strategy; creation uses `ON CONFLICT DO NOTHING` since initial insert is simple and avoids race with first message append.
 - Updated ImplementationLog & DDL comments; summarization pipeline remains future work (will update title post-summarization).
+
+### 2025-09-14 Added user_profiles Table (Memory Step 4)
+
+- Added `09_create_user_profiles.sql` creating `user_profiles` table with columns: `user_id` (PK, TEXT), `profile JSONB`, `created_at`, `updated_at` plus touch trigger.
+- Purpose: persistent consolidated per-user memory document (preferences, goals, dietary constraints, inferred traits) updated by forthcoming enrichment batch.
+- Chose single-row-per-user (no history) to keep initial design simple; future evolution could add audit table if change tracking needed.
+- JSONB kept schemaless for iterative enrichment—script will perform atomic read/merge/write updates.
+
+### 2025-09-14 User Profiles Initial Import Script
+
+- Added `data/scripts/import_user_profiles.py` to ingest initial user profile data from `user_profiles.json`.
+- Idempotent upsert pattern: existing profiles are updated, new ones inserted.
+- Profiles are simple key/value pairs (string) in JSONB; no complex nesting or types.
+- Supports dry-run mode (`--dry-run`) to preview actions without database changes.
+- Rationale: kickstarts user profile data population for new memory pipeline, allowing immediate testing of profile-aware features.
+
+### 2025-09-14 User Profile Enrichment Script (Memory Step 5)
+- Added `data/scripts/enrich_user_profiles.py` implementing batch enrichment of `user_profiles` from `conversation_summaries` + `conversations_raw` (recency‑ordered, capped by configurable character budget).
+- Sends existing profile (if any) plus capped summaries then raw messages to model with strict JSON-only merge instructions (no hallucination, dedupe arrays, remove contradicted facts, schemaless but guided structure: style, diet, preferences, goals, household, favorite_dishes, health, notes).
+- Character budget default 100k (CLI `--max-chars`); prioritizes summaries for compression efficiency, then most recent raw messages.
+- Idempotent UPSERT into `user_profiles`; dry-run mode prints merged JSON.
+
+### 2025-09-14 Profile Enrichment Prompt Readability
+- Refactored `enrich_user_profiles.py` to define SYSTEM_PROMPT with a single triple-quoted multiline string (improves maintainability vs. concatenated literals, no behavioral change).
+
+### 2025-09-14 Profile Enrichment Parsing Robustness
+- Improved `_generate_profile` to extract model text across multiple response shapes (aggregate `output_text`, per-item `output_text`, nested message parts, heuristic JSON scan). Added `PROFILE_ENRICH_DEBUG` env flag for verbose response dumping. Graceful skip when no text produced instead of failing whole batch.
+
+### 2025-09-14 Logging Level Env Variable
+- Added `LOG_LEVEL` to `data/scripts/.env` & `.env.template` and updated `enrich_user_profiles.py` to honor it (default INFO). Enables quick verbosity adjustments (e.g., DEBUG with profile enrichment debug flag).
+
+### 2025-09-14 Profile Enrichment Outbound Payload Debug Logging
+- Enhanced `_generate_profile` in `data/scripts/enrich_user_profiles.py` to emit the full outbound JSON payload (truncated to 8000 chars with length metadata) when `LOG_LEVEL=DEBUG`.
+- Purpose: allow verification of exactly what context (existing_profile, conversation_summaries, recent_messages) is sent to the model during enrichment for auditing / troubleshooting reasoning-only responses.
+- Truncation safeguard prevents excessive log volume when large character budgets are used; clearly annotates truncated size. No behavioral change to generation logic.
