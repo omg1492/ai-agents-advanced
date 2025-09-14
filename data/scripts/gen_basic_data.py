@@ -148,8 +148,7 @@ class FarmDataGenerator:
                         {"role": "system", "content": "You are a creative but accurate farm product data generator. Generate realistic allergen data."},
                         {"role": "user", "content": prompt}
                     ],
-                    response_format=AllergenBatch,
-                    temperature=0.8
+                    response_format=AllergenBatch
                 )
                 
                 # Handle potential refusal
@@ -219,8 +218,7 @@ class FarmDataGenerator:
                         {"role": "system", "content": "You are generating realistic farm product certification data. Make them sound official and professional."},
                         {"role": "user", "content": prompt}
                     ],
-                    response_format=CertificationBatch,
-                    temperature=0.7
+                    response_format=CertificationBatch
                 )
                 
                 # Handle potential refusal

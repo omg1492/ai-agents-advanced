@@ -1614,7 +1614,7 @@ Schema for raw conversation transcripts used for summarization and retention.
 | thread_id | text | not null, UNIQUE | External conversation / thread handle |
 | user_id | text | not null, indexed | Auth subject (Keycloak `sub`) |
 | title | text | not null | can be changed by user |
-| messages | jsonb | not null | Array of `{role, content, created_at, mode}` |
+| messages | jsonb | not null | Array of minimal objects `{role, content}` (ordering defines chronology) |
 | summary_status | text | not null default 'pending' | CHECK: pending | processing | done | error |
 | created_at | timestamptz | default now() | Creation time |
 | updated_at | timestamptz | default now() | Updated by trigger |
@@ -1814,7 +1814,7 @@ Abstract service to swap STT + TTS with unified Realtime model (bi-directional l
 - If latency target unmet: fallback to semantic cache for first utterance, skip RAG if cache hit.
 
 #### 9.5 Voice Session Identification
-- Voice sessions produce a normal conversation row with a `messages` array where user messages include `{ "mode": "voice", "transcript": "..." }` and assistant messages optionally include `{ "mode": "voice" }`.
+- Voice sessions produce the same minimal `{role, content}` objects; any modality metadata (e.g. voice) is tracked outside the persisted messages to keep storage lean.
 - Additional column `mode` (ENUM text) could be added to `conversations_raw` for analytics (values: `text`, `voice`).
 
 ### 10. Environment Variables (New)

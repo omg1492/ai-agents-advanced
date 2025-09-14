@@ -368,15 +368,22 @@ async def get_thread(thread_id: str, user_ctx: tuple[str, bool, dict] = Depends(
             # Load messages into in-memory history lazily
             try:
                 msgs = conversation_store.hydrate_messages_if_missing(thread_id, username)
-                _history[thread_id] = [
-                    MessageModel(
-                        message_id=os.urandom(8).hex(),
-                        thread_id=thread_id,
-                        role=m.get("role"),
-                        content=m.get("content"),
-                        timestamp=m.get("created_at"),
-                    ) for m in msgs
-                ]
+                # Persisted messages now only contain role+content. We synthesize timestamps
+                # for in-memory display using thread created_at (or current time) and monotonic
+                # ordering (not stored back to DB).
+                base_ts = datetime.now(timezone.utc).isoformat()
+                synthesized = []
+                for idx, m in enumerate(msgs):
+                    synthesized.append(
+                        MessageModel(
+                            message_id=os.urandom(8).hex(),
+                            thread_id=thread_id,
+                            role=m.get("role"),
+                            content=m.get("content"),
+                            timestamp=base_ts,
+                        )
+                    )
+                _history[thread_id] = synthesized
             except Exception as me:  # pragma: no cover
                 logger.warning(f"Hydration messages failed thread={thread_id}: {me}")
     if not thread:
@@ -410,7 +417,7 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
             conversation_store.upsert_message(
                 thread_id=thread_id,
                 user_id=username,
-                message=conversation_store.build_message("user", payload.message, mode="chat"),
+                message=conversation_store.build_message("user", payload.message),
             )
         except Exception as pe:  # pragma: no cover
             logger.warning(f"Persist user message failed thread={thread_id}: {pe}")
@@ -511,7 +518,7 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
             conversation_store.upsert_message(
                 thread_id=thread_id,
                 user_id=username,
-                message=conversation_store.build_message("assistant", text, mode="chat"),
+                message=conversation_store.build_message("assistant", text),
             )
         except Exception as pe:  # pragma: no cover
             logger.warning(f"Persist assistant message failed thread={thread_id}: {pe}")
@@ -558,7 +565,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
             conversation_store.upsert_message(
                 thread_id=thread_id,
                 user_id=username,
-                message=conversation_store.build_message("user", payload.message, mode="chat"),
+                message=conversation_store.build_message("user", payload.message),
             )
         except Exception as pe:  # pragma: no cover
             logger.warning(f"Persist streaming user message failed thread={thread_id}: {pe}")
@@ -901,7 +908,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                 conversation_store.upsert_message(
                     thread_id=thread_id,
                     user_id=username,
-                    message=conversation_store.build_message("assistant", full_text, mode="chat"),
+                    message=conversation_store.build_message("assistant", full_text),
                 )
             except Exception as pe:  # pragma: no cover
                 logger.warning(f"Persist streaming assistant message failed thread={thread_id}: {pe}")
@@ -933,13 +940,14 @@ async def get_messages(thread_id: str, limit: int = 50, offset: int = 0, user_ct
                 _threads[thread_id] = hydrated
                 try:
                     msgs = conversation_store.hydrate_messages_if_missing(thread_id, username)
+                    base_ts = datetime.now(timezone.utc).isoformat()
                     _history[thread_id] = [
                         MessageModel(
                             message_id=os.urandom(8).hex(),
                             thread_id=thread_id,
                             role=m.get("role"),
                             content=m.get("content"),
-                            timestamp=m.get("created_at"),
+                            timestamp=base_ts,
                         ) for m in msgs
                     ]
                 except Exception as me:  # pragma: no cover

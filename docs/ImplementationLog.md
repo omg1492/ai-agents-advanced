@@ -2,6 +2,13 @@
 ### 2025-09-14 Conversation Summaries Schema Adjustment
 ### 2025-09-14 Added conversation_summaries DDL Script
 
+### 2025-09-14 Simplified Persisted Message Schema
+Persisted `conversations_raw.messages` entries reduced from `{role, content, created_at, mode}` to minimal `{role, content}` to:
+ - Eliminate redundant per-message timestamps ( ordering already preserved by array order ; coarse timing via row `updated_at`).
+ - Remove unused `mode` flag (voice / chat modality will be tracked separately when implemented).
+ - Align with newly generated seed conversations which already emit simplified objects.
+Updated `ConversationStore.build_message`, all call sites in `main.py`, and `docs/Design.md` (table + voice note). Hydration now synthesizes in-memory timestamps for UI only.
+
 Created `data/scripts/sql/tables/08_create_conversation_summaries.sql` implementing the new schema (thread_id FK, one row per (user_id, thread_id), 2000-d embedding, HNSW index, updated_at trigger). Uses `gen_random_uuid()` for primary key (requires `pgcrypto` extension present – same assumption as existing vector setup). Matches design decision to drop `salient_facts` and pivot to `thread_id` instead of surrogate conversation id. Pending: summarization batch script to populate rows and memory_search implementation.
 
 
@@ -517,6 +524,32 @@ No functional code changes; documentation-only refactor improving discoverabilit
  - 2025-09-14 Fix: Replaced `:param::jsonb` cast style with `CAST(:param AS jsonb)` in `ConversationStore` due to psycopg2/SQLAlchemy tokenization quirk on Windows that left `:append` / `:messages` unbound causing `syntax error at or near ":"`. Logic unchanged (still UPDATE then conditional INSERT) but now portable across dev environments.
 
 ### 2025-09-14 Conversation Listing & Hydration (Memory Step 2b)
+### 2025-09-14 Summarization Batch & Sample Conversation Generation (Memory Step 3)
+
+Implemented two new data scripts:
+
+1. `data/scripts/gen_conversations.py` seeds 5 realistic but concise demo conversations into `conversations_raw` with `summary_status='pending'`. Idempotent via pre-insert existence check. Provides coverage of greeting, product inquiry, dietary preference, stock curiosity, and simple recipe guidance—sufficient variety for summarizer prompt evaluation.
+2. `data/scripts/process_conversations.py` performs batch summarization of pending transcripts:
+   - Selects rows with `summary_status='pending'` (minimum message count configurable) and builds a trimmed transcript (`ROLE: content` lines, truncating very long turns).
+   - Uses unified OpenAI Responses API (model from `OPENAI_MODEL`) to generate a neutral recap (<=120 words, no PII/speculation) then embeds the summary (`OPENAI_EMBEDDING_MODEL`, 2000 dims) and UPSERTs into `conversation_summaries`.
+   - Marks source row `summary_status='done'` or `error` on failure; continues processing remaining rows (no hard stop on individual errors for resilience in early pipeline phase).
+   - CLI flags: `--limit` (default 20), `--min-messages` (default 2), `--dry-run` (preview without writes).
+
+Rationale: Establishes minimal end-to-end memory summarization loop enabling the next steps (memory_search tool, profile enrichment). Chose sequential processing and simple status field to keep early complexity low; conflict-safe via ON CONFLICT (user_id, thread_id) for idempotent updates. Future enhancements (if needed): optimistic status transition (`pending`→`processing`), retry backoff per row, token usage accounting, and extraction of candidate profile facts.
+
+Updated Lesson 5 plan checkbox to reflect completion of this summarization step.
+
+2025-09-14 Update: Refactored `gen_conversations.py` to use a single configurable user id (default `user1`) instead of multiple demo users and expanded scenarios to include richer multi‑turn transcripts (up to 6 turns) covering preference storage, follow‑ups, and mild product queries. Added CLI flags `--user-id` and `--max` and environment override `GEN_CONV_USER_ID` for flexibility. Purpose: align with requirement for per‑user summarization pipeline tests and simplify memory search expectations (all summaries attributed to one user).
+2025-09-14 Update 2: Simplified seeded conversation message objects to only include `role` and `content` keys (removed `created_at`, `mode`) to keep raw transcripts minimal for summarization tests. Summarization pipeline already only reads these two fields; other services generating live chats still persist richer schema, which is acceptable (downstream code tolerates missing keys via `.get()`).
+2025-09-14 Update 3: `gen_conversations.py` now truncates `conversations_raw` (TRUNCATE ... CASCADE) before inserting sample threads to guarantee a clean deterministic dataset for summarization regression tests. Warning added in docstring to clarify dev-only usage.
+
+2025-09-14 Update 4: Reworked `process_conversations.py` summarization strategy:
+ - Removed intermediate plain-text transcript construction; model now receives the exact JSON array of `{role, content}` objects.
+ - Introduced richer system prompt emphasizing: user intents, explicit preferences, product/ingredient interests, recommendations, decisions/resolutions, unresolved follow-ups.
+ - Increased summary allowance to <=250 words (token cap raised) while still enforcing neutral, factual style and exclusion of greetings/small talk.
+ - Enforced output purity: no labels, JSON, bullet headers, or preambles—just the summary text (or precise fallback sentence if empty).
+ - Motivation: reduce transformation loss / truncation risk, preserve ordering & raw phrasing for higher fidelity preference extraction in later enrichment steps.
+
 
 - Added `title` column to `conversations_raw` DDL (separate from messages JSON) with default `Untitled conversation` and comment clarifying summarizer/user edit path.
 - `ConversationStore` enhancements:

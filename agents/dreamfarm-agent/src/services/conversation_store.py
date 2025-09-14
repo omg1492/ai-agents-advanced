@@ -3,21 +3,23 @@
 Stores per-thread conversation messages in PostgreSQL table `conversations_raw`.
 
 Schema (see data/scripts/sql/tables/07_create_conversations_raw.sql):
-  id serial PK
-  thread_id text unique
-  user_id text
-  messages jsonb (ordered array of message objects)
-  summary_status text (pending|processing|done|error)
-  created_at timestamptz default now()
-  updated_at timestamptz default now()
-  expires_at timestamptz default now()+interval '7 days'
+    id serial PK
+    thread_id text unique
+    user_id text
+    messages jsonb (ordered array of message objects)
+    summary_status text (pending|processing|done|error)
+    created_at timestamptz default now()
+    updated_at timestamptz default now()
+    expires_at timestamptz default now()+interval '7 days'
 
 Design:
-  - Append-only semantics at logical level: we replace full JSONB array each update.
-  - Each turn (user + assistant) triggers an upsert ensuring durability even if client disconnects
-    after user message or before assistant message; we persist after each message separately.
-  - Message format mirrors LLM usage: {"role": "user|assistant", "content": str, "created_at": iso, "mode": "chat"}.
-  - All methods are async-compatible but use sync SQLAlchemy engine (lightweight writes).
+    - Append-only semantics at logical level: we replace full JSONB array each update.
+    - Each turn (user + assistant) triggers an upsert ensuring durability even if client disconnects
+        after user message or before assistant message; we persist after each message separately.
+    - Persisted message JSON is intentionally minimal: {"role": "user|assistant", "content": str}.
+        (Timestamps / mode flags are *not* stored to keep storage lean and reproducible. Any runtime
+        timestamp needs are handled in-memory; ordering relies on array order + row updated_at.)
+    - All methods are async-compatible but use sync SQLAlchemy engine (lightweight writes).
 """
 from __future__ import annotations
 
@@ -164,13 +166,14 @@ class ConversationStore:
         """Helper used by API to load messages when not in memory (server restart, cache miss)."""
         return self.fetch_messages(thread_id, user_id)
 
-    def build_message(self, role: str, content: str, mode: str = "chat") -> Dict[str, Any]:
-        return {
-            "role": role,
-            "content": content,
-            "created_at": self._utcnow(),
-            "mode": mode,
-        }
+    def build_message(self, role: str, content: str) -> Dict[str, Any]:
+        """Return minimal persisted message structure.
+
+        Only role and content are stored (no per-message timestamp or mode). This keeps
+        the DB representation stable and small; temporal ordering is derived from array
+        position and `updated_at` column on the parent row.
+        """
+        return {"role": role, "content": content}
 
     def rename_thread(self, thread_id: str, user_id: str, new_title: str) -> int:
         """Rename a thread title. Returns number of rows updated (0 if not found)."""
