@@ -273,7 +273,7 @@ Key tables (abbreviated – detailed columns preserved from earlier sections):
 | semantic_cache | question, answer, embedding |
 | concept_embeddings | concept_type, concept_id, embedding |
 | conversations_raw | messages jsonb, expires_at |
-| conversation_summaries | summary, embedding, salient_facts |
+| conversation_summaries | summary, embedding |
 | user_profiles | profile jsonb |
 
 Indexes: HNSW for vectors, GIN for FTS, btree for lookup & retention scans.
@@ -1626,15 +1626,14 @@ Indexes: user_id, expires_at, summary_status. Trigger maintains `updated_at`.
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
 | id | UUID | PK | |
-| conversation_id | UUID | FK -> conversations_raw(id) on delete cascade | |
+| thread_id | text | FK -> conversations_raw(thread_id) ON DELETE CASCADE | External stable handle |
 | user_id | text | not null, indexed | Redundant for fenced search |
 | summary | text | not null | ≤ ~120 words neutral recap |
 | embedding | vector(2000) | not null | pgvector (summary embedding) |
-| salient_facts | jsonb | null | Optional structured bullets extracted (list of short strings) |
 | created_at | timestamptz | default now() | |
 | updated_at | timestamptz | default now() | |
 
-Indexes: HNSW on `embedding (cosine)`, `(user_id, created_at DESC)`. Optional btree on `conversation_id`.
+Indexes: HNSW on `embedding (cosine)`, `(user_id, created_at DESC)`, UNIQUE(user_id, thread_id) to ensure a single summary per thread.
 
 #### 2.3 `user_profiles`
 | Column | Type | Constraints | Notes |
@@ -1665,7 +1664,7 @@ Merge Semantics: set-union for list fields, overwrite for scalars/notes. Control
 |--------|------|-------|
 | id | UUID | PK |
 | user_id | text | Indexed |
-| conversation_id | UUID | Nullable (null if batch synthetic) |
+| conversation_id | UUID | Nullable (null if batch synthetic) | (May be renamed to thread_id in future migration for consistency) |
 | change_set | jsonb | Captures diff / applied patch |
 | created_at | timestamptz | Timestamp |
 
@@ -1690,7 +1689,7 @@ Function-call / tool schema:
 Execution Flow:
 1. Embed `query` with same embedding model as summaries.
 2. Vector similarity restricted by `user_id = current_user` (STRICT FENCING — enforced in SQL, not left to LLM).
-3. Return top `k` results with: `conversation_id`, `summary`, optional `salient_facts`, `age_days`.
+3. Return top `k` results with: `thread_id`, `summary`, `age_days`.
 4. NO raw messages are ever returned.
 
 #### 3.2 `memory_write_profile`
@@ -1742,7 +1741,6 @@ LLM Structured Output Schema:
 {
   "conversation_title": "Up to 8 words",
   "summary": "<= 120 words neutral recap (no hallucinated facts)",
-  "salient_facts": ["short bullet", "another"],
   "profile_updates": {
     "dietary_preferences_add": [],
     "allergens_add": [],

@@ -1,4 +1,12 @@
 ## 2025-12-09
+### 2025-09-14 Conversation Summaries Schema Adjustment
+### 2025-09-14 Added conversation_summaries DDL Script
+
+Created `data/scripts/sql/tables/08_create_conversation_summaries.sql` implementing the new schema (thread_id FK, one row per (user_id, thread_id), 2000-d embedding, HNSW index, updated_at trigger). Uses `gen_random_uuid()` for primary key (requires `pgcrypto` extension present – same assumption as existing vector setup). Matches design decision to drop `salient_facts` and pivot to `thread_id` instead of surrogate conversation id. Pending: summarization batch script to populate rows and memory_search implementation.
+
+
+Design change: Replaced surrogate `conversation_id` FK in `conversation_summaries` with the externally stable `thread_id` and removed `salient_facts` column (was optional / unused in code). Rationale: (1) Avoid dual identifiers (`id` vs `thread_id`) in downstream joins and API responses; (2) Simplify memory search output to the minimal fields actually consumed (thread_id, summary, age); (3) Remove speculative `salient_facts` structure to keep schema lean until a concrete enrichment use‑case emerges. Added UNIQUE(user_id, thread_id) recommendation in design doc to enforce one summary per thread. Code will be aligned in a subsequent migration step (pending). If desired, we can similarly rename `memory_enrichment_audit.conversation_id` → `thread_id` in a follow-up for consistency.
+
 
 ### Updated Agenda Documentation for Lesson 04 Implementation
 

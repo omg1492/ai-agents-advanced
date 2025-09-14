@@ -2,7 +2,7 @@
 -- Stores generic question/answer pairs with vector embeddings of the question
 -- Safe to re-run in development (drops and recreates table)
 
-DROP TABLE IF EXISTS public.semantic_cache;
+DROP TABLE IF EXISTS public.semantic_cache CASCADE;
 
 CREATE TABLE public.semantic_cache (
     id          SERIAL PRIMARY KEY,

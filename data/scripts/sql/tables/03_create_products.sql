@@ -1,7 +1,7 @@
 -- Create products table for hybrid search (pgvector + FTS)
 
 -- Drop table if it exists (for development convenience)
-DROP TABLE IF EXISTS public.products;
+DROP TABLE IF EXISTS public.products CASCADE;
 
 -- Create products table
 CREATE TABLE public.products (

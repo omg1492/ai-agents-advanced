@@ -3,7 +3,7 @@
 -- Includes tsvector column (maintained by trigger) for full-text search over combined_text
 
 -- Drop table if it exists (for development)
-DROP TABLE IF EXISTS public.simple_products;
+DROP TABLE IF EXISTS public.simple_products CASCADE;
 
 -- Create simple_products table
 CREATE TABLE public.simple_products (

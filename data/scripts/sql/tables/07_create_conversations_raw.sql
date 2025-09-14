@@ -3,7 +3,7 @@
 -- Summaries & user profile enrichment will operate off this table.
 -- Safe to re-run in development (drops then recreates table).
 
-DROP TABLE IF EXISTS public.conversations_raw;
+DROP TABLE IF EXISTS public.conversations_raw CASCADE;
 
 CREATE TABLE public.conversations_raw (
   id             SERIAL PRIMARY KEY,

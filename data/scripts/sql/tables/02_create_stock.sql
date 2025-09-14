@@ -1,7 +1,7 @@
 -- Create stock table to track per-producer product quantities
 
 -- Drop table if it exists (for development convenience)
-DROP TABLE IF EXISTS public.stock;
+DROP TABLE IF EXISTS public.stock CASCADE;
 
 -- Create stock table
 CREATE TABLE public.stock (
