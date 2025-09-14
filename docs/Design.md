@@ -121,11 +121,28 @@ All new memory & voice variables documented in section 11.
 ---
 
 ## 7. Conversation & Session Management
-- Lightweight `/threads` API issues session IDs.
-- Backend persists minimal mapping + (planned) full transcript store in `conversations_raw` (when memory enabled).
-- Responses API `previous_response_id` maintains provider-side continuity.
-- Streaming endpoint reconstructs conversation context via stored messages + profile injection.
-- Semantic cache only applies to first user turn.
+Conversation handling now has a lightweight in‑memory layer plus a durable raw transcript store.
+
+Current mechanics:
+1. Thread Lifecycle
+  - `POST /threads` creates a thread ID and immediately persists an empty row in `conversations_raw` with an initial `title` (client supplied or generated: "Dream Farm Chat <timestamp>").
+  - Title is stored server‑side so it survives restarts (new `title` column added to `conversations_raw`).
+2. Message Persistence
+  - Each user and assistant turn is appended atomically to the JSONB `messages` array (UPDATE then conditional INSERT for portability across drivers) right after it is accepted / generated.
+  - If persistence fails, it is logged (warning) but does not block the user experience.
+3. Listing Threads
+  - `GET /threads` returns the most recent conversations for the authenticated user ordered by `updated_at DESC`.
+  - Default page size: 10 (minimal main screen footprint). Supports `limit` (capped) + `offset` for pagination.
+4. Hydration / Fallback
+  - On first access after a backend restart, if a thread isn't in memory the server lazily hydrates `_threads` and `_history` from the persisted JSONB messages (mapping each JSON object to an internal message model with synthesized IDs).
+  - Subsequent streaming / message operations proceed using in‑memory state + continued persistence.
+5. Deletion
+  - `DELETE /threads/{id}` removes in‑memory caches and the persisted row (idempotent; 404 if neither existed).
+6. Renaming
+  - `PUT /threads/{id}/title` updates only the `title` column (validation: non‑empty, max 160 chars, ownership enforced by `user_id`). No PATCH variant is exposed (API deliberately simplified to a single canonical method).
+7. Semantic Cache Interaction
+  - Still only considered on the very first user message (history length == 1 after hydration).
+
 
 ---
 
@@ -268,6 +285,10 @@ Indexes: HNSW for vectors, GIN for FTS, btree for lookup & retention scans.
 |----------|--------|---------|
 | /chat | POST | Single-turn continuity chat (previous_response_id optional) |
 | /threads | POST | Create conversation thread |
+| /threads | GET | List recent threads (default limit 10) |
+| /threads/{id} | GET | Get thread metadata (title, counts, timestamps) |
+| /threads/{id}/title | PUT | Rename thread (update title) |
+| /threads/{id} | DELETE | Delete thread (transcript + in-memory cache) |
 | /threads/{id}/messages | POST | Append message + get assistant response |
 | /threads/{id}/messages/stream | POST | Streaming assistant response |
 | /threads/{id}/messages | GET | Paged history (text mode) |
@@ -912,6 +933,41 @@ Create a new conversation thread.
 }
 ```
 
+##### PUT /threads/{thread_id}/title
+Rename (retitle) an existing thread. Only the owning user may rename a thread.
+
+**Request Body:**
+```json
+{
+  "title": "New concise title"
+}
+```
+Validation: non-empty after trimming, <= 160 characters.
+
+**Response:**
+```json
+{
+  "thread_id": "string (UUID)",
+  "title": "New concise title",
+  "updated_at": "string (ISO 8601)"
+}
+```
+
+Errors:
+- 404 if thread not found (or not owned by user)
+- 422 on validation failure
+
+##### DELETE /threads/{thread_id}
+Delete a thread and its persisted raw transcript. Idempotent (second delete returns 404).
+
+**Response:**
+```json
+{
+  "status": "deleted",
+  "thread_id": "string (UUID)"
+}
+```
+
 ##### GET /threads/{thread_id}
 Get thread information.
 
@@ -1023,6 +1079,9 @@ class CreateThreadResponse(BaseModel):
     title: str
     created_at: str
     updated_at: str
+
+class ThreadRenameRequest(BaseModel):
+  title: constr(min_length=1, max_length=160)
 ```
 
 #### Message (Pydantic)
@@ -1554,6 +1613,7 @@ Schema for raw conversation transcripts used for summarization and retention.
 | id | serial | PK | Surrogate key |
 | thread_id | text | not null, UNIQUE | External conversation / thread handle |
 | user_id | text | not null, indexed | Auth subject (Keycloak `sub`) |
+| title | text | not null | can be changed by user |
 | messages | jsonb | not null | Array of `{role, content, created_at, mode}` |
 | summary_status | text | not null default 'pending' | CHECK: pending | processing | done | error |
 | created_at | timestamptz | default now() | Creation time |

@@ -3,8 +3,8 @@
 High-level steps only – aligned with unified design. Each step considered complete when minimal working implementation + basic test exists.
 
 - [x] Create `conversations_raw` table (SQL script) and indexes (user_id, expires_at)
-- [ ] Implement storing conversations (user & assistant turns) in agent backend
-- [ ] Expose & build UI to list and view prior conversations (basic pagination)
+- [x] Implement storing conversations (user & assistant turns) in agent backend
+- [x] Expose & build UI to list and view prior conversations
 - [ ] Create `conversation_summaries` table (summary + embedding)
 - [ ] Batch script to convert raw conversations → summaries (title, summary, embedding, status updates)
 - [ ] Add memory search tool (user‑fenced semantic similarity over summaries) and register with LLM

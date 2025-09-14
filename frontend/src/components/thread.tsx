@@ -24,8 +24,30 @@ import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/markdown-text";
 import { TooltipIconButton } from "@/components/tooltip-icon-button";
 import { useEffect, useState } from "react";
+import { dreamFarmChatAdapter } from '@/services/chatAdapter';
 
-export const Thread: FC = () => {
+interface ThreadProps { threadId?: string | null }
+
+export const Thread: FC<ThreadProps> = ({ threadId }) => {
+  // NOTE: assistant-ui maintains internal state; switching key in parent remounts.
+  // We could add future hydration logic here using threadId to fetch history.
+  const [historyBlocks, setHistoryBlocks] = useState<any[]>([]);
+  useEffect(() => {
+  // Clear when switching (fresh mount already, but ensure)
+  setHistoryBlocks([]);
+  if (!threadId) { return; }
+    const handler = (e: Event) => {
+      const ce = e as CustomEvent;
+      if (ce.detail?.threadId !== threadId) return;
+      const msgs = ce.detail.messages as any[];
+      const mapped = msgs.map(m => ({ role: m.role, content: m.content }));
+      setHistoryBlocks(mapped);
+    };
+    window.addEventListener('df-thread-history', handler as EventListener);
+    // Trigger preload (adapter prevents duplicate work)
+    dreamFarmChatAdapter.preloadMessages(threadId);
+    return () => window.removeEventListener('df-thread-history', handler as EventListener);
+  }, [threadId]);
   return (
     <ThreadPrimitive.Root
       className="text-foreground bg-background box-border flex h-full flex-col overflow-hidden"
@@ -36,6 +58,14 @@ export const Thread: FC = () => {
       <ThreadPrimitive.Viewport className="flex h-full flex-col items-center overflow-y-scroll scroll-smooth bg-inherit px-4 pt-8">
         <ThreadWelcome />
 
+        {historyBlocks.length > 0 && (
+          <div className="w-full max-w-[var(--thread-max-width)] flex flex-col gap-2 mb-4">
+            {historyBlocks.map((m, i) => (
+              <div key={i} className={`rounded-3xl px-5 py-2.5 text-sm whitespace-pre-wrap break-words ${m.role === 'user' ? 'self-end bg-muted' : 'self-start bg-primary/10'}`}>{m.content}</div>
+            ))}
+            <div className="h-px bg-border my-2" />
+          </div>
+        )}
         <ThreadPrimitive.Messages
           components={{
             UserMessage: UserMessage,

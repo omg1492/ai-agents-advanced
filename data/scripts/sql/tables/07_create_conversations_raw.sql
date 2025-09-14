@@ -11,6 +11,8 @@ CREATE TABLE public.conversations_raw (
   thread_id      TEXT NOT NULL UNIQUE,
   -- Authenticated end user identifier (Keycloak subject). Using TEXT for portability across IdP formats.
   user_id        TEXT NOT NULL,
+  -- User friendly title stored separately (NOT in messages JSON). Can later be user‑edited or summarizer‑generated.
+  title          TEXT NOT NULL DEFAULT 'Untitled conversation',
   -- Array of message objects: {"role":"user|assistant","content":"...","created_at":"ISO","mode":"chat|voice"}
   messages       JSONB NOT NULL,
   -- Summarization workflow status lifecycle: pending -> processing -> done | error (simplified: no attempts/locking)
@@ -43,6 +45,7 @@ CREATE INDEX idx_conversations_raw_summary_status ON public.conversations_raw(su
 -- CREATE INDEX idx_conversations_raw_messages_gin ON public.conversations_raw USING GIN (messages jsonb_path_ops);
 
 COMMENT ON TABLE public.conversations_raw IS 'Raw per-thread conversation transcripts (short retention) for memory summarization & profile enrichment.';
+COMMENT ON COLUMN public.conversations_raw.title IS 'User supplied or summarizer generated title (separate column for efficient listing).';
 COMMENT ON COLUMN public.conversations_raw.messages IS 'Ordered JSON array of message objects (role, content, created_at, mode).';
 COMMENT ON COLUMN public.conversations_raw.summary_status IS 'Summarization pipeline status: pending|processing|done|error.';
 COMMENT ON COLUMN public.conversations_raw.expires_at IS 'Timestamp after which raw transcript is eligible for purge (configured retention window).';

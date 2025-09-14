@@ -57,6 +57,18 @@ export class DreamFarmAPI {
   }
 
   /**
+   * List recent threads (server persists ordering by updated_at desc)
+   */
+  async listThreads(limit = 10, offset = 0) {
+    const params = new URLSearchParams({ limit: String(limit), offset: String(offset) });
+    const response = await fetch(`${this.baseUrl}/threads?${params}`, { headers: { ...this.getAuthHeader() }});
+    if (!response.ok) {
+      throw new Error(`Failed to list threads: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /**
    * Get thread information
    */
   async getThread(threadId: string) {
@@ -131,6 +143,29 @@ export class DreamFarmAPI {
       throw new Error(`Failed to get messages: ${response.statusText}`);
     }
 
+    return response.json();
+  }
+
+  /** Delete (archive) a thread */
+  async deleteThread(threadId: string) {
+    const response = await fetch(`${this.baseUrl}/threads/${threadId}`, { method: 'DELETE', headers: { ...this.getAuthHeader() }});
+    if (!response.ok) {
+      throw new Error(`Failed to delete thread: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
+  /** Rename a thread */
+  async renameThread(threadId: string, title: string) {
+    const payload = { title };
+    const response = await fetch(`${this.baseUrl}/threads/${threadId}/title`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json', ...this.getAuthHeader() },
+      body: JSON.stringify(payload)
+    });
+    if (!response.ok) {
+      throw new Error(`Failed to rename thread: ${response.statusText}`);
+    }
     return response.json();
   }
 

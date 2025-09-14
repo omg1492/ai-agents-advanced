@@ -5,7 +5,7 @@ session handle (thread_id). Conversation state is kept on the provider via the
 Responses API (`store` + `previous_response_id`).
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 from typing import Optional, List
 
 
@@ -66,4 +66,20 @@ class GetMessagesResponse(BaseModel):
 	thread_id: str
 	messages: List[Message]
 	total_count: int
+
+
+class ThreadRenameRequest(BaseModel):
+	"""Rename thread request body."""
+
+	title: str
+
+	@field_validator('title')
+	@classmethod
+	def validate_title(cls, v: str) -> str:
+		v2 = (v or '').strip()
+		if not v2:
+			raise ValueError('title must not be empty')
+		if len(v2) > 160:
+			raise ValueError('title too long (max 160 chars)')
+		return v2
 

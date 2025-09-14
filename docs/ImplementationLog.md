@@ -507,3 +507,18 @@ No functional code changes; documentation-only refactor improving discoverabilit
 - Added integration test `test_conversation_persistence_integration.py` (skips gracefully if DDL not applied) verifying DB insert & delete lifecycle.
 - Design choice: JSONB array concatenation via `messages || :append::jsonb` for atomic append; avoids race conditions of fetch/merge/write with separate SELECT.
  - 2025-09-14 Fix: Replaced `:param::jsonb` cast style with `CAST(:param AS jsonb)` in `ConversationStore` due to psycopg2/SQLAlchemy tokenization quirk on Windows that left `:append` / `:messages` unbound causing `syntax error at or near ":"`. Logic unchanged (still UPDATE then conditional INSERT) but now portable across dev environments.
+
+### 2025-09-14 Conversation Listing & Hydration (Memory Step 2b)
+
+- Added `title` column to `conversations_raw` DDL (separate from messages JSON) with default `Untitled conversation` and comment clarifying summarizer/user edit path.
+- `ConversationStore` enhancements:
+   - `create_thread()` inserts empty row (`messages = []`) at thread creation (idempotent) ensuring title persists even before first message.
+   - `list_threads()` paginated by `updated_at DESC` returning message count via `jsonb_array_length`.
+   - `get_thread_metadata()` + `hydrate_messages_if_missing()` support lazy in-memory hydration after server restarts.
+- API changes (`main.py`):
+   - `POST /threads` now persists empty row immediately (best-effort; non-fatal on failure).
+   - New `GET /threads` endpoint (default limit 10) returns ordered thread list (DB-backed or in-memory fallback when persistence disabled).
+   - `GET /threads/{id}` and `GET /threads/{id}/messages` attempt lazy hydration from DB when thread not in memory (loads metadata + full message array, reconstructing lightweight message models).
+   - Message fetching unchanged for existing in-memory threads; pagination still applied to in-memory slice for now (future: DB-side windowing if long histories grow).
+- Implementation considerations: kept UPDATE-then-INSERT append strategy; creation uses `ON CONFLICT DO NOTHING` since initial insert is simple and avoids race with first message append.
+- Updated ImplementationLog & DDL comments; summarization pipeline remains future work (will update title post-summarization).

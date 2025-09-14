@@ -48,6 +48,27 @@ class ConversationStore:
     def _utcnow(self) -> str:
         return datetime.now(timezone.utc).isoformat()
 
+    def create_thread(self, thread_id: str, user_id: str, title: str) -> None:
+        """Create an empty conversation row immediately when a thread is created.
+
+        Idempotent: if row already exists (rare – e.g. retry) it leaves existing messages intact.
+        """
+        with self.engine.begin() as conn:
+            # Try insert first; on unique violation fall back silently (let caller proceed)
+            try:
+                conn.execute(
+                    text(
+                        """
+                        INSERT INTO conversations_raw (thread_id, user_id, title, messages)
+                        VALUES (:thread_id, :user_id, :title, '[]'::jsonb)
+                        ON CONFLICT DO NOTHING
+                        """
+                    ),
+                    {"thread_id": thread_id, "user_id": user_id, "title": title},
+                )
+            except Exception as e:  # pragma: no cover
+                logger.warning("create_thread insert failed thread=%s: %s", thread_id, e)
+
     def upsert_message(self, thread_id: str, user_id: str, message: Dict[str, Any]) -> None:
         """Append a message, inserting row if it doesn't yet exist.
 
@@ -68,8 +89,8 @@ class ConversationStore:
             if res.rowcount == 0:
                 ins = text(
                     """
-                    INSERT INTO conversations_raw (thread_id, user_id, messages)
-                    VALUES (:thread_id, :user_id, CAST(:messages AS jsonb))
+                    INSERT INTO conversations_raw (thread_id, user_id, title, messages)
+                    VALUES (:thread_id, :user_id, 'Untitled conversation', CAST(:messages AS jsonb))
                     """
                 )
                 conn.execute(ins, {"thread_id": thread_id, "user_id": user_id, "messages": append_json})
@@ -91,8 +112,8 @@ class ConversationStore:
             if res.rowcount == 0:
                 ins = text(
                     """
-                    INSERT INTO conversations_raw (thread_id, user_id, messages)
-                    VALUES (:thread_id, :user_id, CAST(:messages AS jsonb))
+                    INSERT INTO conversations_raw (thread_id, user_id, title, messages)
+                    VALUES (:thread_id, :user_id, 'Untitled conversation', CAST(:messages AS jsonb))
                     """
                 )
                 conn.execute(ins, {"thread_id": thread_id, "user_id": user_id, "messages": msgs_json})
@@ -112,6 +133,37 @@ class ConversationStore:
             result = conn.execute(sql, {"tid": thread_id, "uid": user_id})
         return result.rowcount if result else 0
 
+    def list_threads(self, user_id: str, limit: int = 10, offset: int = 0) -> list[dict[str, Any]]:
+        """Return paginated list of thread metadata for a user ordered by updated_at desc."""
+        sql = text(
+            """
+            SELECT thread_id, title, created_at, updated_at, jsonb_array_length(messages) AS message_count
+            FROM conversations_raw
+            WHERE user_id = :uid
+            ORDER BY updated_at DESC
+            LIMIT :limit OFFSET :offset
+            """
+        )
+        with self.engine.connect() as conn:
+            rows = conn.execute(sql, {"uid": user_id, "limit": limit, "offset": offset}).mappings().all()
+        return [dict(r) for r in rows]
+
+    def get_thread_metadata(self, thread_id: str, user_id: str) -> dict[str, Any] | None:
+        sql = text(
+            """
+            SELECT thread_id, title, created_at, updated_at, jsonb_array_length(messages) AS message_count
+            FROM conversations_raw
+            WHERE thread_id=:tid AND user_id=:uid
+            """
+        )
+        with self.engine.connect() as conn:
+            row = conn.execute(sql, {"tid": thread_id, "uid": user_id}).mappings().first()
+        return dict(row) if row else None
+
+    def hydrate_messages_if_missing(self, thread_id: str, user_id: str) -> list[dict[str, Any]]:
+        """Helper used by API to load messages when not in memory (server restart, cache miss)."""
+        return self.fetch_messages(thread_id, user_id)
+
     def build_message(self, role: str, content: str, mode: str = "chat") -> Dict[str, Any]:
         return {
             "role": role,
@@ -119,3 +171,20 @@ class ConversationStore:
             "created_at": self._utcnow(),
             "mode": mode,
         }
+
+    def rename_thread(self, thread_id: str, user_id: str, new_title: str) -> int:
+        """Rename a thread title. Returns number of rows updated (0 if not found)."""
+        if not new_title:
+            return 0
+        with self.engine.begin() as conn:
+            res = conn.execute(
+                text(
+                    """
+                    UPDATE conversations_raw
+                    SET title = :title, updated_at = now()
+                    WHERE thread_id = :tid AND user_id = :uid
+                    """
+                ),
+                {"title": new_title, "tid": thread_id, "uid": user_id},
+            )
+        return res.rowcount if res else 0

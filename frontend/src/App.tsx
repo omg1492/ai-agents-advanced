@@ -13,6 +13,8 @@ import { buildAuthState, exchangeCode, logout, startLogin, AuthState } from './s
 function App() {
   const runtime = useLocalRuntime(dreamFarmChatAdapter);
   const [auth, setAuth] = useState<AuthState>({ loading: true, isAuthenticated: false });
+  // Track the currently viewed thread id to force remount of <Thread/> when switching
+  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
 
   // Handle redirect callback
   useEffect(() => {
@@ -27,6 +29,26 @@ function App() {
       }
       setAuth(buildAuthState());
     })();
+  }, []);
+
+  // Listen for thread create/select events (emitted by thread-list)
+  useEffect(() => {
+    const onCreated = (e: Event) => {
+      const detail: any = (e as CustomEvent).detail;
+      if (!detail?.thread_id) return;
+      setActiveThreadId(detail.thread_id);
+    };
+    const onSelected = (e: Event) => {
+      const detail: any = (e as CustomEvent).detail;
+      if (!detail?.thread_id) return;
+      setActiveThreadId(detail.thread_id);
+    };
+    window.addEventListener('df-thread-created', onCreated);
+    window.addEventListener('df-thread-selected', onSelected);
+    return () => {
+      window.removeEventListener('df-thread-created', onCreated);
+      window.removeEventListener('df-thread-selected', onSelected);
+    };
   }, []);
 
   if (auth.loading) {
@@ -70,7 +92,8 @@ function App() {
               <ThreadList />
             </aside>
             <main className="flex-1 overflow-hidden">
-              <Thread />
+              {/* key forces fresh Assistant UI state per thread */}
+              <Thread key={activeThreadId || 'default-thread'} threadId={activeThreadId} />
             </main>
           </div>
         </div>

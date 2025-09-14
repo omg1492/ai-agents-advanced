@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import json
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, Depends, status
+from fastapi import FastAPI, HTTPException, Request, Depends, status, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
@@ -22,6 +22,7 @@ from src.models.thread import (
     SendMessageResponse,
     GetMessagesResponse,
     Message as MessageModel,
+    ThreadRenameRequest,
 )
 from src.services.openai_service import OpenAIService
 from src.services.config_service import ConfigService
@@ -302,6 +303,12 @@ async def create_thread(payload: CreateThreadRequest, user_ctx: tuple[str, bool,
     )
     _threads[thread_id] = thread
     _history[thread_id] = []
+    # Persist empty conversation row immediately
+    if conversation_store is not None:
+        try:
+            conversation_store.create_thread(thread_id=thread_id, user_id=username, title=title)
+        except Exception as ce:  # pragma: no cover
+            logger.warning(f"Persist empty thread failed thread={thread_id}: {ce}")
     return CreateThreadResponse(
         thread_id=thread_id,
         title=title,
@@ -310,9 +317,68 @@ async def create_thread(payload: CreateThreadRequest, user_ctx: tuple[str, bool,
     )
 
 
+@app.get("/threads", response_model=list[ThreadModel])
+async def list_threads(limit: int = Query(10, ge=1, le=100), offset: int = Query(0, ge=0), user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
+    """List threads for current user (paged, newest first). Falls back to in-memory threads if persistence disabled."""
+    username, _, _ = user_ctx
+    if conversation_store is None:
+        # Build list from in-memory only (no ordering guarantee besides insertion) – dev fallback
+        threads = list(_threads.values())
+        threads.sort(key=lambda t: t.updated_at, reverse=True)
+        return threads[offset: offset + limit]
+    try:
+        rows = conversation_store.list_threads(user_id=username, limit=limit, offset=offset)
+        result = []
+        for r in rows:
+            result.append(
+                ThreadModel(
+                    thread_id=r["thread_id"],
+                    title=r["title"],
+                    created_at=r["created_at"].isoformat() if hasattr(r["created_at"], 'isoformat') else str(r["created_at"]),
+                    updated_at=r["updated_at"].isoformat() if hasattr(r["updated_at"], 'isoformat') else str(r["updated_at"]),
+                    message_count=r["message_count"],
+                )
+            )
+        return result
+    except Exception as e:
+        logger.error(f"Failed listing threads: {e}")
+        raise HTTPException(status_code=500, detail="Failed to list threads")
+
+
 @app.get("/threads/{thread_id}", response_model=ThreadModel)
 async def get_thread(thread_id: str, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
+    username, _, _ = user_ctx
     thread = _threads.get(thread_id)
+    if thread is None and conversation_store is not None:
+        # Hydrate metadata from DB if available
+        try:
+            meta = conversation_store.get_thread_metadata(thread_id, username)
+        except Exception as he:  # pragma: no cover
+            logger.warning(f"Hydration metadata failed thread={thread_id}: {he}")
+            meta = None
+        if meta:
+            thread = ThreadModel(
+                thread_id=meta["thread_id"],
+                title=meta["title"],
+                created_at=meta["created_at"].isoformat() if hasattr(meta["created_at"], 'isoformat') else str(meta["created_at"]),
+                updated_at=meta["updated_at"].isoformat() if hasattr(meta["updated_at"], 'isoformat') else str(meta["updated_at"]),
+                message_count=meta["message_count"],
+            )
+            _threads[thread_id] = thread
+            # Load messages into in-memory history lazily
+            try:
+                msgs = conversation_store.hydrate_messages_if_missing(thread_id, username)
+                _history[thread_id] = [
+                    MessageModel(
+                        message_id=os.urandom(8).hex(),
+                        thread_id=thread_id,
+                        role=m.get("role"),
+                        content=m.get("content"),
+                        timestamp=m.get("created_at"),
+                    ) for m in msgs
+                ]
+            except Exception as me:  # pragma: no cover
+                logger.warning(f"Hydration messages failed thread={thread_id}: {me}")
     if not thread:
         raise HTTPException(status_code=404, detail="Thread not found")
     return thread
@@ -847,9 +913,39 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
 
 @app.get("/threads/{thread_id}/messages", response_model=GetMessagesResponse)
 async def get_messages(thread_id: str, limit: int = 50, offset: int = 0, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
-    if thread_id not in _threads:
-        raise HTTPException(status_code=404, detail="Thread not found")
     username, is_vip, _ = user_ctx
+    if thread_id not in _threads:
+        # Attempt lazy hydration if persistence available
+        if conversation_store is not None:
+            try:
+                meta = conversation_store.get_thread_metadata(thread_id, username)
+            except Exception as he:  # pragma: no cover
+                logger.warning(f"Hydration (messages) metadata failed thread={thread_id}: {he}")
+                meta = None
+            if meta:
+                hydrated = ThreadModel(
+                    thread_id=meta["thread_id"],
+                    title=meta["title"],
+                    created_at=meta["created_at"].isoformat() if hasattr(meta["created_at"], 'isoformat') else str(meta["created_at"]),
+                    updated_at=meta["updated_at"].isoformat() if hasattr(meta["updated_at"], 'isoformat') else str(meta["updated_at"]),
+                    message_count=meta["message_count"],
+                )
+                _threads[thread_id] = hydrated
+                try:
+                    msgs = conversation_store.hydrate_messages_if_missing(thread_id, username)
+                    _history[thread_id] = [
+                        MessageModel(
+                            message_id=os.urandom(8).hex(),
+                            thread_id=thread_id,
+                            role=m.get("role"),
+                            content=m.get("content"),
+                            timestamp=m.get("created_at"),
+                        ) for m in msgs
+                    ]
+                except Exception as me:  # pragma: no cover
+                    logger.warning(f"Hydration (messages) failed thread={thread_id}: {me}")
+        if thread_id not in _threads:
+            raise HTTPException(status_code=404, detail="Thread not found")
     logger.info("/threads/%s/messages GET user=%s vip=%s", thread_id, username, is_vip)
     msgs = _history.get(thread_id, [])
     total = len(msgs)
@@ -875,6 +971,43 @@ async def delete_thread(thread_id: str, user_ctx: tuple[str, bool, dict] = Depen
     if not existed and db_deleted == 0:
         raise HTTPException(status_code=404, detail="Thread not found")
     return {"thread_id": thread_id, "deleted": True}
+
+
+def _rename_thread_internal(thread_id: str, new_title: str, username: str) -> ThreadModel:
+    """Internal helper to rename a thread (in-memory + persistence)."""
+    if thread_id not in _threads and conversation_store is not None:
+        meta = conversation_store.get_thread_metadata(thread_id, username)
+        if meta:
+            hydrated = ThreadModel(
+                thread_id=meta["thread_id"],
+                title=meta["title"],
+                created_at=meta["created_at"].isoformat() if hasattr(meta["created_at"], 'isoformat') else str(meta["created_at"]),
+                updated_at=meta["updated_at"].isoformat() if hasattr(meta["updated_at"], 'isoformat') else str(meta["updated_at"]),
+                message_count=meta["message_count"],
+            )
+            _threads[thread_id] = hydrated
+    thread = _threads.get(thread_id)
+    if not thread:
+        raise HTTPException(status_code=404, detail="Thread not found")
+    if conversation_store is not None:
+        try:
+            updated = conversation_store.rename_thread(thread_id, username, new_title)
+            if updated == 0:
+                raise HTTPException(status_code=404, detail="Thread not found")
+        except HTTPException:
+            raise
+        except Exception as e:  # pragma: no cover
+            logger.warning(f"Rename failed persisted thread={thread_id}: {e}")
+    thread.title = new_title
+    thread.updated_at = datetime.now(timezone.utc).isoformat()
+    return thread
+
+
+@app.put("/threads/{thread_id}/title", response_model=ThreadModel)
+async def rename_thread(thread_id: str, payload: ThreadRenameRequest, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
+    """Rename a thread title (single canonical endpoint using PUT)."""
+    username, _, _ = user_ctx
+    return _rename_thread_internal(thread_id, payload.title, username)
 
 
 def main():

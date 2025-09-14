@@ -22,6 +22,8 @@ function convertMessage(message: ThreadMessage) {
  */
 export class DreamFarmChatAdapter implements ChatModelAdapter {
   private currentThreadId: string | null = null;
+  // Cache of loaded messages per thread; re-dispatched on each selection
+  private loadedHistory: Record<string, any[] | undefined> = {};
 
   /**
    * Ensure we have a thread to work with
@@ -122,6 +124,36 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
    */
   getCurrentThreadId(): string | null {
     return this.currentThreadId;
+  }
+
+  /**
+   * Manually set current thread id (used when selecting existing thread from server list)
+   */
+  setThreadId(threadId: string | null) {
+    this.currentThreadId = threadId;
+  }
+
+  /**
+   * Preload existing messages for a selected thread by fetching from backend and emitting
+   * synthetic events the UI layer can interpret. For minimal intrusion we dispatch a custom
+   * event containing the transcript; Thread component can listen and render static blocks.
+   */
+  async preloadMessages(threadId: string) {
+    if (!threadId) return;
+    // If cached, re-dispatch immediately (ensures history shows again when revisiting)
+    const cached = this.loadedHistory[threadId];
+    if (cached) {
+      window.dispatchEvent(new CustomEvent('df-thread-history', { detail: { threadId, messages: cached } }));
+      return;
+    }
+    try {
+      const resp = await dreamFarmAPI.getMessages(threadId, 200, 0);
+      const msgs = resp?.messages || [];
+      this.loadedHistory[threadId] = msgs;
+      window.dispatchEvent(new CustomEvent('df-thread-history', { detail: { threadId, messages: msgs } }));
+    } catch {
+      // ignore for now
+    }
   }
 }
 
