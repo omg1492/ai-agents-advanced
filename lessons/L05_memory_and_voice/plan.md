@@ -7,7 +7,7 @@ High-level steps only – aligned with unified design. Each step considered comp
 - [x] Expose & build UI to list and view prior conversations
 - [x] Create `conversation_summaries` table (summary + embedding)
 - [x] Batch script to convert raw conversations → summaries using LLM. Also create Python script to import 5 example conversations as data for testing our summarization script.
-- [ ] Add memory search tool (user‑fenced semantic similarity over summaries) and register with LLM
+- [x] Add memory search tool (user‑fenced semantic similarity over summaries) and register with LLM
 - [ ] Create `user_profiles` table (jsonb profile)
 - [ ] Batch script to enrich/update user profile from raw + summaries
 - [ ] Inject current user profile block into system prompt

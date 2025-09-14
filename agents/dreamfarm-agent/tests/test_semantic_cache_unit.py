@@ -16,7 +16,7 @@ def build_config():
         environment="test",
         cors_origins=["http://localhost:3000"],
         log_level="INFO",
-    reasoning_effort="minimal",
+        reasoning_effort="minimal",
         openai=OpenAIConfig(api_key="sk-test", model_name="gpt-5"),
         db=DatabaseConfig(host="localhost", port=5432, database="aidb", user="admin", password="pwd"),
         rag=RagConfig(enabled=False, similarity_threshold=0.5, max_results=3),
@@ -24,9 +24,10 @@ def build_config():
         farmer_tools=None,
         tavily=None,
         stock_tool=None,
-    auth=None,
-    agentic_search=None,
-    graph_search=None,
+        auth=None,
+        agentic_search=None,
+        graph_search=None,
+        memory_search=None,
     )
 
 

@@ -33,6 +33,7 @@ from src.services.semantic_cache_service import SemanticCacheService
 from src.services.agentic_search import AgenticSearchService
 from src.services.auth_service import AuthService
 from src.services.conversation_store import ConversationStore
+from src.services.memory_search_service import MemorySearchService
 
 
 # Load environment variables
@@ -65,6 +66,7 @@ semantic_cache_service: SemanticCacheService | None = None
 auth_service: AuthService | None = None
 agentic_search_service: AgenticSearchService | None = None
 conversation_store: ConversationStore | None = None
+memory_search_service: MemorySearchService | None = None
 # Minimal session and history stores (state remains in Responses API)
 _threads: dict[str, ThreadModel] = {}
 _history: dict[str, list[MessageModel]] = {}
@@ -156,6 +158,18 @@ async def lifespan(app: FastAPI):
         except Exception as ce:  # pragma: no cover
             logger.warning(f"ConversationStore initialization failed: {ce}")
             conversation_store = None
+        # Memory search service
+        global memory_search_service
+        try:
+            if getattr(cfg, "memory_search", None) and cfg.memory_search.enabled:  # type: ignore[attr-defined]
+                from src.services.memory_search_service import MemorySearchService as _MS
+                memory_search_service = _MS(cfg)
+                logger.info("Memory search service enabled")
+            else:
+                memory_search_service = None
+        except Exception as me:  # pragma: no cover
+            logger.warning(f"Memory search initialization failed: {me}")
+            memory_search_service = None
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         raise
@@ -272,6 +286,7 @@ async def chat(request: ChatRequest, user_ctx: tuple[str, bool, dict] = Depends(
             system_prompt=system_prompt,
             previous_response_id=request.previous_response_id,
             user_is_vip=is_vip,
+            user_id=username,
         )
         return ChatResponse(
             response_id=response_id,
@@ -495,6 +510,7 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
             system_prompt=system_prompt,
             previous_response_id=prev_resp_id,
             user_is_vip=is_vip,
+            user_id=username,
         )
     except Exception as e:
         logger.error(f"Failed to generate AI response: {e}")
@@ -848,6 +864,34 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                                                 })
                                         except Exception as exec_e:  # noqa: BLE001
                                             logger.warning(f"Graph search function execution error: {exec_e}")
+                                    elif name == "memory_search":
+                                        try:
+                                            if memory_search_service and memory_search_service.enabled:
+                                                raw_args = getattr(item, "arguments", "{}")
+                                                try:
+                                                    parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                                                except Exception:
+                                                    parsed_args = {}
+                                                output_json = await memory_search_service.execute(parsed_args, user_id=username)
+                                                pending_outputs.append({
+                                                    "type": "function_call_output",
+                                                    "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                    "output": output_json,
+                                                })
+                                                submit_meta = {
+                                                    "kind": "tool_event",
+                                                    "event_type": "tool.outputs_executed",
+                                                    "tool_name": "memory_search",
+                                                }
+                                                yield "\nDF_META:" + json.dumps(submit_meta, ensure_ascii=False) + "\n"
+                                            else:
+                                                pending_outputs.append({
+                                                    "type": "function_call_output",
+                                                    "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                    "output": json.dumps({"memories": []}),
+                                                })
+                                        except Exception as exec_e:  # noqa: BLE001
+                                            logger.warning(f"Memory search function execution error: {exec_e}")
                         
                         # Tool event meta for UI (for added events)
                         elif et == "response.output_item.added":

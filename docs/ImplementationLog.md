@@ -544,6 +544,16 @@ Updated Lesson 5 plan checkbox to reflect completion of this summarization step.
 2025-09-14 Update 3: `gen_conversations.py` now truncates `conversations_raw` (TRUNCATE ... CASCADE) before inserting sample threads to guarantee a clean deterministic dataset for summarization regression tests. Warning added in docstring to clarify dev-only usage.
 
 2025-09-14 Update 4: Reworked `process_conversations.py` summarization strategy:
+2025-09-14 Update 5: Implemented `memory_search` tool
+ - Added `MemorySearchService` with semantic similarity over `conversation_summaries` (pgvector 2000d)
+ - Config: `MEMORY_SEARCH_ENABLED` (default true), `MEMORY_SEARCH_MAX_RESULTS` (default 5)
+ - Tool schema: `memory_search(query, k=1-8)` returns `{ memories: [ {thread_id, summary, updated_at, similarity_score} ] }`
+ - HyDE / descriptive expansion left to model; we simply embed `query`
+ - Strict user fencing enforced in SQL `WHERE user_id = :uid` (no cross‑user leakage)
+ - Integrated into `OpenAIService.get_tools()` and both non‑stream & stream function call loops
+ - Updated Lesson 5 plan checkbox
+   - Added unit & integration tests: `test_memory_search_unit.py`, `test_memory_search_integration.py`
+
  - Removed intermediate plain-text transcript construction; model now receives the exact JSON array of `{role, content}` objects.
  - Introduced richer system prompt emphasizing: user intents, explicit preferences, product/ingredient interests, recommendations, decisions/resolutions, unresolved follow-ups.
  - Increased summary allowance to <=250 words (token cap raised) while still enforcing neutral, factual style and exclusion of greetings/small talk.

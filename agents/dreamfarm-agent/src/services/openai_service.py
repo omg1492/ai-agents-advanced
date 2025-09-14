@@ -27,6 +27,7 @@ from src.services.config_service import ConfigService, OpenAIConfig, AppConfig
 from src.services.agentic_search import AgenticSearchService
 from src.services.graph_search_service import GraphSearchService
 from src.services.stock_service import StockService
+from src.services.memory_search_service import MemorySearchService
 
 from openai import AsyncOpenAI
 
@@ -73,6 +74,13 @@ class OpenAIService:
                 self._stock_service = StockService(self._app_config)
             except Exception:  # pragma: no cover - defensive
                 self._stock_service = None
+        # Memory search service
+        self._memory_search: MemorySearchService | None = None
+        try:
+            if getattr(self._app_config, "memory_search", None) and self._app_config.memory_search.enabled:  # type: ignore[attr-defined]
+                self._memory_search = MemorySearchService(self._app_config)
+        except Exception as me:  # pragma: no cover
+            logger.warning(f"Memory search init failed: {me}")
         self.client = self._get_openai_client()
         self.model_name = self._get_model_name()
         # Agentic search service (function tools) optional
@@ -96,6 +104,7 @@ class OpenAIService:
             bool(self._tavily and self._tavily.enabled),
             bool(self._agentic_search and self._agentic_search.enabled),
             bool(self._graph_search and self._graph_search.enabled),
+            bool(self._memory_search and self._memory_search.enabled),
         )
 
     def get_tools(self) -> Optional[list[dict]]:
@@ -287,6 +296,31 @@ class OpenAIService:
                     },
                 }
             )
+        # Memory search tool
+        if self._memory_search and self._memory_search.enabled:
+            tools.append(
+                {
+                    "type": "function",
+                    "name": "memory_search",
+                    "description": "Search the user's own past conversation summaries via semantic similarity (HyDE style expanded query recommended). Returns prior summaries to ground personalization.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "query": {
+                                "type": "string",
+                                "description": "HyDE style expanded query describing what past conversations to look for (user intent, preference topic, etc.)."
+                            },
+                            "k": {
+                                "type": "integer",
+                                "minimum": 1,
+                                "maximum": 8,
+                                "description": "How many top memories to retrieve (1-8)."
+                            }
+                        },
+                        "required": ["query"],
+                    },
+                }
+            )
         return tools or None
 
     def _get_openai_client(self) -> AsyncOpenAI:
@@ -329,6 +363,7 @@ class OpenAIService:
         system_prompt: Optional[str] = None,
         previous_response_id: Optional[str] = None,
         user_is_vip: bool = False,
+        user_id: Optional[str] = None,
     ) -> tuple[str, str]:
         """Generate a response handling any synchronous function tool calls.
 
@@ -427,6 +462,20 @@ class OpenAIService:
                             output_payload = {"products": []}
                     else:
                         output_payload = {"products": []}
+                elif name == "memory_search":
+                    if self._memory_search and self._memory_search.enabled and user_id:
+                        try:
+                            parsed = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                        except Exception:
+                            parsed = {}
+                        try:
+                            output_json = await self._memory_search.execute(parsed, user_id=user_id)
+                            output_payload = json.loads(output_json)
+                        except Exception as me:  # pragma: no cover
+                            logger.warning(f"Memory search execution failed: {me}")
+                            output_payload = {"memories": []}
+                    else:
+                        output_payload = {"memories": []}
                 else:
                     logger.info("Ignoring unsupported function call name=%s", name)
                     continue

@@ -134,6 +134,7 @@ class AppConfig:
     auth: AuthConfig | None
     agentic_search: Optional["AgenticSearchConfig"]  # forward ref
     graph_search: Optional["GraphSearchConfig"]  # forward ref
+    memory_search: Optional["MemorySearchConfig"]  # forward ref
 
 
 @dataclass
@@ -152,6 +153,17 @@ class GraphSearchConfig:
     enabled: bool
     graph_name: str
     dfs_max_results: int
+
+
+@dataclass
+class MemorySearchConfig:
+    """Configuration for memory (conversation summary) semantic search tool.
+
+    Enabled via MEMORY_SEARCH_ENABLED. Results limited by max_results and always
+    strictly fenced by user_id in SQL (never exposed to other users).
+    """
+    enabled: bool
+    max_results: int
 
 
 class ConfigService:
@@ -313,6 +325,13 @@ class ConfigService:
             dfs_max_results=int(os.getenv("GRAPH_DFS_MAX_RESULTS", "10")),
         ) if graph_search_enabled else None
 
+        # Memory search configuration (conversation summaries)
+        memory_search_enabled = os.getenv("MEMORY_SEARCH_ENABLED", "true").lower() in ["true", "1", "yes", "on"]
+        memory_search_cfg = MemorySearchConfig(
+            enabled=memory_search_enabled,
+            max_results=int(os.getenv("MEMORY_SEARCH_MAX_RESULTS", "5")),
+        ) if memory_search_enabled else None
+
         return AppConfig(
             environment=os.getenv("ENVIRONMENT", "development"),
             cors_origins=cors_origins,
@@ -328,6 +347,7 @@ class ConfigService:
             auth=auth_config,
             agentic_search=agentic_cfg,
             graph_search=graph_search_cfg,
+            memory_search=memory_search_cfg,
         )
     
     def _get_required_env(self, key: str) -> str:

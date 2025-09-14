@@ -117,3 +117,20 @@ FROM conversation_summaries;
 
 ### Shrnutí
 Máme funkční základ paměťové vrstvy: syrové ukládání, deterministická demo data a dávkový summarizer produkující kompaktní vektorově vyhledatelné shrnutí. To otevírá cestu k personalizaci a hlasovým scénářům v dalších krocích.
+
+### Příklady dotazů pro vyvolání `memory_search`
+Po vygenerování demo konverzací (`gen_conversations.py`) a spuštění summarizeru (`process_conversations.py`) může agent (pokud je `MEMORY_SEARCH_ENABLED=true`) začít volat nástroj `memory_search`, když položíte dotaz implikující odkaz na minulý kontext nebo preference. Zkuste například (formulujte 1–2 z nich do chatu):
+
+1. „Co jsem ti dříve říkal o své stravě nebo dietě?“
+2. „Pamatuješ si, jaký kozí sýr mě zajímal a jakou chuť jsem preferoval?“
+3. „Jaké omezení ohledně pálivosti jsem ti sdílel?“
+4. „Jaké rychlé nápady na využití rajčat a bazalky jsme už spolu řešili?“
+5. „Jaké preference mám, které bys měl mít na paměti při doporučeních?“
+6. „Shrň moje dosavadní preference potravin (koření, pikantnost, dietní styl).“
+7. „Prosím zkontroluj, co jsem tě žádal připomenout ohledně kozího sýra.“
+
+Poznámky:
+- Dotazy nemusí přesně opakovat původní formulace; stačí sémantická blízkost – embedding vyhledávání se postará o podobnost.
+- Pokud se nástroj nevyvolá (model se rozhodne, že historie není nutná), zkuste explicitnější formulaci („co jsem ti říkal…“, „pamatuješ si…“).
+- Výsledky memory_search se vrací jako interní tool výstup (`memories[...]`) a model z nich následně sestaví odpověď.
+- Pokud jste právě resetovali databázi a ještě neběžel summarizer, nástroj vrátí prázdný seznam.
