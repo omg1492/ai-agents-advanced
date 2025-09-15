@@ -32,10 +32,15 @@ export const Thread: FC<ThreadProps> = ({ threadId }) => {
   // NOTE: assistant-ui maintains internal state; switching key in parent remounts.
   // We could add future hydration logic here using threadId to fetch history.
   const [historyBlocks, setHistoryBlocks] = useState<any[]>([]);
+  const [metaEvents, setMetaEvents] = useState<any[]>([]);
+  
   useEffect(() => {
-  // Clear when switching (fresh mount already, but ensure)
-  setHistoryBlocks([]);
-  if (!threadId) { return; }
+    // Clear when switching (fresh mount already, but ensure)
+    setHistoryBlocks([]);
+    setMetaEvents([]);
+    
+    if (!threadId) { return; }
+    
     const handler = (e: Event) => {
       const ce = e as CustomEvent;
       if (ce.detail?.threadId !== threadId) return;
@@ -43,11 +48,23 @@ export const Thread: FC<ThreadProps> = ({ threadId }) => {
       const mapped = msgs.map(m => ({ role: m.role, content: m.content }));
       setHistoryBlocks(mapped);
     };
+    
+    const metaClearHandler = () => {
+      setMetaEvents([]);
+    };
+    
     window.addEventListener('df-thread-history', handler as EventListener);
+    window.addEventListener('df-meta-clear', metaClearHandler);
+    
     // Trigger preload (adapter prevents duplicate work)
     dreamFarmChatAdapter.preloadMessages(threadId);
-    return () => window.removeEventListener('df-thread-history', handler as EventListener);
+    
+    return () => {
+      window.removeEventListener('df-thread-history', handler as EventListener);
+      window.removeEventListener('df-meta-clear', metaClearHandler);
+    };
   }, [threadId]);
+  
   return (
     <ThreadPrimitive.Root
       className="text-foreground bg-background box-border flex h-full flex-col overflow-hidden"
@@ -70,7 +87,7 @@ export const Thread: FC<ThreadProps> = ({ threadId }) => {
           components={{
             UserMessage: UserMessage,
             EditComposer: EditComposer,
-            AssistantMessage: AssistantMessage,
+            AssistantMessage: () => <AssistantMessage metaEvents={metaEvents} setMetaEvents={setMetaEvents} />,
           }}
         />
 
@@ -160,6 +177,7 @@ const Composer: FC = () => {
   return (
     <ComposerPrimitive.Root className="focus-within:border-ring/20 flex w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in">
       <ComposerPrimitive.Input
+        key={Math.random().toString(36).slice(2)}
         rows={1}
         autoFocus
         placeholder="Write a message..."
@@ -246,24 +264,27 @@ const EditComposer: FC = () => {
   );
 };
 
-const AssistantMessage: FC = () => {
-  const [metaEvents, setMetaEvents] = useState<any[]>([]);
+const AssistantMessage: FC<{ metaEvents?: any[], setMetaEvents?: React.Dispatch<React.SetStateAction<any[]>> }> = ({ metaEvents = [], setMetaEvents }) => {
   const [metaExpanded, setMetaExpanded] = useState<boolean>(true);
   const [metaContainerEl, setMetaContainerEl] = useState<HTMLDivElement | null>(null);
+  
   useEffect(() => {
+    if (!setMetaEvents) return;
     const handler = (e: Event) => {
       const ce = e as CustomEvent;
       setMetaEvents((prev) => [...prev, ce.detail]);
     };
     window.addEventListener("df-meta", handler as EventListener);
     return () => window.removeEventListener("df-meta", handler as EventListener);
-  }, []);
+  }, [setMetaEvents]);
+  
   // Auto-scroll to bottom so newest ~5 events remain visible
   useEffect(() => {
     if (metaExpanded && metaContainerEl) {
       metaContainerEl.scrollTop = metaContainerEl.scrollHeight;
     }
   }, [metaEvents, metaExpanded, metaContainerEl]);
+  
   return (
     <MessagePrimitive.Root className="grid grid-cols-[auto_auto_1fr] grid-rows-[auto_1fr] relative w-full max-w-[var(--thread-max-width)] py-4">
       <div className="text-foreground max-w-[calc(var(--thread-max-width)*0.8)] break-words leading-7 col-span-2 col-start-2 row-start-1 my-1.5">

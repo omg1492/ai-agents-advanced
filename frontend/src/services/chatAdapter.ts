@@ -24,6 +24,8 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
   private currentThreadId: string | null = null;
   // Cache of loaded messages per thread; re-dispatched on each selection
   private loadedHistory: Record<string, any[] | undefined> = {};
+  // Track a lazily created thread that hasn't been announced to UI yet
+  private pendingThreadMeta: any | null = null;
 
   /**
    * Ensure we have a thread to work with
@@ -32,6 +34,8 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
     if (!this.currentThreadId) {
       const thread = await dreamFarmAPI.createThread('New Conversation');
       this.currentThreadId = thread.thread_id;
+      // Defer UI announcement until after first response to avoid runtime resets mid-stream
+      this.pendingThreadMeta = thread;
     }
     return this.currentThreadId!; // We know it's not null at this point
   }
@@ -109,6 +113,13 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
   }
   // Final content to ensure completion state, then end generator
   yield { content: [{ type: 'text' as const, text: fullText }] };
+  // Announce lazily-created thread now that first assistant reply finished streaming
+  if (this.pendingThreadMeta && this.pendingThreadMeta.thread_id === threadId) {
+    try {
+      window.dispatchEvent(new CustomEvent('df-thread-list-add', { detail: this.pendingThreadMeta }));
+    } catch { /* ignore */ }
+    this.pendingThreadMeta = null;
+  }
   return; // end generator
   }
 
@@ -117,6 +128,15 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
    */
   reset() {
     this.currentThreadId = null;
+    // Clear the history cache to prevent old messages from showing
+    this.loadedHistory = {};
+  }
+
+  /**
+   * Fully clear internal state (alias for reset plus future fields)
+   */
+  clearAll() {
+    this.reset();
   }
 
   /**
@@ -158,4 +178,5 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
 }
 
 // Default adapter instance
+// Default (initial) adapter instance. App will replace via setCurrentChatAdapter when remounting.
 export const dreamFarmChatAdapter = new DreamFarmChatAdapter();

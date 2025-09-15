@@ -21,6 +21,40 @@ Follow‑up Ideas (deferred):
 - Graceful deprecation warning emission when legacy flag is still set.
 
 ## 2025-12-09
+### 2025-09-15 User Profile Patch Tool (`memory_write_profile`)
+Implemented incremental write capability for user profiles:
+- Added `UserProfileService.apply_patch` supporting constrained JSON patch with `set` (deep merge), `append` (unique primitives to arrays), `remove` (top-level deletes).
+- Registered new function tool `memory_write_profile` in `OpenAIService.get_tools` gated by `USER_PROFILE_ENABLED` flag.
+- Execution branch returns `{applied, touched, current}` subset rather than full profile to minimize tokens.
+- Updated `system_prompt.j2` with strict usage guidance (explicit user request, durable preference, contradiction correction, one call per turn, no ephemeral state).
+- Extended lesson L05 README with manual test steps and examples; updated `Design.md` section 11 (new 11.7) detailing merge semantics & safety.
+Rationale: Safely evolve persistent personalization without exposing full profile to model editing risks and avoiding hallucinated overwrites.
+Planned follow-ups: audit trail table, rate limiting, schema validation / PII guard, REST PATCH endpoint parity.
+
+#### 2025-09-15 Tests Added for memory_write_profile & UserProfileService
+- Added unit test file `test_user_profile_service_unit.py` covering: creation, deep merge set, append uniqueness, remove, malformed patch resilience.
+- Added integration test `test_memory_write_profile_integration.py` simulating Responses API tool loop with stubbed client (create + submit_tool_outputs) and disabled flag scenario.
+- Fixed indentation bug in `user_profile_service.py` surfaced during test import (corrected class docstring indentation).
+- Verified all new tests pass (`4 passed` unit, `2 passed` integration subset).
+
+#### 2025-09-15 memory_write_profile Diagnostics Enhancement
+- Added `apply_patch_with_report` returning: applied, touched, updated, not_found, ignored (per segment), errors, current subset, and conditional full_profile (only when issues present).
+- Updated OpenAIService tool branch to emit full diagnostic payload so the model can adapt / retry intelligently.
+- Added integration test `test_memory_write_profile_patch_diagnostics` verifying not_found & ignored cases surface full_profile.
+- Backward compatible: original happy-path integration test unchanged and still passes.
+
+#### 2025-09-15 memory_write_profile Guidance Visibility Fix
+- Problem: Model responded it could not persist preferences although the tool was registered. Root cause: system prompt Jinja conditional referenced non-existent attributes (`config.memory`, `config.user_profile`) so the guidance block was never rendered.
+- Solution: Added explicit template context flag `memory_write_profile_enabled`; simplified condition to `{% if memory_write_profile_enabled %}`.
+- Additional: Passed flag from `/chat` endpoint, added INFO log when registering tool, and new test `test_system_prompt_memory_write_profile.py` verifying presence/absence of guidance.
+- Impact: Ensures model reliably sees usage instructions whenever the tool is available, reducing false negative tool refusal.
+
+#### 2025-09-15 memory_write_profile Execution Logging & User Acknowledgement
+- Added execution log inside `OpenAIService` tool loop with DF_META style structured line capturing applied/updated/ignored/not_found/errors for each patch.
+- Enhanced system prompt guidance: model MUST explicitly acknowledge successful persistence when tool output `applied=true` (one confirmation per turn) using a localized phrase (e.g., "Uložím si, že...").
+- Updated test `test_system_prompt_memory_write_profile.py` to assert presence of the new instruction (checks for `applied=true` phrase in template output when enabled).
+- Rationale: Improves operator observability of profile mutations and ensures end-user receives feedback that preference was stored.
+
 ### 2025-09-14 Conversation Summaries Schema Adjustment
 ### 2025-09-14 Added conversation_summaries DDL Script
 

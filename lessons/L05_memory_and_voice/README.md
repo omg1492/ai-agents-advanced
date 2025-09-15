@@ -1,6 +1,39 @@
 ## Lekce 05 – Konverzační Paměť (Summaries) & Základ pro Voice
 
-V této lekci přidáváme první stavební kameny uživatelské paměti: ukládání syrových (raw) konverzací, jejich dávkové sumarizace do vektorového prostoru a přípravu na budoucí personalizaci (user profile enrichment) a hlasový mód. Hlas ještě není implementován – definujeme však architekturu a datové body, aby pozdější přidání (streaming audio → text → paměť) bylo plynulé.
+V této lekci přidáváme první stavební kameny uživatelské paměti: ukládání syrových (raw) konverzací, jejich dávkové sumJak otestovat ručně (lokální běh agenta):
+1. Spusťte agenta se zapnutým profilem:
+	 ```env
+	 USER_PROFILE_ENABLED=true
+	 ```
+2. Zeptejte se: „Co o mě víš?" – pokud profil neexistuje, odpověď bude prázdná sekce / žádná fakta.
+3. Zadejte: „Pamatuj si prosím, že nemám rád kozí sýr a preferuji vegetariánská jídla."
+4. Sledujte logy – měl by proběhnout tool call `memory_write_profile` s patch strukturou podobnou:
+	 ```json
+	 {"patch":{"set":{"diet":{"vegetarian":true}},"append":{"dislikes":["kozí sýr"]}}}
+	 ```
+5. Znovu: „Co o mě víš?" – nyní by se měl objevit update v `<user_profile_json>`.
+6. Otestujte deduplikaci: „Pamatuj si, že fakt nemám rád kozí sýr." – druhé volání by nemělo duplikovat položku v poli `dislikes`.
+7. Otestujte korekci: „Už vlastně jím ryby, přidej prosím že jsem pescatarián." → očekávaný PATCH `set` např. `{ "diet": { "pescatarian": true } }`.
+
+#### Příklad: Domácí zvířata
+Praktická ukázka persistence a načítání uživatelských preferencí:
+
+**Krok 1 - Uložení informace (nový thread):**
+```
+User: Zapamatuj si, že máme doma kočku
+Assistant: Uložím si, že máte doma kočku. [tool call: memory_write_profile]
+```
+Očekávaný patch:
+```json
+{"patch":{"set":{"household":{"pets":["cat"]}}}}
+```
+
+**Krok 2 - Ověření persistence (nový thread):**
+```
+User: Co máme doma za zvíře?
+Assistant: Podle toho, co jsem si zaznamenal, máte doma kočku.
+```
+Profil se automaticky načte a injektuje do system promptu, takže model má k dispozici historickou informaci i v novém threadu.torového prostoru a přípravu na budoucí personalizaci (user profile enrichment) a hlasový mód. Hlas ještě není implementován – definujeme však architekturu a datové body, aby pozdější přidání (streaming audio → text → paměť) bylo plynulé.
 
 ### Byznys motivace
 1. Personalizace: Schopnost připomenout si uživatelské preference (alergie, dietní omezení, oblíbené produkty) z předchozích sezení.
@@ -22,6 +55,7 @@ V této lekci přidáváme první stavební kameny uživatelské paměti: uklád
 11. Nástroj `memory_search` (pokud povolen) – vektorová podobnost nad `conversation_summaries` izolovaná per uživatel.
 12. Granulární feature flagy: `CONVERSATION_STORE_ENABLED`, `MEMORY_SEARCH_ENABLED`, `USER_PROFILE_ENABLED` (plus starý fallback `MEMORY_FEATURES_ENABLED`).
 13. Jednotné testy pokrývající zapnutí/vypnutí jednotlivých paměťových funkcí + integraci profilu.
+14. Nástroj `memory_write_profile` (pokud `USER_PROFILE_ENABLED=true`) – bezpečné PATCH aktualizace profilu (konzervativní, řízené pravidly v system promptu).
 
 > Stav hlasu (voice): stále pouze design – žádný streaming audio → text zatím nenasazen.
 
@@ -32,6 +66,7 @@ V této lekci přidáváme první stavební kameny uživatelské paměti: uklád
 - Incremental / online summarization během delších sezení
 - Voice mód: websocket audio ingest, VAD, adaptivní chunking, realtime profile enrichment
 - Evaluace kvality paměti (precision/recall preferencí) a metriky nákladů
+ - Audit patch operací (log revizí) pro `memory_write_profile`
 
 ### Koncepty v praxi
 - Data minimization: syrové zprávy lze po expirační lhůtě smazat (`expires_at`), shrnutí zůstává.
@@ -157,3 +192,52 @@ Poznámky:
 - Pokud se nástroj nevyvolá (model se rozhodne, že historie není nutná), zkuste explicitnější formulaci („co jsem ti říkal…“, „pamatuješ si…“).
 - Výsledky memory_search se vrací jako interní tool výstup (`memories[...]`) a model z nich následně sestaví odpověď.
 - Pokud jste právě resetovali databázi a ještě neběžel summarizer, nástroj vrátí prázdný seznam.
+
+### Nástroj `memory_write_profile` – PATCH uživatelského profilu
+
+Implementováno: Model (pokud je nástroj povolen) může jednorázově v turnu zavolat funkční nástroj `memory_write_profile` a poslat pouze PATCH objekt – nikoliv celý profil. Cílem je snížit riziko, že model přepíše profil halucinovanými daty.
+
+Struktura patch objektu:
+```json
+{
+	"patch": {
+		"set": { "diet": { "vegetarian": true } },
+		"append": { "dislikes": ["kozí sýr"] },
+		"remove": ["temporary_note"]
+	}
+}
+```
+Pravidla (vynuceno v system promptu):
+- Volat pouze pokud uživatel výslovně řekne „zapamatuj si…“, „pamatuj si…“, „prosím ulož…“, nebo pokud je zjevná dlouhodobá korekce („už vlastně nejím maso“ proti předchozímu stavu).
+- Nepoužívat pro dočasné / kontextové údaje (aktuální nálada, ad‑hoc přání).
+- `set` dělá hluboký merge – objekty se rekurzivně slučují, primitiva přepisují.
+- `append` přidává unikátní primitivní hodnoty do polí (string/int/float/bool); duplikáty ignoruje.
+- `remove` smaže top‑level klíče (šetřit, používat při zrušení nebo revokaci informace).
+- Nikdy neposílat celý profil – pouze změny.
+- V jednom model turnu maximálně jedno volání nástroje – agregovat změny.
+
+Jak otestovat ručně (lokální běh agenta):
+1. Spusťte agenta se zapnutým profilem:
+	 ```env
+	 USER_PROFILE_ENABLED=true
+	 ```
+2. Zeptejte se: „Co o mě víš?“ – pokud profil neexistuje, odpověď bude prázdná sekce / žádná fakta.
+3. Zadejte: „Pamatuj si prosím, že nemám rád kozí sýr a preferuji vegetariánská jídla.“
+4. Sledujte logy – měl by proběhnout tool call `memory_write_profile` s patch strukturou podobnou:
+	 ```json
+	 {"patch":{"set":{"diet":{"vegetarian":true}},"append":{"dislikes":["kozí sýr"]}}}
+	 ```
+5. Znovu: „Co o mě víš?“ – nyní by se měl objevit update v `<user_profile_json>`.
+6. Otestujte deduplikaci: „Pamatuj si, že fakt nemám rád kozí sýr.“ – druhé volání by nemělo duplikovat položku v poli `dislikes`.
+7. Otestujte korekci: „Už vlastně jím ryby, přidej prosím že jsem pescatarián.“ → očekávaný PATCH `set` např. `{ "diet": { "pescatarian": true } }`.
+
+Poznámka k DB: profil se ukládá / upsertuje v tabulce `user_profiles` jako JSONB. Merge logika je v `UserProfileService.apply_patch`.
+
+Možné edge‑cases k ručnímu ověření:
+- Přidání více hodnot najednou: „Pamatuj si, že nemám rád koriandr a cizrnu.“ → jedno `append` pole se dvěma hodnotami.
+- Odstranění: „Zapomeň na tu dočasnou poznámku.“ → očekává se `remove` s příslušným klíčem, pokud existuje.
+
+Další plánované vylepšení:
+- Audit trail patch operací (log/versioning tabulka)
+- Limitace počtu zápisů za časové okno (rate limiting) – ochrana proti spamování modelem
+- Heuristická validace obsahových kategorií (např. filtrace PII)

@@ -28,6 +28,7 @@ from src.services.agentic_search import AgenticSearchService
 from src.services.graph_search_service import GraphSearchService
 from src.services.stock_service import StockService
 from src.services.memory_search_service import MemorySearchService
+from src.services.user_profile_service import UserProfileService
 import os
 
 from openai import AsyncOpenAI
@@ -49,6 +50,7 @@ class OpenAIService:
         config: Optional[OpenAIConfig] = None,
         app_config: Optional[AppConfig] = None,
         stock_service: Optional[StockService] = None,
+        user_profile_service: Optional[UserProfileService] = None,
     ):
         """Initialize the OpenAI service.
 
@@ -85,6 +87,8 @@ class OpenAIService:
                 logger.info("Memory search disabled; skipping memory_search tool init")
         except Exception as me:  # pragma: no cover
             logger.warning(f"Memory search init failed: {me}")
+        # User profile service (write path for memory_write_profile tool) – may be injected externally (tests) or None
+        self._user_profile_service: UserProfileService | None = user_profile_service
         self.client = self._get_openai_client()
         self.model_name = self._get_model_name()
         # Agentic search service (function tools) optional
@@ -325,6 +329,32 @@ class OpenAIService:
                     },
                 }
             )
+        # Memory write (profile patch) tool – only if user profiles enabled (environment flag handled in main for injection logic)
+        prof_enabled_flag = os.getenv("USER_PROFILE_ENABLED", "false").lower() in ["true","1","yes","on"]
+        if prof_enabled_flag:
+            logger.info("Registering memory_write_profile tool (USER_PROFILE_ENABLED=%s)", prof_enabled_flag)
+            tools.append(
+                {
+                    "type": "function",
+                    "name": "memory_write_profile",
+                    "description": "Patch the user's profile with new or corrected preference facts. Use ONLY when the user explicitly asks to remember something for next time or when a critical, durable preference/contradiction becomes clear.",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "patch": {
+                                "type": "object",
+                                "description": "Constrained patch object with optional keys: set (object), append (object of arrays), remove (array of field names). Do NOT send full profile.",
+                                "properties": {
+                                    "set": {"type": "object", "description": "New or updated fields (objects merged recursively)."},
+                                    "append": {"type": "object", "description": "Arrays of primitive values to append uniquely."},
+                                    "remove": {"type": "array", "items": {"type": "string"}, "description": "Top-level fields to remove."}
+                                }
+                            }
+                        },
+                        "required": ["patch"],
+                    },
+                }
+            )
         return tools or None
 
     def _get_openai_client(self) -> AsyncOpenAI:
@@ -480,6 +510,39 @@ class OpenAIService:
                             output_payload = {"memories": []}
                     else:
                         output_payload = {"memories": []}
+                elif name == "memory_write_profile":
+                    prof_enabled_flag = os.getenv("USER_PROFILE_ENABLED", "false").lower() in ["true","1","yes","on"]
+                    logger.info("memory_write_profile tool called: user_id=%s prof_enabled=%s service_available=%s", user_id, prof_enabled_flag, bool(self._user_profile_service))
+                    if user_id and prof_enabled_flag and self._user_profile_service:
+                        try:
+                            parsed = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                        except Exception:
+                            parsed = {}
+                        patch = parsed.get("patch") or {}
+                        logger.info("memory_write_profile attempting patch user_id=%s patch=%s", user_id, patch)
+                        try:
+                            # Use verbose report
+                            report = self._user_profile_service.apply_patch_with_report(user_id, patch)
+                            try:
+                                logger.info("memory_write_profile executed user_id=%s applied=%s updated=%s ignored=%s not_found=%s errors=%s", user_id, report.get("applied"), report.get("updated"), report.get("ignored"), report.get("not_found"), report.get("errors"))
+                                # DF_META style structured line for UI parsing (if frontend listens)
+                                logger.info("DF_META memory_write_profile report=%s", json.dumps({
+                                    "user_id": user_id,
+                                    "applied": report.get("applied"),
+                                    "updated": report.get("updated"),
+                                    "not_found": report.get("not_found"),
+                                    "ignored": report.get("ignored"),
+                                    "errors": report.get("errors"),
+                                }, ensure_ascii=False))
+                            except Exception:
+                                pass
+                            output_payload = report
+                        except Exception as pe:  # pragma: no cover
+                            logger.warning(f"Profile patch failed: {pe}")
+                            output_payload = {"applied": False, "error": "patch_failed", "full_profile": self._user_profile_service.get_profile(user_id)}
+                    else:
+                        logger.warning("memory_write_profile disabled or missing requirements: user_id=%s prof_enabled=%s service=%s", user_id, prof_enabled_flag, bool(self._user_profile_service))
+                        output_payload = {"applied": False, "error": "disabled"}
                 else:
                     logger.info("Ignoring unsupported function call name=%s", name)
                     continue
@@ -490,10 +553,14 @@ class OpenAIService:
             if not tool_outputs:
                 break  # nothing executable
             try:
+                logger.info("Submitting %d tool outputs to response_id=%s", len(tool_outputs), getattr(response, "id", None))
+                for i, tool_out in enumerate(tool_outputs):
+                    logger.info("Tool output %d: call_id=%s output_len=%d", i, tool_out.get("tool_call_id"), len(tool_out.get("output", "")))
                 response = await self.client.responses.submit_tool_outputs(
                     response_id=getattr(response, "id", None),
                     tool_outputs=tool_outputs,
                 )
+                logger.info("submit_tool_outputs succeeded, new response_id=%s", getattr(response, "id", None))
             except Exception as e:  # pragma: no cover
                 logger.exception("submit_tool_outputs failed: %s", e)
                 break
@@ -536,3 +603,16 @@ class OpenAIService:
             except Exception:  # pragma: no cover - defensive
                 continue
         return calls
+
+    # ------------------------ user profile helpers ------------------------ #
+    async def _run_user_profile_patch(self, user_id: str, patch: dict) -> dict:
+        """Run the user profile patch (async wrapper).
+
+        The underlying service method is synchronous (DB write). We execute it in
+        a thread via loop.run_in_executor if needed in future; for now direct call
+        to keep simple (I/O bound small single statement).
+        """
+        if not self._user_profile_service:
+            return {}
+        # Service method is sync; call directly (SQLAlchemy engine uses threadpool internally).
+        return self._user_profile_service.apply_patch(user_id, patch)

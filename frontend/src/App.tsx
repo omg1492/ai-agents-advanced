@@ -11,7 +11,8 @@ import { buildAuthState, exchangeCode, logout, startLogin, AuthState } from './s
  * Main App component with DreamFarm AI Assistant
  */
 function App() {
-  const runtime = useLocalRuntime(dreamFarmChatAdapter);
+  // Increment to force full runtime recreation (new LocalRuntime instance) on thread switch
+  const [runtimeKey, setRuntimeKey] = useState(0);
   const [auth, setAuth] = useState<AuthState>({ loading: true, isAuthenticated: false });
   // Track the currently viewed thread id to force remount of <Thread/> when switching
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
@@ -33,15 +34,21 @@ function App() {
 
   // Listen for thread create/select events (emitted by thread-list)
   useEffect(() => {
+    const switchThread = (threadId: string) => {
+      setActiveThreadId(threadId);
+      // Clear meta events & rebuild runtime to drop prior in-memory messages
+      window.dispatchEvent(new CustomEvent('df-meta-clear'));
+      setRuntimeKey(k => k + 1);
+    };
     const onCreated = (e: Event) => {
       const detail: any = (e as CustomEvent).detail;
       if (!detail?.thread_id) return;
-      setActiveThreadId(detail.thread_id);
+      switchThread(detail.thread_id);
     };
     const onSelected = (e: Event) => {
       const detail: any = (e as CustomEvent).detail;
       if (!detail?.thread_id) return;
-      setActiveThreadId(detail.thread_id);
+      switchThread(detail.thread_id);
     };
     window.addEventListener('df-thread-created', onCreated);
     window.addEventListener('df-thread-selected', onSelected);
@@ -67,7 +74,6 @@ function App() {
 
   return (
     <TooltipProvider>
-      <AssistantRuntimeProvider runtime={runtime}>
         <div className="h-screen w-screen flex flex-col bg-gray-50">
           <header className="bg-white border-b border-gray-200 px-4 py-3 flex items-center justify-between">
             <div className="flex items-center">
@@ -92,14 +98,22 @@ function App() {
               <ThreadList />
             </aside>
             <main className="flex-1 overflow-hidden">
-              {/* key forces fresh Assistant UI state per thread */}
-              <Thread key={activeThreadId || 'default-thread'} threadId={activeThreadId} />
+              <ChatRuntimeContainer key={runtimeKey} threadId={activeThreadId} />
             </main>
           </div>
         </div>
-      </AssistantRuntimeProvider>
     </TooltipProvider>
   );
 }
+
+// Separate component so a key change fully re-runs useLocalRuntime producing fresh internal message state
+const ChatRuntimeContainer: React.FC<{ threadId: string | null }> = ({ threadId }) => {
+  const runtime = useLocalRuntime(dreamFarmChatAdapter);
+  return (
+    <AssistantRuntimeProvider runtime={runtime}>
+      <Thread key={threadId || 'default-thread'} threadId={threadId} />
+    </AssistantRuntimeProvider>
+  );
+};
 
 export default App;

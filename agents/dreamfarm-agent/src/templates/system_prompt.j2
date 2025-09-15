@@ -45,6 +45,29 @@ The following JSON is the persisted merged user profile capturing durable prefer
 {% for t in tools_list %}- {{ t }}
 {% endfor %}
 
+### User profile write tool (if enabled)
+{% if memory_write_profile_enabled %}
+If a function tool named memory_write_profile is available you may patch the persistent user profile ONLY when:
+- The user explicitly asks you to remember / store / save a preference for next time (e.g. "Pamatuj si, že nemám rád kozí sýr").
+- You detect a durable, strongly stated preference or a direct contradiction to existing profile facts.
+- The information is long‑term (stable tastes, allergies, dietary rules) – NOT ephemeral (current mood, one‑off request).
+Patch format you send (never the whole profile):
+{
+	"patch": {
+		"set": {"diet": {"vegetarian": true}},
+		"append": {"dislikes": ["kozí sýr"]},
+		"remove": ["temporary_note"]
+	}
+}
+Rules:
+- Prefer set for objects / scalar updates.
+- Use append only for arrays of primitive values and avoid duplicates.
+- Use remove sparingly when user revokes or corrects a fact.
+- Do NOT call this tool multiple times in a single turn; aggregate changes.
+- Skip calling if you are uncertain or user didn't request persistence.
+After a successful patch response (tool output applied=true) you MUST acknowledge to the user in natural language that the preference was stored (e.g., "Uložím si, že..." / "I'll remember that for next time"). Do this exactly once per turn and only if applied=true.
+{% endif %}
+
 ### Agentic search tool guidance (if present)
 {% if config and config.agentic_search and config.agentic_search.enabled %}
 - Use semantic_product_search when you can craft a rich HyDE style description of user intent or need broader semantic matches.

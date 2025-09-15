@@ -161,6 +161,43 @@ End of file.
 
 ---
 
+## 7. New Thread Not Appearing Immediately In Sidebar (Implicit Creation) – 2025-09-15
+
+### Symptom
+1. Load app fresh.
+2. Start typing without clicking "New Thread" first.
+3. Assistant responds, but the left thread list does **not** show the new thread until manual refresh.
+
+### Root Cause
+`DreamFarmChatAdapter.ensureThread()` lazily created a backend thread, but no UI events were emitted. The sidebar (`ThreadListItems`) only updates on `df-thread-created` events or periodic refresh, so the newly created thread stayed invisible until reload.
+
+### Fix
+Emit both `df-thread-created` and `df-thread-selected` immediately after implicit thread creation inside `ensureThread()`:
+```ts
+if (!this.currentThreadId) {
+    const thread = await dreamFarmAPI.createThread('New Conversation');
+    this.currentThreadId = thread.thread_id;
+    window.dispatchEvent(new CustomEvent('df-thread-created', { detail: thread }));
+    window.dispatchEvent(new CustomEvent('df-thread-selected', { detail: thread }));
+}
+```
+
+### Verification Checklist
+| Action | Expected |
+|--------|----------|
+| Fresh load, type first message | Sidebar instantly shows "New Conversation" (or titled thread) at top |
+| Click New Thread button | Thread appears immediately without refresh |
+| Switch threads | Highlight updates; history preloads |
+
+### Prevention
+Always broadcast creation + selection events whenever a thread can be created implicitly (adapter, hotkeys, system actions) not only from the explicit UI button.
+
+### Related Lessons
+- Keep UI state in sync by emitting domain events at the same abstraction layer that mutates backend state.
+- Prefer explicit events over relying on polling or reload heuristics for reactive UX.
+
+---
+
 ## Hybrid RAG & Full‑Text Search Integration Issues - 2025-08-24
 
 ### Incorrect Structured Output Parameter (Responses API)

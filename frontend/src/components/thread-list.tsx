@@ -26,27 +26,20 @@ export const ThreadList: FC = () => {
 };
 
 const ThreadListNew: FC = () => {
-  // We handle creation manually so a distinct backend thread row is created immediately
   const [creating, setCreating] = useState(false);
   const handleNew = async () => {
     if (creating) return;
     try {
       setCreating(true);
-      // Reset adapter so subsequent messages use fresh thread id
+      window.dispatchEvent(new CustomEvent('df-meta-clear'));
       dreamFarmChatAdapter.reset();
-      // Proactively create empty thread row now so it appears in list even before first message
       const title = `New Chat ${new Date().toLocaleTimeString()}`;
-  const res = await dreamFarmAPI.createThread(title);
-  // Immediately set adapter thread id so first message goes to this thread
-  dreamFarmChatAdapter.setThreadId(res.thread_id);
-  // Broadcast creation & implicit selection so App & list update
-  window.dispatchEvent(new CustomEvent('df-thread-created', { detail: res }));
-  window.dispatchEvent(new CustomEvent('df-thread-selected', { detail: res }));
-    } catch (e) {
-      // Silently ignore for now; could show toast if toast system present
-    } finally {
-      setCreating(false);
-    }
+      const res = await dreamFarmAPI.createThread(title);
+      dreamFarmChatAdapter.setThreadId(res.thread_id);
+      window.dispatchEvent(new CustomEvent('df-thread-created', { detail: res }));
+      window.dispatchEvent(new CustomEvent('df-thread-selected', { detail: res }));
+    } catch { /* ignore */ }
+    finally { setCreating(false); }
   };
   return (
     <Button onClick={handleNew} disabled={creating} className="data-[active]:bg-muted hover:bg-muted flex items-center justify-start gap-1 rounded-lg px-2.5 py-2 text-start" variant="ghost">
@@ -97,19 +90,35 @@ const ThreadListItems: FC = () => {
         message_count: 0,
       }, ...prev.filter(t => t.thread_id !== detail.thread_id)]);
     };
+    const onListAdd = (e: Event) => {
+      const detail: any = (e as CustomEvent).detail;
+      if (!detail?.thread_id) return;
+      setServerThreads(prev => [{
+        thread_id: detail.thread_id,
+        title: detail.title || 'New Conversation',
+        created_at: detail.created_at || new Date().toISOString(),
+        updated_at: detail.updated_at || new Date().toISOString(),
+        message_count: 1,
+      }, ...prev.filter(t => t.thread_id !== detail.thread_id)]);
+    };
     window.addEventListener('df-thread-created', onCreated);
+    window.addEventListener('df-thread-list-add', onListAdd);
     // Refresh when window gains focus (helps after auth redirect)
     const onFocus = () => { if (!loading) load(); };
     window.addEventListener('focus', onFocus);
-  return () => { clearInterval(interval); window.removeEventListener('df-thread-created', onCreated); window.removeEventListener('focus', onFocus); };
+  return () => { clearInterval(interval); window.removeEventListener('df-thread-created', onCreated); window.removeEventListener('df-thread-list-add', onListAdd); window.removeEventListener('focus', onFocus); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleSelect = (t: ServerThreadMeta) => {
     setActiveThreadId(t.thread_id);
     dreamFarmChatAdapter.setThreadId(t.thread_id);
-  // Preload messages immediately
-  dreamFarmChatAdapter.preloadMessages(t.thread_id);
+    
+    // Clear any meta events from previous conversation
+    window.dispatchEvent(new CustomEvent('df-meta-clear'));
+    
+    // Preload messages immediately
+    dreamFarmChatAdapter.preloadMessages(t.thread_id);
     window.dispatchEvent(new CustomEvent('df-thread-selected', { detail: t }));
   };
 

@@ -262,6 +262,25 @@ def _require_user(request: Request) -> tuple[str, bool, dict]:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
 
 
+@app.get("/debug/user-profile/{user_id}")
+async def debug_user_profile(user_id: str, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
+    """Debug endpoint to view raw user profile from database."""
+    username, is_vip, _ = user_ctx
+    # Only allow users to see their own profile or admin access (simplified check)
+    if username != user_id and not is_vip:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    if not user_profile_service:
+        raise HTTPException(status_code=503, detail="User profile service not available")
+    
+    try:
+        profile = user_profile_service.get_profile(user_id)
+        return {"user_id": user_id, "profile": profile, "found": profile is not None}
+    except Exception as e:
+        logger.error(f"Debug profile fetch failed: {e}")
+        raise HTTPException(status_code=500, detail="Profile fetch failed")
+
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
     """Single endpoint chat using server-side conversation state.
@@ -316,7 +335,7 @@ async def chat(request: ChatRequest, user_ctx: tuple[str, bool, dict] = Depends(
                 "user_profile": user_profile_json,
                 "user_id": username,
                 "config": config_service.config,
-                # Stock data is NOT injected here; retrieved only via function calling.
+                "memory_write_profile_enabled": bool(_user_profile_enabled and user_profile_service is not None),
             },
         )
         logger.debug(f"Rendered system prompt for /chat:\n{system_prompt}")
@@ -535,6 +554,7 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
             "user_profile": user_profile_json,
             "user_id": username,
             "config": config_service.config,
+            "memory_write_profile_enabled": bool(_user_profile_enabled and user_profile_service is not None),
         },
     )
     # Inject prior cached turn transcript if applicable (first real LLM turn)
@@ -692,6 +712,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
             "user_id": username,
             "config": config_service.config,
             # Stock data excluded; function calling path only.
+                "memory_write_profile_enabled": bool(_user_profile_enabled and user_profile_service is not None),
         },
     )
     # Inject transcript if semantic cache provided first answer and first real LLM turn
@@ -952,6 +973,60 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                                                 })
                                         except Exception as exec_e:  # noqa: BLE001
                                             logger.warning(f"Memory search function execution error: {exec_e}")
+                                    elif name == "memory_write_profile":
+                                        logger.info(f"memory_write_profile called in streaming path: user_id={username}")
+                                        try:
+                                            prof_enabled_flag = os.getenv("USER_PROFILE_ENABLED", "false").lower() in ["true","1","yes","on"]
+                                            if username and prof_enabled_flag and user_profile_service:
+                                                raw_args = getattr(item, "arguments", "{}")
+                                                try:
+                                                    parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                                                except Exception:
+                                                    parsed_args = {}
+                                                patch = parsed_args.get("patch", {})
+                                                logger.info(f"memory_write_profile executing patch: {patch}")
+                                                
+                                                try:
+                                                    report = user_profile_service.apply_patch_with_report(username, patch)
+                                                    logger.info(f"memory_write_profile result: applied={report.get('applied')} updated={report.get('updated')}")
+                                                    
+                                                    pending_outputs.append({
+                                                        "type": "function_call_output",
+                                                        "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                        "output": json.dumps(report),
+                                                    })
+                                                    submit_meta = {
+                                                        "kind": "tool_event",
+                                                        "event_type": "tool.outputs_executed",
+                                                        "tool_name": "memory_write_profile",
+                                                        "applied": report.get("applied"),
+                                                        "updated_fields": report.get("updated", []),
+                                                    }
+                                                    yield "\nDF_META:" + json.dumps(submit_meta, ensure_ascii=False) + "\n"
+                                                except Exception as pe:
+                                                    logger.error(f"memory_write_profile execution failed: {pe}")
+                                                    pending_outputs.append({
+                                                        "type": "function_call_output",
+                                                        "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                        "output": json.dumps({"applied": False, "error": "execution_failed"}),
+                                                    })
+                                            else:
+                                                logger.warning(f"memory_write_profile disabled: user_id={username} enabled={prof_enabled_flag} service={bool(user_profile_service)}")
+                                                pending_outputs.append({
+                                                    "type": "function_call_output",
+                                                    "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                    "output": json.dumps({"applied": False, "error": "disabled"}),
+                                                })
+                                        except Exception as exec_e:  # noqa: BLE001
+                                            logger.warning(f"Memory write profile function execution error: {exec_e}")
+                                    else:
+                                        # Unknown/unhandled function call - add empty output to avoid breaking loop
+                                        logger.warning(f"Unhandled function call in streaming: {name}")
+                                        pending_outputs.append({
+                                            "type": "function_call_output",
+                                            "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                            "output": json.dumps({"error": "unhandled_function"}),
+                                        })
                         
                         # Tool event meta for UI (for added events)
                         elif et == "response.output_item.added":

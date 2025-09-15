@@ -244,6 +244,44 @@ Hard user_id constraint in all queries; no raw message retrieval by model; only 
 ### 11.6 Retention
 Raw logs purged after `MEMORY_CONVERSATION_RETENTION_DAYS` (default 7). Summaries indefinite unless `MEMORY_SUMMARY_RETENTION_DAYS` set.
 
+### 11.7 User Profile Patch Semantics (`memory_write_profile`)
+Objective: allow the model to persist durable user preferences incrementally without ever rewriting the full profile (reduces hallucination & race risk).
+
+Patch schema sent by model (single argument `patch`):
+```json
+{
+  "patch": {
+    "set": {"diet": {"vegetarian": true}},
+    "append": {"dislikes": ["kozí sýr"]},
+    "remove": ["temporary_note"]
+  }
+}
+```
+Merge rules implemented in `UserProfileService.apply_patch`:
+1. Load existing profile (or `{}` if none).
+2. `set`: deep recursive merge – dict values merged, primitives overwrite.
+3. `append`: for each key ensure target is list (create if missing), append only primitive values (str/int/float/bool) not already present (idempotent uniqueness).
+4. `remove`: delete listed top-level fields if present.
+5. Malformed sections are ignored; method never raises to calling tool loop.
+
+Safety / usage constraints (prompt-enforced):
+- Invoke only for explicit user request ("remember", "save", "pamatuj si") or clear long‑term preference correction.
+- No ephemeral / session-only states (current mood, one-off craving).
+- Aggregate multiple changes into one call per turn (avoid multiple sequential patches in same response cycle).
+- Never transmit the entire profile back to the server – only delta.
+
+Returned tool output shape:
+```json
+{
+  "applied": true,
+  "touched": ["diet", "dislikes"],
+  "current": {"diet": {"vegetarian": true}, "dislikes": ["kozí sýr"]}
+}
+```
+`current` contains only the subset of fields affected (post-merge) to minimize token budget while enabling the model to confirm success to user.
+
+Future enhancements (planned): rate limiting (writes/hour), audit trail table, PII category filtering, schema validation gates.
+
 ---
 
 ## 12. Voice Interaction (Hands-Free Mode)
