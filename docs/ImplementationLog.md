@@ -1,3 +1,25 @@
+## 2025-09-14 Granular Memory Feature Flags
+
+Replaced legacy umbrella `MEMORY_FEATURES_ENABLED` flag with three explicit, independently controllable feature flags:
+
+- `CONVERSATION_STORE_ENABLED` – governs initialization of `ConversationStore` (persistent thread metadata & messages).
+- `MEMORY_SEARCH_ENABLED` – governs registration/initialization of `MemorySearchService` and exposure of the `memory_search` function tool.
+- `USER_PROFILE_ENABLED` – governs initialization of `UserProfileService` and conditional injection of serialized user profile JSON into the system prompt.
+
+Behavior & migration notes:
+1. Backward compatibility: if the deprecated `MEMORY_FEATURES_ENABLED` is set truthy and the new granular flags are absent, they default to `true`; otherwise each granular flag must be set explicitly (default off when legacy is absent).
+2. Logging: startup now emits a consolidated feature state line: `Feature flags: conversation_store=… memory_search=… user_profile=… (legacy_memory_flag=…)`.
+3. `OpenAIService` no longer reads the legacy flag; it only inspects `MEMORY_SEARCH_ENABLED` plus app config to decide whether to publish the `memory_search` tool.
+4. Fixed a logging placeholder mismatch in `OpenAIService` (added missing `%s` for memory search state) introduced during the refactor.
+5. Corrected indentation / structural errors in `main.py` introduced when initially swapping flags (misplaced `if` blocks outside `try`).
+
+Rationale: Enables selective rollout (e.g., enable user profile without persisting conversations, or test memory search in isolation) and clearer operational toggling in different deployment environments.
+
+Follow‑up Ideas (deferred):
+- Add runtime admin endpoint to report current feature toggle states.
+- Implement incremental user profile enrichment pipeline (currently read-only).
+- Graceful deprecation warning emission when legacy flag is still set.
+
 ## 2025-12-09
 ### 2025-09-14 Conversation Summaries Schema Adjustment
 ### 2025-09-14 Added conversation_summaries DDL Script
@@ -608,3 +630,21 @@ Updated Lesson 5 plan checkbox to reflect completion of this summarization step.
 - Enhanced `_generate_profile` in `data/scripts/enrich_user_profiles.py` to emit the full outbound JSON payload (truncated to 8000 chars with length metadata) when `LOG_LEVEL=DEBUG`.
 - Purpose: allow verification of exactly what context (existing_profile, conversation_summaries, recent_messages) is sent to the model during enrichment for auditing / troubleshooting reasoning-only responses.
 - Truncation safeguard prevents excessive log volume when large character budgets are used; clearly annotates truncated size. No behavioral change to generation logic.
+
+### 2025-09-14 User Profile Injection into System Prompt
+- Added `UserProfileService` (`agents/dreamfarm-agent/src/services/user_profile_service.py`) to fetch `user_profiles.profile` JSON for the authenticated user.
+- Updated `main.py` to retrieve the profile (if any) on each `/chat`, `/threads/{id}/messages`, and streaming message request and pass it into the Jinja context as `user_profile`.
+- Modified `system_prompt.j2` to include a conditional `## User Profile` section emitting the raw JSON inside `<user_profile_json>` tags with a one-sentence instruction clarifying it contains durable preferences and must not be extrapolated beyond explicit facts.
+- Rationale: enable immediate low-latency personalization without extra tool calls; keeps enrichment pipeline decoupled from runtime while making memory actionable.
+
+### 2025-09-15 User ID Added to System Prompt (Profile Section)
+
+- Updated `system_prompt.j2` to inject `User ID: <username>` line inside the user profile block (when a profile is present) and passed `user_id` from all render sites in `main.py`.
+- Reason: improves model grounding for personalization and satisfies integration test expectation that the authenticated username appears alongside the profile JSON.
+- Non-breaking: if `user_id` missing, template renders as before; other tests unaffected.
+
+### 2025-09-14 Memory Features Gating Flag
+- Introduced `MEMORY_FEATURES_ENABLED` env flag (default true) in agent `.env` and `.env.template` to globally toggle memory-related functionality.
+- When false: skips initialization of `ConversationStore`, `MemorySearchService`, `UserProfileService`, and suppresses user profile injection + memory_search tool registration.
+- Updated `openai_service.py` and `main.py` to wrap initialization and usage checks.
+- Rationale: allow lightweight deployments or troubleshooting sessions without memory/state features while keeping code paths intact.

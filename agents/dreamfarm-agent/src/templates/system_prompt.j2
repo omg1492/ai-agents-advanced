@@ -25,6 +25,15 @@ You are a helpful AI assistant for Dream Farm, a virtual farmers' marketplace th
 {% endif -%}
 </context>
 
+## User Profile (if present)
+{% if user_profile %}
+The following JSON is the persisted merged user profile capturing durable preferences and traits; use ONLY facts explicitly present when personalizing responses.
+{% if user_id %}User ID: {{ user_id }}{% endif %}
+<user_profile_json>
+{{ user_profile }}
+</user_profile_json>
+{% endif %}
+
 ## Available tools & data (only what is enabled is listed)
 {% set tools_list = [] %}
 {% if simple_rag %}{% set _ = tools_list.append('RAG Catalog (<relevant_products>)') %}{% endif %}

@@ -34,6 +34,7 @@ from src.services.agentic_search import AgenticSearchService
 from src.services.auth_service import AuthService
 from src.services.conversation_store import ConversationStore
 from src.services.memory_search_service import MemorySearchService
+from src.services.user_profile_service import UserProfileService
 
 
 # Load environment variables
@@ -67,6 +68,12 @@ auth_service: AuthService | None = None
 agentic_search_service: AgenticSearchService | None = None
 conversation_store: ConversationStore | None = None
 memory_search_service: MemorySearchService | None = None
+user_profile_service: UserProfileService | None = None
+# Granular memory feature flags (legacy MEMORY_FEATURES_ENABLED still supported as umbrella fallback)
+_legacy_memory_enabled = os.getenv("MEMORY_FEATURES_ENABLED", "").lower() in ["true","1","yes","on"]
+_conversation_store_enabled = os.getenv("CONVERSATION_STORE_ENABLED", "true" if _legacy_memory_enabled else "false").lower() in ["true","1","yes","on"]
+_memory_search_enabled_flag = os.getenv("MEMORY_SEARCH_ENABLED", "true" if _legacy_memory_enabled else "false").lower() in ["true","1","yes","on"]
+_user_profile_enabled = os.getenv("USER_PROFILE_ENABLED", "true" if _legacy_memory_enabled else "false").lower() in ["true","1","yes","on"]
 # Minimal session and history stores (state remains in Responses API)
 _threads: dict[str, ThreadModel] = {}
 _history: dict[str, list[MessageModel]] = {}
@@ -150,19 +157,23 @@ async def lifespan(app: FastAPI):
         else:
             logger.info("Auth disabled")
         logger.info("Services initialized successfully")
-        # Initialize conversation persistence
+        # Initialize conversation persistence (granular flag)
         global conversation_store
-        try:
-            from src.services.conversation_store import ConversationStore as _CS
-            conversation_store = _CS(cfg)
-        except Exception as ce:  # pragma: no cover
-            logger.warning(f"ConversationStore initialization failed: {ce}")
+        if _conversation_store_enabled:
+            try:
+                from src.services.conversation_store import ConversationStore as _CS  # local import to avoid startup cost if disabled
+                conversation_store = _CS(cfg)
+                logger.info("Conversation store enabled")
+            except Exception as ce:  # pragma: no cover
+                logger.warning(f"ConversationStore initialization failed: {ce}")
+                conversation_store = None
+        else:
             conversation_store = None
-        # Memory search service
+        # Memory search service (granular flag)
         global memory_search_service
         try:
-            if getattr(cfg, "memory_search", None) and cfg.memory_search.enabled:  # type: ignore[attr-defined]
-                from src.services.memory_search_service import MemorySearchService as _MS
+            if _memory_search_enabled_flag and getattr(cfg, "memory_search", None) and cfg.memory_search.enabled:  # type: ignore[attr-defined]
+                from src.services.memory_search_service import MemorySearchService as _MS  # local import
                 memory_search_service = _MS(cfg)
                 logger.info("Memory search service enabled")
             else:
@@ -170,6 +181,25 @@ async def lifespan(app: FastAPI):
         except Exception as me:  # pragma: no cover
             logger.warning(f"Memory search initialization failed: {me}")
             memory_search_service = None
+        # User profile service (read-only personalization context)
+        global user_profile_service
+        try:
+            if _user_profile_enabled:
+                user_profile_service = UserProfileService(cfg)
+                logger.info("User profile service enabled")
+            else:
+                user_profile_service = None
+        except Exception as upe:  # pragma: no cover
+            logger.warning(f"UserProfileService initialization failed: {upe}")
+            user_profile_service = None
+        # Log consolidated feature flag states
+        logger.info(
+            "Feature flags: conversation_store=%s memory_search=%s user_profile=%s (legacy_memory_flag=%s)",
+            bool(conversation_store),
+            bool(memory_search_service and memory_search_service.enabled),
+            bool(user_profile_service),
+            _legacy_memory_enabled,
+        )
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         raise
@@ -267,6 +297,14 @@ async def chat(request: ChatRequest, user_ctx: tuple[str, bool, dict] = Depends(
                 rag_context = await rag_service.get_relevant_context(request.message)
             except Exception as re:
                 logger.warning(f"RAG context fetch failed; proceeding without context: {re}")
+        user_profile_json = ""
+        if _user_profile_enabled and user_profile_service is not None:
+            try:
+                prof = user_profile_service.get_profile(username)
+                if prof:
+                    user_profile_json = json.dumps(prof, ensure_ascii=False)
+            except Exception as pe:  # pragma: no cover
+                logger.warning(f"User profile fetch failed user={username}: {pe}")
 
         system_prompt = template_service.render_template(
             "system_prompt.j2",
@@ -275,6 +313,8 @@ async def chat(request: ChatRequest, user_ctx: tuple[str, bool, dict] = Depends(
                 "seasonal_products": [],
                 "user_preferences": [],
                 "simple_rag": rag_context or "",
+                "user_profile": user_profile_json,
+                "user_id": username,
                 "config": config_service.config,
                 # Stock data is NOT injected here; retrieved only via function calling.
             },
@@ -476,6 +516,14 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
             rag_context = await rag_service.get_relevant_context(payload.message)
         except Exception as re:
             logger.warning(f"RAG context fetch failed; proceeding without context: {re}")
+    user_profile_json = ""
+    if _user_profile_enabled and user_profile_service is not None:
+        try:
+            prof = user_profile_service.get_profile(username)
+            if prof:
+                user_profile_json = json.dumps(prof, ensure_ascii=False)
+        except Exception as pe:  # pragma: no cover
+            logger.warning(f"User profile fetch failed user={username}: {pe}")
 
     base_prompt = template_service.render_template(
         "system_prompt.j2",
@@ -484,6 +532,8 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
             "seasonal_products": [],
             "user_preferences": [],
             "simple_rag": rag_context or "",
+            "user_profile": user_profile_json,
+            "user_id": username,
             "config": config_service.config,
         },
     )
@@ -622,6 +672,14 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
             rag_context = await rag_service.get_relevant_context(payload.message)
         except Exception as re:
             logger.warning(f"RAG context fetch failed; proceeding without context: {re}")
+    user_profile_json = ""
+    if _user_profile_enabled and user_profile_service is not None:
+        try:
+            prof = user_profile_service.get_profile(username)
+            if prof:
+                user_profile_json = json.dumps(prof, ensure_ascii=False)
+        except Exception as pe:  # pragma: no cover
+            logger.warning(f"User profile fetch failed user={username}: {pe}")
 
     base_prompt = template_service.render_template(
         "system_prompt.j2",
@@ -630,6 +688,8 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
             "seasonal_products": [],
             "user_preferences": [],
             "simple_rag": rag_context or "",
+            "user_profile": user_profile_json,
+            "user_id": username,
             "config": config_service.config,
             # Stock data excluded; function calling path only.
         },

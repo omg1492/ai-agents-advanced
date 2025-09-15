@@ -8,21 +8,30 @@ V této lekci přidáváme první stavební kameny uživatelské paměti: uklád
 3. Audit & Soukromí: Surová data lze po čase bezpečně mazat, zatímco agregovaná shrnutí zůstávají (data minimization).
 4. Budoucí hlas: Stejný paměťový backend bude použit i pro voice režim (hands‑free scénáře na farmě nebo v kuchyni).
 
-### Novinky oproti lekci 04
+### Novinky oproti lekci 04 (aktuální stav)
 1. Tabulka `conversations_raw` – ukládá celé průběhy konverzací (JSON pole objektů `{role, content}`) + stav sumarizace (`summary_status`).
-2. Zjednodušené message schema: odstraněny `created_at` & `mode` per‑message (redundantní / nevyužité) – pořadí je dáno indexem v poli.
-3. Tabulka `conversation_summaries` – jedna agregovaná řádka na (user_id, thread_id) s vektorem (pgvector 2000d) pro budoucí semantické vyhledávání paměti.
-4. Skript `gen_conversations.py` – generuje deterministický demo dataset (TRUNCATE + vložení 5+ scénářů) pro test paměťového pipeline.
-5. Skript `process_conversations.py` – batch summarizer: přečte pending transcripts → pošle syrové JSON zprávy modelu → uloží shrnutí + embedding → označí jako done.
-6. Vylepšený systémový prompt summarizátoru (max 250 slov, strukturované pokyny na zachycení intentů, preferencí, rozhodnutí, unresolved otázek; čistý výstup bez metadat).
-7. Implementační logika v agentovi: při každé zprávě se upsertuje aktuální stav do `conversations_raw` (best‑effort; chyba neblokuje odpověď).
-8. Design příznaků pro budoucí funkce (memory search tool, user profile enrichment, voice streaming) – ještě neaktivní.
+2. Zjednodušené message schema: odstraněny `created_at` & `mode` per‑message – pořadí je dáno indexem v poli.
+3. Tabulka `conversation_summaries` – jedna agregovaná řádka na (user_id, thread_id) s vektorem (pgvector 2000d) pro semantické vyhledávání.
+4. Skript `gen_conversations.py` – deterministické seed konverzace (TRUNCATE + vložení scénářů) pro test pipeline.
+5. Skript `process_conversations.py` – batch summarizer (shrnutí + embedding + status update).
+6. Vylepšený systémový prompt summarizátoru (<=250 slov, strukturované pokyny, čistý výstup bez metadat).
+7. Per‑turn upsert do `conversations_raw` v agentovi (best‑effort, neblokuje odpověď).
+8. Tabulka `user_profiles` – per‑user JSON profil (preferences, dietní informace, styl) s enrich merge strategií.
+9. Skript `enrich_user_profiles.py` – čte shrnutí + nedávné raw zprávy, generuje/merge profil (deduplikace, konzervativní fakta).
+10. Injekce uživatelského profilu do systémového promptu (sekce `<user_profile_json>` + explicitní `User ID`).
+11. Nástroj `memory_search` (pokud povolen) – vektorová podobnost nad `conversation_summaries` izolovaná per uživatel.
+12. Granulární feature flagy: `CONVERSATION_STORE_ENABLED`, `MEMORY_SEARCH_ENABLED`, `USER_PROFILE_ENABLED` (plus starý fallback `MEMORY_FEATURES_ENABLED`).
+13. Jednotné testy pokrývající zapnutí/vypnutí jednotlivých paměťových funkcí + integraci profilu.
+
+> Stav hlasu (voice): stále pouze design – žádný streaming audio → text zatím nenasazen.
 
 ### Co ještě bude následovat (plán)
-- `memory_search` nástroj: vektorová podobnost nad `conversation_summaries` filtrovaná podle `user_id`.
-- `user_profiles` tabulka: konsolidace preferencí extrahovaných ze shrnutí (dietní typ, alergeny, styl vaření, tón odpovědí...).
-- Enrichment pipeline: další skript, který periodicky (nebo při změnách) extrahuje preference ze shrnutí a aktualizuje profil.
-- Voice mód: websocket / streaming, transkripce → stejné ukládání zpráv, volitelná komprese ticha a krátkých potvrzení.
+- Automatické spouštění enrichmentu / summarizeru (cron / background worker)
+- Periodická čistka expirovaných raw konverzací (`expires_at`)
+- Rozšířená struktura profilu (např. cíle, historické změny, audit trail)
+- Incremental / online summarization během delších sezení
+- Voice mód: websocket audio ingest, VAD, adaptivní chunking, realtime profile enrichment
+- Evaluace kvality paměti (precision/recall preferencí) a metriky nákladů
 
 ### Koncepty v praxi
 - Data minimization: syrové zprávy lze po expirační lhůtě smazat (`expires_at`), shrnutí zůstává.
@@ -43,13 +52,21 @@ V této lekci přidáváme první stavební kameny uživatelské paměti: uklád
 
 Unikátní klíč: `(user_id, thread_id)` pro idempotentní upsert shrnutí.
 
-### .env (relevantní / plánované proměnné)
+### .env (relevantní proměnné – aktuální)
 ```env
-MEMORY_ENABLED=true                   # (plánované zapnutí injekce paměti do promptu)
-MEMORY_CONVERSATION_RETENTION_DAYS=7  # kdy lze čistit raw
-MEMORY_SUMMARY_MAX_WORDS=250          # dokumentační – enforce v promptu
-OPENAI_MODEL=gpt-4o-mini              # nebo gpt-5 dle prostředí
+# OpenAI / Azure
+OPENAI_MODEL=gpt-5
 OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+
+# Paměť – granular flags
+CONVERSATION_STORE_ENABLED=true       # per-turn persist raw transcript
+MEMORY_SEARCH_ENABLED=true            # registrace nástroje memory_search
+USER_PROFILE_ENABLED=true             # načtení + injekce user profilu
+# Legacy (fallback): MEMORY_FEATURES_ENABLED=true  # pokud nové nenastaveny
+
+# Další (příkladové)
+SEMANTIC_CACHE_ENABLED=true           # first-turn cache (nezávislé na paměti)
+ENABLE_RAG=true                       # RAG kontext
 ```
 
 ### Jak vyzkoušet (rychlý start – pouze paměť / summarizace)
@@ -102,11 +119,11 @@ FROM conversation_summaries;
 - Budoucí memory_search bude vždy filtr `WHERE user_id = :current_user` (SQL enforcement, ne na úrovni LLM).
 
 ### Známá omezení / TODO
-- Zatím žádné automatické spouštění summarizeru (cron / background job).
-- Není implementován memory_search tool ani injekce shrnutí do promptu.
-- Chybí `user_profiles` + enrichment pipeline.
-- Voice mód (audio ingest, VAD, adaptivní chunking) – pouze plán v architektuře.
-- Není (zatím) audit trail změn shrnutí / verze.
+- Chybí scheduler (automatické běhy summarizer + enrichment)
+- Není ještě retenční job pro mazání expirovaných raw zpráv
+- Žádný audit trail verzí user profilu
+- Voice mód zatím pouze návrh
+- Chybí evaluace kvality shrnutí a profilů
 
 ### Možné rozšíření (další iterace)
 - Extrakce strukturovaných preferencí (JSON schema) paralelně se shrnutím.
@@ -128,6 +145,12 @@ Po vygenerování demo konverzací (`gen_conversations.py`) a spuštění summar
 5. „Jaké preference mám, které bys měl mít na paměti při doporučeních?“
 6. „Shrň moje dosavadní preference potravin (koření, pikantnost, dietní styl).“
 7. „Prosím zkontroluj, co jsem tě žádal připomenout ohledně kozího sýra.“
+
+Další příklady pro zjištění, zda byl injektován uživatelský profil (sekce `<user_profile_json>`):
+
+8. „Co o mě víš?“
+9. „Jaké preference sis už u mě zaznamenal?“
+10. „Jaké dietní informace o mně máš?“
 
 Poznámky:
 - Dotazy nemusí přesně opakovat původní formulace; stačí sémantická blízkost – embedding vyhledávání se postará o podobnost.

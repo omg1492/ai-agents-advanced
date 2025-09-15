@@ -28,6 +28,7 @@ from src.services.agentic_search import AgenticSearchService
 from src.services.graph_search_service import GraphSearchService
 from src.services.stock_service import StockService
 from src.services.memory_search_service import MemorySearchService
+import os
 
 from openai import AsyncOpenAI
 
@@ -74,11 +75,14 @@ class OpenAIService:
                 self._stock_service = StockService(self._app_config)
             except Exception:  # pragma: no cover - defensive
                 self._stock_service = None
-        # Memory search service
+        # Memory search service (granular flag: MEMORY_SEARCH_ENABLED) – legacy MEMORY_FEATURES_ENABLED deprecated
         self._memory_search: MemorySearchService | None = None
         try:
-            if getattr(self._app_config, "memory_search", None) and self._app_config.memory_search.enabled:  # type: ignore[attr-defined]
+            mem_enabled_flag = os.getenv("MEMORY_SEARCH_ENABLED", "false").lower() in ["true","1","yes","on"]
+            if mem_enabled_flag and getattr(self._app_config, "memory_search", None) and self._app_config.memory_search.enabled:  # type: ignore[attr-defined]
                 self._memory_search = MemorySearchService(self._app_config)
+            else:
+                logger.info("Memory search disabled; skipping memory_search tool init")
         except Exception as me:  # pragma: no cover
             logger.warning(f"Memory search init failed: {me}")
         self.client = self._get_openai_client()
@@ -97,7 +101,7 @@ class OpenAIService:
         except Exception as ge:  # pragma: no cover
             logger.warning(f"Graph search init failed: {ge}")
         logger.info(
-            "Initialized OpenAI service base_url=%s model=%s stock_tool=%s tavily=%s agentic=%s graph=%s",
+            "Initialized OpenAI service base_url=%s model=%s stock_tool=%s tavily=%s agentic=%s graph=%s memory_search=%s",
             getattr(self.client, "base_url", None),
             self.model_name,
             bool(self._stock_service and self._stock_service.enabled),
