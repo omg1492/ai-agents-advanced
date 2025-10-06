@@ -284,16 +284,42 @@ def cherry_pick_into_branch(repo: str, branch: str, commit: CommitInfo, *, main_
 				print(f"Attempting forced main-wins resolution on {len(conflict_files)} conflicted file(s)...")
 				deleted_paths = {p for code, p, _ in commit.changes if code.startswith('D')}
 				for fpath in conflict_files:
+					# Normalize path just in case
+					path = fpath.strip()
+					if not path:
+						continue
 					try:
-						if fpath in deleted_paths:
-							# Commit deletes this file; remove it
-							if os.path.exists(fpath):
-								git(["rm", "-f", fpath], cwd=repo, check=False)
+						if path in deleted_paths:
+							if os.path.exists(path):
+								git(["rm", "-f", path], cwd=repo, check=False)
+							print(f"  Resolved (delete) {path}")
 						else:
-							git(["checkout", sha, "--", fpath], cwd=repo)
-							git(["add", fpath], cwd=repo)
+							# Determine if blob exists in commit; if not, treat as deletion
+							blob_check = git(["show", f"{sha}:{path}"], cwd=repo, check=False)
+							if blob_check.returncode != 0:
+								if os.path.exists(path):
+									git(["rm", "-f", path], cwd=repo, check=False)
+								print(f"  Resolved (implicit delete) {path}")
+								continue
+							# Blob exists but wasn't flagged as modification; fall through
+						if path not in deleted_paths:
+							# Try to take version from commit
+							blob = git(["show", f"{sha}:{path}"], cwd=repo, check=False)
+							if blob.returncode == 0 and blob.stdout:
+								parent_dir = os.path.dirname(path)
+								if parent_dir:
+									os.makedirs(parent_dir, exist_ok=True)
+								with open(path, 'w', encoding='utf-8') as wf:
+									wf.write(blob.stdout)
+								git(["add", path], cwd=repo, check=False)
+								print(f"  Resolved (take main) {path}")
+							else:
+								# If blob not found treat as deletion
+								if os.path.exists(path):
+									git(["rm", "-f", path], cwd=repo, check=False)
+								print(f"  Resolved (blob missing -> delete) {path}")
 					except subprocess.CalledProcessError as ce:
-						print(f"  Failed to force-resolve {fpath}: {(ce.stderr or ce.stdout).strip()}")
+						print(f"  Failed to force-resolve {path}: {(ce.stderr or ce.stdout).strip()}")
 				# Try continuing
 				try:
 					git(["cherry-pick", "--continue"], cwd=repo)
