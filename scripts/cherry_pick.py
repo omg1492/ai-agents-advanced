@@ -282,11 +282,16 @@ def cherry_pick_into_branch(repo: str, branch: str, commit: CommitInfo, *, main_
 			conflict_files = [f.strip() for f in conflict_files_cp.stdout.splitlines() if f.strip()]
 			if conflict_files:
 				print(f"Attempting forced main-wins resolution on {len(conflict_files)} conflicted file(s)...")
-				# For each conflicted file, check out the version from the incoming commit (sha)
+				deleted_paths = {p for code, p, _ in commit.changes if code.startswith('D')}
 				for fpath in conflict_files:
 					try:
-						git(["checkout", sha, "--", fpath], cwd=repo)
-						git(["add", fpath], cwd=repo)
+						if fpath in deleted_paths:
+							# Commit deletes this file; remove it
+							if os.path.exists(fpath):
+								git(["rm", "-f", fpath], cwd=repo, check=False)
+						else:
+							git(["checkout", sha, "--", fpath], cwd=repo)
+							git(["add", fpath], cwd=repo)
 					except subprocess.CalledProcessError as ce:
 						print(f"  Failed to force-resolve {fpath}: {(ce.stderr or ce.stdout).strip()}")
 				# Try continuing
@@ -294,23 +299,24 @@ def cherry_pick_into_branch(repo: str, branch: str, commit: CommitInfo, *, main_
 					git(["cherry-pick", "--continue"], cwd=repo)
 					print("Cherry-pick succeeded after forced main-wins resolution.")
 					return True, None
-				except subprocess.CalledProcessError as ce2:
-					print("Forced resolution failed; aborting cherry-pick.")
+				except subprocess.CalledProcessError:
+					print("Forced resolution failed; aborting cherry-pick to attempt manual apply fallback.")
 					abort_cherry_pick(repo)
-					return False, err_msg + f" | forced-resolution-failed: {(ce2.stderr or ce2.stdout).strip()}"
-		print("Cherry-pick failed.")
-		abort_cherry_pick(repo)
-		if main_wins:
-			print("Falling back to manual main-wins apply of changed files...")
-			manual_ok, manual_err = manual_apply_commit(repo, commit)
-			if manual_ok:
-				print("Manual apply committed.")
-				return True, None
-			print(f"Manual apply failed: {manual_err}")
+		else:
+			print("Cherry-pick failed.")
+			abort_cherry_pick(repo)
+			return False, err_msg
+		# Manual fallback (only executed if main_wins path reached here)
+		print("Attempting manual main-wins apply fallback...")
+		manual_ok, manual_err = manual_apply_commit(repo, commit, extra_conflict_files=conflict_files if main_wins else None)
+		if manual_ok:
+			print("Manual apply committed.")
+			return True, None
+		print(f"Manual apply failed: {manual_err}")
 		return False, err_msg
 
 
-def manual_apply_commit(repo: str, commit: CommitInfo) -> Tuple[bool, Optional[str]]:
+def manual_apply_commit(repo: str, commit: CommitInfo, *, extra_conflict_files: Optional[List[str]] = None) -> Tuple[bool, Optional[str]]:
 	"""Force-apply the given commit's file changes onto current branch, overwriting local versions.
 
 	Returns (success, error_message).
@@ -338,7 +344,22 @@ def manual_apply_commit(repo: str, commit: CommitInfo) -> Tuple[bool, Optional[s
 		except subprocess.CalledProcessError as e:
 			return False, f"Failed applying {code} {path}{' -> ' + new_path if new_path else ''}: {(e.stderr or e.stdout).strip()}"
 
-	# If nothing changed, treat as success (already applied)
+	# Include any extra conflicted files that might not have appeared in diff-tree (e.g., path casing, generated paths)
+	if extra_conflict_files:
+		for fpath in extra_conflict_files:
+			if not os.path.exists(fpath):
+				# Attempt to extract blob directly
+				blob = git(["show", f"{commit.sha}:{fpath}"], cwd=repo, check=False)
+				if blob.returncode == 0 and blob.stdout:
+					parent_dir = os.path.dirname(fpath)
+					if parent_dir:
+						os.makedirs(parent_dir, exist_ok=True)
+					with open(fpath, "w", encoding="utf-8") as wf:
+						wf.write(blob.stdout)
+					git(["add", fpath], cwd=repo, check=False)
+					changes_applied = True
+
+	# If nothing changed (all already present), treat as success (already applied)
 	if not changes_applied:
 		return True, None
 
