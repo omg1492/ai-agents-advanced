@@ -246,11 +246,43 @@ def cherry_pick_into_branch(repo: str, branch: str, sha: str, *, main_wins: bool
 		print("Cherry-pick succeeded.")
 		return True, None
 	except subprocess.CalledProcessError as e:
-		print("Cherry-pick failed. Attempting to abort...")
+		err_msg = e.stderr.strip() or e.stdout.strip() or "unknown error"
+		# Detect an empty cherry-pick (commit already applied effectively)
+		if "cherry-pick is now empty" in err_msg.lower() or "previous cherry-pick is now empty" in err_msg.lower():
+			# Skip it gracefully
+			try:
+				git(["cherry-pick", "--skip"], cwd=repo)
+			except subprocess.CalledProcessError:
+				# If skip fails just abort to restore cleanliness
+				abort_cherry_pick(repo)
+			print("Cherry-pick produced no changes (already applied). Marking as success.")
+			return True, None
+		# If main_wins was requested, attempt an aggressive auto-resolution by forcing commit version
+		if main_wins:
+			conflict_files_cp = git(["diff", "--name-only", "--diff-filter=U"], cwd=repo, check=False)
+			conflict_files = [f.strip() for f in conflict_files_cp.stdout.splitlines() if f.strip()]
+			if conflict_files:
+				print(f"Attempting forced main-wins resolution on {len(conflict_files)} conflicted file(s)...")
+				# For each conflicted file, check out the version from the incoming commit (sha)
+				for fpath in conflict_files:
+					try:
+						git(["checkout", sha, "--", fpath], cwd=repo)
+						git(["add", fpath], cwd=repo)
+					except subprocess.CalledProcessError as ce:
+						print(f"  Failed to force-resolve {fpath}: {(ce.stderr or ce.stdout).strip()}")
+				# Try continuing
+				try:
+					git(["cherry-pick", "--continue"], cwd=repo)
+					print("Cherry-pick succeeded after forced main-wins resolution.")
+					return True, None
+				except subprocess.CalledProcessError as ce2:
+					print("Forced resolution failed; aborting cherry-pick.")
+					abort_cherry_pick(repo)
+					return False, err_msg + f" | forced-resolution-failed: {(ce2.stderr or ce2.stdout).strip()}"
+		print("Cherry-pick failed. Aborting.")
 		abort_cherry_pick(repo)
-		err = e.stderr.strip() or e.stdout.strip() or "unknown error"
-		print(f"Aborted cherry-pick due to: {err}")
-		return False, err
+		print(f"Aborted cherry-pick due to: {err_msg}")
+		return False, err_msg
 
 
 def get_branch_remote(repo: str, branch: str) -> Tuple[Optional[str], bool]:
