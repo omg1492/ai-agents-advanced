@@ -69,7 +69,8 @@ class TestStreamingAPI:
     def client(self, events, monkeypatch):
         monkeypatch.setenv("SEMANTIC_CACHE_ENABLED", "false")
         monkeypatch.setenv("ENABLE_RAG", "false")
-        with patch("src.main.OpenAIService", return_value=FakeOpenAIService(events)):
+        # Patch the openai_service instance, not the class
+        with patch("src.main.openai_service", FakeOpenAIService(events)):
             with TestClient(app) as test_client:
                 yield test_client
 

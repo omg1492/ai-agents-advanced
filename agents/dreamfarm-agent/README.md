@@ -17,6 +17,8 @@ This is the main AI agent for the Advanced AI Applications course. It provides a
 - **RESTful API**: Clean HTTP endpoints for frontend integration
 - **In-memory Storage**: Simple storage for Lesson 1 (will be replaced with database in later lessons)
 - **JWT Authentication (Keycloak)**: Optional RS256 validation of access tokens (dev default enabled)
+- **Voice Mode**: Speech-to-speech conversations via OpenAI Realtime API (WebSocket-based)
+- **Memory & Personalization**: Conversation summaries, memory search, and user profiles
 
 ## Quick Start
 
@@ -124,6 +126,34 @@ FARMER_TOOLS_MCP_API_KEY=advancedaiapps2025
 
 When enabled, the backend passes a remote MCP tool named `farmer-tools` to the model with:
 `Authorization: Bearer <FARMER_TOOLS_MCP_API_KEY>`.
+
+### Optional: Voice Mode (Speech-to-Speech)
+
+Enable real-time voice conversations via OpenAI Realtime API:
+
+```env
+# Enable voice mode WebSocket endpoint
+VOICE_ENABLED=true
+```
+
+**Requirements:**
+- OpenAI account with Realtime API access (gpt-4o-realtime-preview model)
+- Modern browser with Web Audio API support (Chrome/Edge recommended)
+- Microphone permissions
+
+**Features:**
+- Real-time bidirectional audio streaming (24kHz mono PCM16)
+- Automatic transcription and persistence with `mode='voice'` flag
+- Tool filtering: only `memory_search` enabled by default for low latency
+- Optional heavy tools mode via `?enable_heavy_tools=true` query parameter
+
+**Usage:**
+1. Start agent with `VOICE_ENABLED=true`
+2. Frontend shows voice button in thread UI
+3. Click "Start Voice" → Grant mic permission → Speak naturally
+4. Transcripts automatically saved to conversation history
+
+**Documentation**: See `docs/voice-mode.md` for detailed guide.
 
 ### Testing
 

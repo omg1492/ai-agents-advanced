@@ -23,7 +23,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/markdown-text";
 import { TooltipIconButton } from "@/components/tooltip-icon-button";
-import { useEffect, useState } from "react";
+import { VoiceButton } from "@/components/voice-button";
+import { useEffect, useState, useCallback, useRef } from "react";
 import { dreamFarmChatAdapter } from '@/services/chatAdapter';
 
 interface ThreadProps { threadId?: string | null }
@@ -33,11 +34,13 @@ export const Thread: FC<ThreadProps> = ({ threadId }) => {
   // We could add future hydration logic here using threadId to fetch history.
   const [historyBlocks, setHistoryBlocks] = useState<any[]>([]);
   const [metaEvents, setMetaEvents] = useState<any[]>([]);
+  const [voiceMessages, setVoiceMessages] = useState<Array<{role: string, content: string, timestamp: number}>>([]);
   
   useEffect(() => {
     // Clear when switching (fresh mount already, but ensure)
     setHistoryBlocks([]);
     setMetaEvents([]);
+    setVoiceMessages([]);  // Clear voice messages on thread change
     
     if (!threadId) { return; }
     
@@ -65,6 +68,30 @@ export const Thread: FC<ThreadProps> = ({ threadId }) => {
     };
   }, [threadId]);
   
+  // Handle voice transcript - add to chat in real-time
+  // CRITICAL: Create a stable callback that NEVER changes identity
+  // Using useRef to store the actual implementation, with a stable wrapper function
+  const voiceMessagesRef = useRef(voiceMessages);
+  voiceMessagesRef.current = voiceMessages; // Always keep ref up-to-date
+  
+  const handleVoiceTranscriptRef = useRef((role: 'user' | 'assistant', text: string) => {
+    console.log(`[Thread] 📢 Voice transcript received: role=${role}, text="${text}"`);
+    setVoiceMessages(prev => {
+      console.log('[Thread] Current voiceMessages count:', prev.length);
+      const newMessages = [...prev, { role, content: text, timestamp: Date.now() }];
+      console.log('[Thread] Updated voiceMessages count:', newMessages.length);
+      return newMessages;
+    });
+  });
+  
+  // This function has a stable identity and never changes
+  const handleVoiceTranscript = handleVoiceTranscriptRef.current;
+  
+  // Log when voiceMessages changes
+  useEffect(() => {
+    console.log('[Thread] 🎤 voiceMessages updated, count:', voiceMessages.length);
+  }, [voiceMessages]);
+  
   return (
     <ThreadPrimitive.Root
       className="text-foreground bg-background box-border flex h-full flex-col overflow-hidden"
@@ -83,6 +110,25 @@ export const Thread: FC<ThreadProps> = ({ threadId }) => {
             <div className="h-px bg-border my-2" />
           </div>
         )}
+
+        {/* Voice messages - shown in real-time during voice conversation */}
+        {voiceMessages.length > 0 && (
+          <div className="w-full max-w-[var(--thread-max-width)] flex flex-col gap-2 mb-4">
+            <div className="text-xs text-muted-foreground uppercase tracking-wide px-2 mb-1">🎤 Voice Conversation</div>
+            {voiceMessages.map((m, i) => (
+              <div key={`voice-${i}`} className={cn(
+                "rounded-3xl px-5 py-2.5 text-sm whitespace-pre-wrap break-words",
+                m.role === 'user' 
+                  ? "self-end bg-blue-100 dark:bg-blue-900/40" 
+                  : "self-start bg-green-100 dark:bg-green-900/40"
+              )}>
+                <div className="text-xs opacity-60 mb-0.5">{m.role === 'user' ? 'You (voice)' : 'Assistant (voice)'}</div>
+                {m.content}
+              </div>
+            ))}
+          </div>
+        )}
+
         <ThreadPrimitive.Messages
           components={{
             UserMessage: UserMessage,
@@ -97,7 +143,14 @@ export const Thread: FC<ThreadProps> = ({ threadId }) => {
 
         <div className="sticky bottom-0 mt-3 flex w-full max-w-[var(--thread-max-width)] flex-col items-center justify-end rounded-t-lg bg-inherit pb-4">
           <ThreadScrollToBottom />
-          <Composer />
+          <div className="w-full flex flex-col gap-2">
+            <VoiceButton 
+              key="voice-button-stable"
+              threadId={threadId || null} 
+              onTranscript={handleVoiceTranscript}
+            />
+            <Composer />
+          </div>
         </div>
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>

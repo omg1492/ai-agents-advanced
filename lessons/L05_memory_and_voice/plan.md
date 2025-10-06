@@ -12,9 +12,9 @@ High-level steps only – aligned with unified design. Each step considered comp
 - [x] Batch script to enrich/update user profile from raw + summaries
 - [x] Inject current user profile block into system prompt
 - [x] Tool to append/add new profile info directly (`memory_write_profile` style)
-- [ ] Implement voice mode (button in UI → speech‑to‑speech via gpt-realtime)
-- [ ] Persist a text transcript of voice conversation (store like normal turns, mode=voice)
-- [ ] Decide which tools are enabled in voice mode (baseline: memory_search allowed, heavy graph tools off unless flagged)
+- [x] Implement voice mode (button in UI → speech‑to‑speech via gpt-realtime)
+- [x] Persist a text transcript of voice conversation (store like normal turns, mode=voice)
+- [x] Decide which tools are enabled in voice mode (baseline: memory_search allowed, heavy graph tools off unless flagged)
 
 Deferred / Optional Later:
 - WebRTC direct integration

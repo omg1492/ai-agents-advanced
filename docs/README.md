@@ -35,6 +35,10 @@ Cílem je vybudovat AI aplikaci, která:
 
 Jaké funkce přidáme do aplikace v jaké lekci je k přečteně v [agendě](agenda.md)
 
+## Doplňující dokumentace
+
+- [Voice Mode Architecture & Operations](VoiceModeGuide.md) – konsolidovaný přehled implementace hlasového režimu, konfigurace Azure Realtime API a doporučených postupů pro ladění.
+
 ## Použité technologie  
 **Core & Backend:**  
 - Python (FastAPI)  

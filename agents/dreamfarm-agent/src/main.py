@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import json
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, Depends, status, Query
+from fastapi import FastAPI, HTTPException, Request, Depends, status, Query, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
@@ -35,6 +35,7 @@ from src.services.auth_service import AuthService
 from src.services.conversation_store import ConversationStore
 from src.services.memory_search_service import MemorySearchService
 from src.services.user_profile_service import UserProfileService
+from src.services.voice_service import VoiceService
 
 
 # Load environment variables
@@ -69,6 +70,7 @@ agentic_search_service: AgenticSearchService | None = None
 conversation_store: ConversationStore | None = None
 memory_search_service: MemorySearchService | None = None
 user_profile_service: UserProfileService | None = None
+voice_service: VoiceService | None = None
 # Granular memory feature flags (legacy MEMORY_FEATURES_ENABLED still supported as umbrella fallback)
 _legacy_memory_enabled = os.getenv("MEMORY_FEATURES_ENABLED", "").lower() in ["true","1","yes","on"]
 _conversation_store_enabled = os.getenv("CONVERSATION_STORE_ENABLED", "true" if _legacy_memory_enabled else "false").lower() in ["true","1","yes","on"]
@@ -200,6 +202,26 @@ async def lifespan(app: FastAPI):
             bool(user_profile_service),
             _legacy_memory_enabled,
         )
+        # Voice service (optional, requires Realtime API support)
+        # Note: VoiceService creates its own AsyncOpenAI client with api-version=2025-08-28
+        # for the Realtime API, separate from the text chat client (preview version)
+        global voice_service
+        voice_enabled = os.getenv("VOICE_ENABLED", "false").lower() in ["true","1","yes","on"]
+        if voice_enabled:
+            try:
+                voice_service = VoiceService(
+                    config=cfg,
+                    conversation_store=conversation_store,
+                    memory_search_service=memory_search_service,
+                    agentic_search_service=agentic_search_service,  # Add agentic search for voice
+                    user_profile_service=user_profile_service,
+                )
+                logger.info("Voice service enabled")
+            except Exception as ve:  # pragma: no cover
+                logger.warning(f"Voice service initialization failed: {ve}")
+                voice_service = None
+        else:
+            logger.info("Voice service disabled")
     except Exception as e:
         logger.error(f"Failed to initialize services: {e}")
         raise
@@ -1195,6 +1217,85 @@ async def rename_thread(thread_id: str, payload: ThreadRenameRequest, user_ctx: 
     """Rename a thread title (single canonical endpoint using PUT)."""
     username, _, _ = user_ctx
     return _rename_thread_internal(thread_id, payload.title, username)
+
+
+@app.websocket("/voice/{thread_id}")
+async def voice_endpoint(websocket: WebSocket, thread_id: str):
+    """WebSocket endpoint for voice/realtime conversations.
+    
+    Handles speech-to-speech interaction via OpenAI Realtime API.
+    Persists transcripts with mode='voice' flag.
+    """
+    await websocket.accept()
+    
+    # Extract auth from query params (WebSocket doesn't support headers easily)
+    token = websocket.query_params.get("token")
+    if not token:
+        await websocket.close(code=4001, reason="Missing authentication token")
+        return
+    
+    # Validate token
+    if auth_service is None:
+        await websocket.close(code=4003, reason="Auth service not available")
+        return
+    
+    try:
+        claims = auth_service.validate(token)
+        username, is_vip = auth_service.extract_identity(claims)
+    except Exception as e:
+        logger.warning(f"Voice auth failed: {e}")
+        await websocket.close(code=4001, reason="Invalid token")
+        return
+    
+    # Check voice service availability
+    if voice_service is None:
+        await websocket.close(code=4003, reason="Voice service not available")
+        return
+    
+    logger.info("Voice session starting: thread=%s user=%s vip=%s", thread_id, username, is_vip)
+    
+    # Build system prompt with user profile
+    user_profile_json = ""
+    if _user_profile_enabled and user_profile_service is not None:
+        try:
+            prof = user_profile_service.get_profile(username)
+            if prof:
+                user_profile_json = json.dumps(prof, ensure_ascii=False)
+        except Exception as pe:
+            logger.warning(f"User profile fetch failed user={username}: {pe}")
+    
+    system_prompt = template_service.render_template(
+        "system_prompt.j2",
+        {
+            "user_location": None,
+            "seasonal_products": [],
+            "user_preferences": [],
+            "simple_rag": "",
+            "user_profile": user_profile_json,
+            "user_id": username,
+            "config": config_service.config,
+            "memory_write_profile_enabled": False,  # Disabled in voice mode
+        },
+    )
+    
+    # Handle voice session
+    try:
+        enable_heavy = websocket.query_params.get("enable_heavy_tools", "false").lower() == "true"
+        await voice_service.handle_voice_session(
+            websocket=websocket,
+            thread_id=thread_id,
+            user_id=username,
+            system_prompt=system_prompt,
+            enable_heavy_tools=enable_heavy,
+        )
+    except WebSocketDisconnect:
+        logger.info("Voice session disconnected: thread=%s user=%s", thread_id, username)
+    except Exception as e:
+        logger.error(f"Voice session error: {e}")
+        try:
+            await websocket.close(code=1011, reason="Internal server error")
+        except Exception:
+            pass
 
 
 def main():

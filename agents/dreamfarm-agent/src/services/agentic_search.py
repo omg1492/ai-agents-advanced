@@ -201,16 +201,26 @@ class AgenticSearchService:
         k = min(k, self.max_results)
 
         if name == "semantic_product_search":
-            text_value = str(arguments.get("text", ""))[:4000]
+            # Handle both direct and nested argument formats
+            text_value = str(arguments.get("text", arguments.get("query", "")))[:4000]
             if not text_value.strip():
+                logger.warning("semantic_product_search called with empty text. Arguments: %s", arguments)
                 return json.dumps({"products": []})
             products = await self.semantic_search(text_value, k, user_is_vip)
             return json.dumps({"products": products})
         elif name == "keyword_product_search":
-            kw = arguments.get("keywords", [])
+            # Handle both direct and nested argument formats
+            kw = arguments.get("keywords", arguments.get("keyword_list", []))
             if not isinstance(kw, list):
-                kw = []
+                # Try to parse as comma-separated string
+                if isinstance(kw, str):
+                    kw = [x.strip() for x in kw.split(",") if x.strip()]
+                else:
+                    kw = []
             kw = [str(x) for x in kw][:12]
+            if not kw:
+                logger.warning("keyword_product_search called with empty keywords. Arguments: %s", arguments)
+                return json.dumps({"products": []})
             products = self.keyword_search(kw, k, user_is_vip)
             return json.dumps({"products": products})
         else:

@@ -1,3 +1,21 @@
+## 2025-10-05 Voice Mode Consolidated
+
+Implemented low‑latency voice conversation using Azure/OpenAI Realtime API.
+
+Core pieces:
+ - Backend `VoiceService` (WebSocket endpoint `/voice/{thread_id}`) – streams audio both ways, executes allowed tools (`memory_search` by default, heavier search tools optional), persists user & assistant transcripts as normal messages (text only, no audio storage).
+ - Frontend `voiceSessionManager` singleton – owns WebSocket, `AudioContext`, microphone stream, playback queue; React components subscribe via `useSyncExternalStore`. This removed the former “double‑click” activation caused by React Strict Mode remounts.
+ - Interruption & mute – VAD events (`input_audio_buffer.speech_started`) trigger `response.cancel`; microphone mute drops outgoing frames without tearing down the session.
+ - Czech voice quality – switched voice to `coral` with Whisper language hint `cs` for accurate transcription.
+
+Strict Mode issue (first‑click failure) root cause: component‑scoped refs were destroyed during the development remount cycle. Final fix: move all long‑lived resources outside component lifecycle (no hacks, Strict Mode stays enabled).
+
+Environment:
+ `VOICE_ENABLED` toggles feature; `VOICE_MODEL` selects realtime deployment; optional flags allow heavy tools or memory search. No audio retained—only transcripts under existing retention policies.
+
+Result: Single‑click start, reliable interruption, immediate transcript streaming, minimal overhead.
+<!-- Historical multi-step voice troubleshooting removed to keep log concise; see consolidated entry only. -->
+
 ## 2025-09-14 Granular Memory Feature Flags
 
 Replaced legacy umbrella `MEMORY_FEATURES_ENABLED` flag with three explicit, independently controllable feature flags:
@@ -54,167 +72,149 @@ Planned follow-ups: audit trail table, rate limiting, schema validation / PII gu
 - Enhanced system prompt guidance: model MUST explicitly acknowledge successful persistence when tool output `applied=true` (one confirmation per turn) using a localized phrase (e.g., "Uložím si, že...").
 - Updated test `test_system_prompt_memory_write_profile.py` to assert presence of the new instruction (checks for `applied=true` phrase in template output when enabled).
 - Rationale: Improves operator observability of profile mutations and ensures end-user receives feedback that preference was stored.
+## Implementation Log (Consolidated)
 
-### 2025-09-14 Conversation Summaries Schema Adjustment
-### 2025-09-14 Added conversation_summaries DDL Script
-
-### 2025-09-14 Simplified Persisted Message Schema
-Persisted `conversations_raw.messages` entries reduced from `{role, content, created_at, mode}` to minimal `{role, content}` to:
- - Eliminate redundant per-message timestamps ( ordering already preserved by array order ; coarse timing via row `updated_at`).
- - Remove unused `mode` flag (voice / chat modality will be tracked separately when implemented).
- - Align with newly generated seed conversations which already emit simplified objects.
-Updated `ConversationStore.build_message`, all call sites in `main.py`, and `docs/Design.md` (table + voice note). Hydration now synthesizes in-memory timestamps for UI only.
-
-Created `data/scripts/sql/tables/08_create_conversation_summaries.sql` implementing the new schema (thread_id FK, one row per (user_id, thread_id), 2000-d embedding, HNSW index, updated_at trigger). Uses `gen_random_uuid()` for primary key (requires `pgcrypto` extension present – same assumption as existing vector setup). Matches design decision to drop `salient_facts` and pivot to `thread_id` instead of surrogate conversation id. Pending: summarization batch script to populate rows and memory_search implementation.
-
-
-Design change: Replaced surrogate `conversation_id` FK in `conversation_summaries` with the externally stable `thread_id` and removed `salient_facts` column (was optional / unused in code). Rationale: (1) Avoid dual identifiers (`id` vs `thread_id`) in downstream joins and API responses; (2) Simplify memory search output to the minimal fields actually consumed (thread_id, summary, age); (3) Remove speculative `salient_facts` structure to keep schema lean until a concrete enrichment use‑case emerges. Added UNIQUE(user_id, thread_id) recommendation in design doc to enforce one summary per thread. Code will be aligned in a subsequent migration step (pending). If desired, we can similarly rename `memory_enrichment_audit.conversation_id` → `thread_id` in a follow-up for consistency.
-
-
-### Updated Agenda Documentation for Lesson 04 Implementation
-
-**Background**: The agenda documentation (agenda.md, final_agenda.md, technický_plán.md) needed to be aligned with the actual implementation of Lesson 04 - Agentic Search, Knowledge Graph & RAG Fencing.
-
-**Changes Made**:
-1. **Updated lesson title**: Changed from "Deep Research & Knowledge Graph" to "Agentic Search, Knowledge Graph & RAG Fencing" to better reflect the actual implementation
-2. **Corrected concepts**: Added missing key concepts like:
-   - Agentic search with function calling
-   - VIP fencing and RAG security
-   - OAuth2/OIDC authentication with Keycloak
-   - HyDE (Hypothetical Document Embedding)
-   - BFS/DFS graph traversal algorithms
-   - Feature flags for progressive enablement
-3. **Updated technologies**: Corrected the technology stack to match actual implementation:
-   - Apache AGE (instead of Neo4j/Memgraph as originally planned)
-   - OpenAI function calling (instead of LangGraph for this lesson)
-   - Keycloak for OAuth2/OIDC
-   - FastAPI backend with tool integration
-   - React frontend with authentication flow
-4. **Enhanced practical exercises**: Updated to reflect the actual hands-on components implemented
-5. **Aligned learning objectives**: Ensured the "Umím..." (I can...) outcomes match what was actually built
-
-**Architecture Decision Context**: 
-- Chose Apache AGE over standalone graph databases (Neo4j/Memgraph) to maintain unified PostgreSQL infrastructure
-- Implemented direct OpenAI function calling instead of LangGraph framework for simpler, more controlled tool execution
-- Added comprehensive VIP fencing at application layer before LLM prompt processing
-
-### Added Stock Custom Tool (Local REST Proxy)
-
-Implemented a local custom tool `StockService` that proxies to the `api_stock` REST service.
-Reason: Stock API cannot be registered as a remote MCP tool; we fetch data locally and inject summarized stock context (`<stock_info>`) into the system prompt when UUID-like product IDs are detected in user messages.
-
-Key points:
-- Configured via `STOCK_TOOL_ENABLED` and `STOCK_API_URL` (added to ConfigService & .env.template)
-- Non-intrusive: if disabled or URL missing it silently skips
-- Regex-based UUID extraction (capped to 20 IDs per request) to avoid excessive calls
-- Added integration test `test_stock_tool_integration.py` (skips when tool not configured)
-- Updated `system_prompt.j2` to include optional `<stock_info>` section
-
-## 2025-08-19
-
-### Graph Search Service - AGE Compatibility Issues Resolved
-
-**Background**: Attempted to implement graph traversal search functionality using Apache AGE for BFS taxonomy searches and DFS similarity searches.
-
-**Issues Encountered**:
-1. `function cypher(unknown, unknown) does not exist` - solved with `ag_catalog.cypher` qualification
-2. SQLAlchemy parameter binding conflicts with AGE - resolved with `exec_driver_sql` direct execution
-3. Agtype value extraction with embedded quotes - resolved with `_extract_agtype_value` helper
-4. Mysterious `@>` operator errors even with simplified cypher queries
-5. AGE syntax limitations: no ORDER BY support, limited WHERE clause compatibility
-
-**Resolution Strategy**: 
-- Implemented graceful degradation by disabling both `bfs_taxonomy` and `dfs_similarity` methods
-- Methods now return empty results with appropriate warning logs
-- Service interface preserved for future re-enablement when AGE is upgraded
-- Hybrid architecture remains viable: PostgreSQL for complex queries, AGE for simple relationships
-
-**Architecture Decision**: Keep graph infrastructure but disable complex traversal until AGE syntax limitations are resolved. This maintains system stability while preserving the foundation for future graph functionality.
-
-**Next Steps**: Monitor Apache AGE updates for ORDER BY and advanced cypher support.
+Purpose: Provide a concise, durable record of architectural decisions, major feature additions, schema changes, and lessons learned. Repetitive step‑by‑step troubleshooting, superseded drafts, and low‑level transient details have been removed. Grouped thematically; timeline at end.
 
 ---
+## 1. Core Application & Conversation Architecture
+Highlights
+- Migration to OpenAI Responses API (multi‑provider via base_url/api-version) with server‑side state (store + previous_response_id) simplifying horizontal scaling.
+- Streaming endpoint (`/threads/{id}/messages/stream`) with delta token + tool meta events.
+- Jinja2 prompt templating (system prompt + optional contextual blocks for RAG, profile, memories).
+- Robust tool loop for both non‑stream and streaming modes including reasoning/function pair handling for GPT‑5 models (item pairing fix eliminated 400 errors).
+Impact: Unified client abstraction, reduced custom state management, predictable upgrade path for tool and reasoning model features.
 
-- agents/dreamfarm-agent: Updated `RAGService.format_search_results` to a clearer block format and included `product_id` in the output. Adjusted unit and integration tests to match the new labels and headers. Added docstring to the method.
+## 2. Retrieval & Data / RAG Stack
+Components
+- PostgreSQL + pgvector (2000‑dim embeddings; explicit dimension guard).
+- Hybrid retrieval (semantic + FTS + Reciprocal Rank Fusion). FTS implemented via trigger‑maintained tsvector column and GIN index.
+- Strict grounding policy: product claims must be justified by `<relevant_products>`; zero‑hit behavior defined to avoid hallucinated availability.
+- VIP fencing groundwork: `is_vip` flag + future query time filtering (authorization context available through JWT).
+Key Decisions
+- Consolidated all embedding generation scripts with unified batching/retry logic.
+- Chose SQL‑first architecture; graph kept optional (see §4).
 
-## Implementation Log (consolidated)
+## 3. Tooling & Auxiliary Services
+Implemented
+- Local Stock API (`tools/api_stock`) + function tool integration (replaced earlier prompt injection block).
+- Remote Farmer Tools via MCP (minimal curated tool surface, auth via bearer token; configuration gated by env flags).
+- Semantic cache (first‑turn only) short‑circuit for high‑frequency generic queries (threshold 0.93) — seeds produced & imported via dedicated pipeline.
+- Memory tools: `memory_search` (semantic over conversation summaries) and `memory_write_profile` (controlled patch semantics with diagnostics & acknowledgement).
+Design Principles
+- Small, composable tools; server decides registration set based on feature flags.
+- Observability: structured log lines for tool registration, cache hits, memory patches.
 
-This log is streamlined to capture key decisions, architecture changes, and durable insights. Details that don’t inform future work have been removed.
+## 4. Knowledge Graph & Taxonomy
+State
+- Apache AGE co-located with Postgres for simplified infra; limitations (ORDER BY, WHERE constraints) forced graceful degradation of complex BFS/DFS traversal — service retains stubs + logging instead of failing.
+- Taxonomy pipeline (generation → classification → Parquet artifacts → AGE import) designed with resumability, deterministic seeding, and batch MERGE operations.
+Decision Rationale
+- Deferred advanced traversal until AGE improves; kept schema & import path so re‑enablement is low friction.
 
-## 1) API and conversation architecture
+## 5. Memory & Personalization
+Layers
+1. Conversation persistence (`conversations_raw`) with append‑only JSONB messages and lazy hydration.
+2. Summaries table (`conversation_summaries`) keyed by (user_id, thread_id) + embedding for semantic memory.
+3. Semantic cache (generic Q&A) separate from conversational memory (single‑turn performance optimization).
+4. User profiles (`user_profiles` JSONB) enriched by batch process; injected read‑only into system prompt for personalization.
+5. Tools: `memory_search` (read) + `memory_write_profile` (controlled writes with patch verbs set/append/remove and diagnostic reporting).
+Feature Flag Evolution
+- Replaced monolithic `MEMORY_FEATURES_ENABLED` with granular: `CONVERSATION_STORE_ENABLED`, `MEMORY_SEARCH_ENABLED`, `USER_PROFILE_ENABLED` and later separate flag for write tool gating.
+Safety & UX
+- Profile patch guidance strictly instructs single durable preference change per turn & explicit acknowledgement phrase on success.
+- Memory search fenced by user_id; no cross‑user leakage.
 
-- Migrated DreamFarm Agent to the Responses API with unified OpenAI/Azure client (2025-08-16).
-   - Server-side state via `store=True` and `previous_response_id`.
-   - Single SDK setup supports OpenAI and Azure by configuring `base_url` and `api-version`.
-   - Minimal reasoning enabled when using GPT‑5 family.
-- Endpoints finalized: `POST /chat`, lightweight `/threads` for session handles (state remains with provider).
-- Jinja2 prompt templates integrated across chat endpoints; optional RAG context injected into the system prompt.
-- Streaming added (2025-08-17): `POST /threads/{thread_id}/messages/stream` streams token deltas; history and `previous_response_id` updated on completion.
+## 6. Authentication, Authorization & Identity
+Implemented
+- Local Keycloak deployment + provisioning script (realm, client, demo users, VIP role, deterministic dev credentials, profile autofill to skip first‑login friction).
+- Frontend PKCE auth flow (dependency‑light) + token storage & header injection.
+- Backend JWT verification with JWKS (issuer/audience/signature) and VIP role extraction; feature flag to disable in lightweight scenarios.
+Outcome: Foundation for role‑based product fencing and personalized experiences without blocking local development.
 
-Why it matters: unified config reduces branching; provider-side state simplifies scaling; streaming improves UX without breaking existing APIs.
+## 7. Voice Mode (Realtime Speech)
+Architecture
+- WebSocket `/voice/{thread_id}` bridging browser microphone → OpenAI/Azure Realtime API → streamed assistant audio.
+- Session manager singleton on frontend (`voiceSessionManager`) decoupled from React component lifecycle (solved Strict Mode double‑click / remount issues); provides subscription snapshot.
+- Interruption & mute via VAD events (`speech_started` → cancel + queue clear). Czech transcription quality improved with explicit language + suitable voice (coral).
+- Tool surface minimized for latency (default: `memory_search` only; optional heavy tools opt‑in via query parameter).
+Azure Specific
+- Dedicated client with correct preview API version; omitted unsupported fields (`output_modalities`) to resolve validation errors.
+Data Retention
+- Only text transcripts stored (no raw audio) leveraging existing message persistence path.
+Lessons
+- Long‑lived realtime resources must outlive component scopes; Strict Mode reveals lifecycle fragility early.
+- Separate client instances prevent cross‑API-version collisions (text vs realtime endpoints).
 
-## 2) Retrieval and data pipeline
+## 8. Frontend UX & Streaming Improvements
+- DF_META panel: collapsible, scrollable, semantic labeling for tool events.
+- Streaming newline preservation fix (proper Markdown rendering during incremental arrival).
+- VIP badge & auth‑gated UI states; dynamic thread creation for voice‑first sessions.
+- Reduced duplicated local state by deriving statuses from authoritative refs (WebSocket readyState, manager snapshot).
 
-- RAG architecture delivered end-to-end (2025-08-01): PostgreSQL + pgvector (cosine), empirically tuned similarity threshold, robust error handling, and availability checks.
-- Embeddings: Azure OpenAI text-embedding-3-large (2000 dims); ensured dimension alignment with DB.
-- SQL artifacts (2025-08-17):
-   - `stock` table, `products` table (vector + FTS + triggers), AGE graph init; HNSW/GIN indexes documented.
-   - Import pipeline for `stock.json` with validation and batching.
-- Postgres image (2025-08-17): custom `postgresql/Dockerfile` with pgvector + Apache AGE; GHCR workflow for on-demand builds.
-- Data scripts (2025-08-16): unified OpenAI SDK usage, batched embeddings with retries, consistent logging, outputs to Parquet.
+## 9. Prompt & Grounding Strategy
+- System prompt modular blocks: User Profile, Memories, Relevant Products, Available Tools.
+- Strict grounding policy enumerated decision branches (product vs general query, zero results, alternative suggestions).
+- Added concise tool/data inventory section to set model expectations and reduce spurious tool calls.
 
-Why it matters: production-ready retrieval stack with clear schema, reproducible image, and resilient ETL.
+## 10. Schema & Data Model Highlights
+- `products`: pgvector embedding + VIP flag + supporting indexes.
+- `conversations_raw`: lean message array (role/content) with retention (`expires_at`).
+- `conversation_summaries`: embedding for semantic memory search; surrogate summary of threads only.
+- `user_profiles`: single row per user (schemaless evolution); future audit trail considered.
+- Semantic cache table for first‑turn Q&A acceleration (high similarity threshold, HNSW index).
 
-## 3) Tooling and auxiliary services
+## 11. Testing & Quality
+Approach
+- Marker-based test selection (unit default; integration opt‑in, self‑skipping if infra/env missing).
+- Dedicated integration tests for memory search, profile write tool, semantic cache hit/miss, stock tool, and voice service (unit + selective integration).
+- Diagnostic logging enhancements (tool registration, memory patch outcomes, reasoning pair capture) added only after test coverage to avoid noise during failures.
+Principle: Keep fast feedback loop; isolate external dependencies behind feature flags and skip logic.
 
-- `tools/api_stock` service (2025-08-18): FastAPI with `POST /stock`, `GET /health`; psycopg2 pool, UUID array filter; integration tests included.
-- Consolidation (2025-08-18): simplified to a single `main.py`; fixed prior syntax issues; health endpoint is tz-aware.
-- Containerization & CI (2025-08-18): Added `tools/api_stock/Dockerfile`; GH Actions workflow `build-api-stock.yml` builds and publishes GHCR image on dispatch and changes under `tools/api_stock/**`; local `docker-compose.yml` includes `api-stock` service referencing `ghcr.io/<repo>/api-stock:latest`.
-- MCP tools (2025-08-18): Added `tools/mcp_public_farmer_tools` using FastMCP 2.0 with minimal tools (`echo`, `list_produce`, `server_time`), single-file server, Dockerfile, and GH Actions workflow to publish `mcp-public-farmer-tools` image.
-      - Testing approach revised (2025-08-18): Removed low-level pytest/httpx harness. We'll adopt a higher-level MCP testing framework (e.g., pytest-mcp or MCP Testing Framework) in CI to validate protocol and tool behavior without bespoke HTTP code.
-   - Auth fix (2025-08-18): Adjusted custom TokenVerifier to construct `AccessToken` with required fields (`token`, `client_id`, `scopes`) and made `verify_token` async to satisfy FastMCP bearer middleware awaiting behavior.
-   - Tool alignment (2025-08-18): Renamed tools to match design spec: `server_time` → `get_current_time`, `list_produce` → `get_seasonal_tips`; added `get_weather(country, city)` mocked endpoint with deterministic daily values.
-    - Remote tool integration (2025-08-18): DreamFarm Agent now passes Farmer Tools as a remote MCP tool to Responses API.
-       - Config: `FARMER_TOOLS_ENABLED`, `FARMER_TOOLS_MCP_URL`, `FARMER_TOOLS_MCP_API_KEY` (fallback to `MCP_API_KEY`).
-       - Auth: HTTP Authorization header `Bearer <FARMER_TOOLS_MCP_API_KEY>`.
-       - Applied to both normal and streaming calls.
-- Dev utility (2025-08-17): `scripts/cherry_pick.py` to sync lesson branches; interactive flow and auto-push.
+## 12. Observability & Diagnostics
+- Structured single-line key=value logs for graph traversal (future re‑enablement) and memory patch operations.
+- Cache hit log line early in request cycle for rapid latency attribution.
+- Voice session initialization logs clarify provider, model, preview version.
 
-Why it matters: stable read-only stock API for demos/integration; maintenance scripts reduce branch drift.
+## 13. Knowledge Graph Status & Deferred Work
+Current: Graph ingestion (producers/products/certifications/allergens + taxonomy) present; traversal functions temporarily return empty results with warning logs due to AGE query limitations.
+Deferred Tasks
+- Reintroduce BFS/DFS search once ORDER BY, broader WHERE support land in AGE.
+- Potential alternative: fallback to relational recursive CTE for limited patterns.
 
-## 4) Documentation and design
+## 14. Key Lessons / Patterns
+- Prefer small, composable feature flags over one umbrella; improves rollout granularity & test permutations.
+- Strict Mode surfacing of lifecycle issues is a feature—design for idempotent setup/teardown.
+- Keep prompt blocks source‑of‑truth in templates; avoid runtime string concatenation drift.
+- Early semantic caching yields disproportionate latency savings for cold starts; scope tightly to mitigate stale answers risk.
 
-- `docs/Design.md` aligned with current API and models (2025-08-17): added `/chat`, corrected thread message shape, clarified Pydantic fields.
-- Project structure simplified in docs; focused on main folders and key subfolders.
-- Database schema docs: concise `simple_products` table summary and Markdown tables for readability.
-- Production data/graph design captured with SQL-first retrieval and optional AGE traversal.
-- Planned AI tools section (2025-08-18): MCP tools, `api_stock`, and Tavily remote MCP with integration guidance.
+## 15. Follow‑Up / Future Enhancements (Backlog Snapshot)
+- Memory: audit trail for profile mutations; rate limiting; enrichment conflict resolution scoring.
+- Voice: optional WebRTC, adaptive bitrate, multi‑language auto‑detect, partial token alignment for faster TTFB.
+- Graph: enable traversal & hybrid relevance scoring once AGE matures; unify ranking with RAG fusion pipeline.
+- Security: per‑user data export + deletion endpoints; VIP product filtering integrated into all retrieval queries.
+- Observability: structured event stream (OpenTelemetry spans for tool latency breakdown).
+- Admin: endpoint to report live feature flag state & tool registry snapshot.
 
-Why it matters: the docs now reflect reality and guide contributors with compact, actionable references.
+## 16. Compressed Timeline of Major Milestones
+- 2025‑07‑28 Initial agent service scaffold (FastAPI, threading model, basic endpoints).
+- 2025‑08‑01 Core RAG (semantic) operational.
+- 2025‑08‑16 Responses API migration + unified OpenAI/Azure client.
+- 2025‑08‑17 Streaming endpoint & design docs alignment.
+- 2025‑08‑18 Tool ecosystem: stock API, MCP farmer tools, semantic cache plan, meta streaming UX.
+- 2025‑08‑19 Strict grounding policy & VIP product flag.
+- 2025‑08‑22 Stable function call + reasoning pairing in streaming; stock tool refactored to function interface.
+- 2025‑08‑24 Semantic cache end‑to‑end live.
+- 2025‑08‑25 Auth foundation (Keycloak) + VIP role plumbing.
+- 2025‑09‑06 Taxonomy pipeline + AGE import (graph structure present, traversal deferred).
+- 2025‑09‑11 Graph traversal stubs hardened & logging.
+- 2025‑09‑13 Design doc thematic restructure.
+- 2025‑09‑14 Full memory stack (persistence, summaries, search, profiles) + granular flags.
+- 2025‑09‑15 Profile write tool with diagnostics & acknowledgement semantics.
+- 2025‑10‑05 Voice mode stabilized (session manager, Azure realtime compatibility, Strict Mode resilience).
 
-## 5) Testing and configuration
-
-- Test selection simplified: default `-m unit`; opt-in `-m integration` with self-skip when env/infra missing.
-- Config: centralized `ConfigService`; `OpenAIService` receives `OpenAIConfig` via injection; unified env variables for OpenAI/Azure and data scripts.
-- Upgraded `openai` to `>=1.99.0,<2.0.0`.
-
-Why it matters: faster, clearer CI runs and fewer environment surprises.
-
-## 6) MCP meta streaming UX and bugfixes (2025-08-18)
-
-- Backend: Fixed a scoping error in `agents/dreamfarm-agent/src/main.py` where `tools` was referenced before assignment in the streaming endpoint. Tools are now resolved once prior to opening the stream and passed into the generator. Also enriches DF_META with `server_label`, `tool_name`, and an `arguments_preview` (truncated to 200 chars).
-- Frontend: Improved meta events UI in `frontend/src/components/thread.tsx`.
-   - Meta panel moved above assistant text.
-   - Collapsible with a Show/Hide toggle and total count.
-   - Scrollable container (auto-scroll to bottom) so the latest ~5 items stay visible; older entries available via scrolling.
-   - Clear titles like `Tool: <name> (farmer-tools)` when available.
-
-Why it matters: makes tool usage and reasoning transparent during streaming while keeping the primary answer readable.
-
-## 7) Streaming markdown formatting + simplified DF_META (2025-08-18)
-
-- Frontend: Fixed loss of newlines in streamed text in `frontend/src/services/chatAdapter.ts`.
-   - When splitting the stream by lines to detect `DF_META:`, we now re-insert `\n` for non-meta lines and preserve blank lines.
+---
+This consolidated log supersedes prior verbose entries. Future additions should stay brief: What changed, Why it matters, Key trade‑offs, Follow‑ups (if any).
    - Result: final assistant output renders Markdown correctly (headings, lists, paragraphs).
 - Backend: Simplified DF_META for tool events to only include `{ kind, event_type, tool_name, arguments }`.
    - Removed IDs (id, item_id, call_id), server_label, and internal fields; arguments are aggregated from deltas.
@@ -682,3 +682,39 @@ Updated Lesson 5 plan checkbox to reflect completion of this summarization step.
 - When false: skips initialization of `ConversationStore`, `MemorySearchService`, `UserProfileService`, and suppresses user profile injection + memory_search tool registration.
 - Updated `openai_service.py` and `main.py` to wrap initialization and usage checks.
 - Rationale: allow lightweight deployments or troubleshooting sessions without memory/state features while keeping code paths intact.
+
+### 2025-10-05 Voice Button Strict Mode - SECOND ATTEMPT (REAL FIX)
+
+**Breakthrough**: After removing `isActive` state didn't work, we discovered the **actual root cause**:
+
+**The cleanup function was DESTROYING the WebSocket ref during Strict Mode cleanup!**
+
+```
+wsRef.current = null;  ← This line was destroying our ref!
+```
+
+**Previous attempts all failed because**: Even though we checked `wsRef.current` in render, the cleanup was nulling it out during Strict Mode's remount cycle.
+
+**The Real Fix**: Skip cleanup during Strict Mode's simulated unmount, only cleanup on real unmount.
+
+**Implementation**:
+- Added `isMountedRef` flag to distinguish simulated vs real unmount
+- Modified cleanup: `if (!isMountedRef.current) { /* skip */ }`
+- Refs now preserved during Strict Mode remounts
+- Enhanced duplicate session checks
+
+**Result**:
+- ✅ Button GREEN on first click (refs survive remount)
+- ✅ No duplicate sessions (proper guards)
+- ✅ Resources cleaned up on real unmount
+
+See `docs/VoiceModeGuide.md` for the consolidated Strict Mode notes.
+
+### 2025-10-05 Voice Session Manager Refactor
+
+- Extracted microphone, AudioContext, playback queue, and WebSocket lifecycle logic into a dedicated singleton `voiceSessionManager` (`frontend/src/lib/voice-session-manager.ts`).
+- The manager exposes `subscribe`/`getSnapshot` hooks compatible with `useSyncExternalStore`, letting UI components observe a stable snapshot that survives Strict Mode remounts.
+- `VoiceButton` now delegates start/stop/mute operations to the manager and simply renders state from the snapshot, eliminating brittle local refs and `forceUpdate` hacks.
+- Transcript handlers are registered with the manager so speech events continue flowing even if the button momentarily unmounts during development.
+- Added fresh diagnostic logging to highlight manager-driven state transitions; plan to trim noise once the new architecture is battle-tested.
+- Outcome: the first-click activation path finally succeeds because Strict Mode cleanup can no longer tear down live resources—only explicit `stop` calls release them.

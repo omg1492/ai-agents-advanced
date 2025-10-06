@@ -43,7 +43,7 @@ graph TD
   AG -->|Streaming DF_META| FE
 ```
 
-Deployment (local dev): Docker Compose runs: frontend, agent, PostgreSQL(+extensions), optional tools (stock API, farmer MCP), Keycloak (auth), future voice pipeline.
+Deployment (local dev): Docker Compose runs: frontend, agent, PostgreSQL(+extensions), optional tools (stock API, farmer MCP), Keycloak (auth), realtime voice WebSocket.
 
 ---
 
@@ -53,13 +53,14 @@ Deployment (local dev): Docker Compose runs: frontend, agent, PostgreSQL(+extens
 - Chat + streaming token rendering with meta event panel
 - Auth (OIDC PKCE) with Keycloak (VIP badge detection)
 - Runtime config via `public/config.js` (build-once, deploy-anywhere)
-- Planned additions: voice capture UI (WebSocket), memory search visualization
+- Includes voice capture UI (WebSocket) via singleton `voiceSessionManager` (Strict Mode safe); memory search visualization (planned)
 
 ### 4.2 Agent Backend (FastAPI)
-- Endpoints: chat, threads, streaming, tools integration, (planned) memory & voice
+- Endpoints: chat, threads, streaming, tools integration, memory, voice realtime
 - Orchestrates: RAG, agentic tool calls, semantic cache, memory injection
 - Emits structured DF_META lines for: tool calls, reasoning, cache hits, graph usage
 - Feature flags via environment variables
+- Voice: single `/voice/{thread_id}` WebSocket proxying bidirectional PCM16 audio + transcripts to OpenAI/Azure Realtime (no separate STT/TTS microservices)
 
 ### 4.3 Data Layer (PostgreSQL + Extensions)
 - **pgvector**: product embeddings, semantic cache, conversation summaries
@@ -100,7 +101,7 @@ Unified environment variables (selected, grouped):
 | Auth | REQUIRE_AUTH, KEYCLOAK_ISSUER, KEYCLOAK_AUDIENCE | JWT validation |
 | VIP | (implicit via user claims) | Product filtering |
 | Memory | MEMORY_ENABLED, MEMORY_CONVERSATION_RETENTION_DAYS, USER_PROFILE_MAX_TOKENS, MEMORY_AUDIT_ENABLED, MEMORY_SUMMARY_* | Conversation storage & summarization |
-| Voice | VOICE_ENABLED, VOICE_MODEL, VOICE_ALLOW_AGENTIC_TOOLS, VOICE_ENABLE_MEMORY_SEARCH | Voice pipeline flags |
+| Voice | VOICE_ENABLED, VOICE_MODEL | Realtime voice (enable + model); latency-lean tool set (memory_search + optional lightweight product search) |
 | Taxonomy | TAXONOMY_* | Category/cuisine generation & classification |
 
 All new memory & voice variables documented in section 11.
@@ -284,19 +285,20 @@ Future enhancements (planned): rate limiting (writes/hour), audit trail table, P
 
 ---
 
-## 12. Voice Interaction (Hands-Free Mode)
-MVP: discrete-turn voice (not continuous token streaming) via WebSocket.
+## 12. Voice Interaction (Realtime)
+Implemented low‑latency bidirectional speech using OpenAI / Azure Realtime API (api-version `2025-04-01-preview` on Azure).
 
-Flow:
-1. Browser streams audio chunks
-2. Backend performs incremental STT (Whisper) → final transcript on silence (VAD)
-3. Transcript enters normal response pipeline (with optional restricted tools for latency)
-4. Assistant reply synthesized to audio (TTS) and streamed back
-5. Transcript & assistant text stored as standard conversation messages tagged `mode=voice`
+Architecture:
+1. Frontend singleton `voiceSessionManager` (outside React component tree) manages mic capture, `AudioContext`, WebSocket, playback queue; Strict Mode remounts no longer break first click.
+2. WebSocket endpoint `/voice/{thread_id}` bridges PCM16 audio both ways; server VAD (turn detection) triggers response generation & allows interruption (`speech_started` → cancel in‑flight audio).
+3. Allowed tools are intentionally minimal for latency (currently `memory_search` plus optional lightweight product searches; heavy graph tools excluded by default).
+4. Transcripts (user + assistant text) are appended as normal conversation messages; raw audio is never persisted.
+5. Mute toggles client-side frame suppression without closing the session.
+6. Azure nuance: omit unsupported session fields (e.g., `output_modalities`)—client code branches automatically; OpenAI first‑party can include them.
 
-Flags: `VOICE_ENABLED`, `VOICE_ALLOW_AGENTIC_TOOLS`, `VOICE_ENABLE_MEMORY_SEARCH`.
+Flags: `VOICE_ENABLED`, `VOICE_MODEL` (deployment / model name). Additional per-tool voice flags intentionally deferred until needs arise.
 
-Upgrade path: full duplex low-latency streaming using Realtime API model (future) without altering session abstraction.
+Privacy: only text transcripts stored under existing retention policies; no audio logging.
 
 ---
 
