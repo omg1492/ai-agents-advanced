@@ -2,6 +2,128 @@
 
 This document describes the **overall architecture** of the Dream Farm AI platform (chat assistant, retrieval, memory, personalization, knowledge graph, tools, multimodal voice). Previous lesson-based increments have been unified into coherent thematic sections for maintainability and onboarding clarity. All feature details are preserved without per‑lesson segmentation.
 
+- [Dream Farm AI Platform – Unified Architecture \& Design](#dream-farm-ai-platform--unified-architecture--design)
+  - [1. Purpose \& Vision](#1-purpose--vision)
+  - [2. Core Architectural Principles](#2-core-architectural-principles)
+  - [3. High-Level Architecture](#3-high-level-architecture)
+  - [4. System Components](#4-system-components)
+    - [4.1. Frontend (React + assistant-ui)](#41-frontend-react--assistant-ui)
+    - [4.2. Agent Backend (FastAPI)](#42-agent-backend-fastapi)
+    - [4.3. Data Layer (PostgreSQL + Extensions)](#43-data-layer-postgresql--extensions)
+    - [4.4. Tool Ecosystem](#44-tool-ecosystem)
+    - [4.5. Authentication \& Authorization](#45-authentication--authorization)
+    - [4.6. Observability](#46-observability)
+  - [5. Configuration \& Environment](#5-configuration--environment)
+  - [6. Security \& Privacy Model](#6-security--privacy-model)
+  - [7. Conversation \& Session Management](#7-conversation--session-management)
+    - [7.1. Current mechanics:](#71-current-mechanics)
+  - [8. Tool Integration Strategy](#8-tool-integration-strategy)
+  - [9. Grounding \& Retrieval (Data Access Stack)](#9-grounding--retrieval-data-access-stack)
+    - [9.1. Simple Semantic RAG](#91-simple-semantic-rag)
+    - [9.2. Hybrid Retrieval (Semantic + Keyword + RRF)](#92-hybrid-retrieval-semantic--keyword--rrf)
+    - [9.3. Agentic Tool-Based Search](#93-agentic-tool-based-search)
+    - [9.4. Graph-Augmented Retrieval](#94-graph-augmented-retrieval)
+    - [9.5. Semantic Cache (First-Turn Accelerator)](#95-semantic-cache-first-turn-accelerator)
+    - [9.6. Retrieval Prompt Grounding Policy](#96-retrieval-prompt-grounding-policy)
+  - [10. Knowledge Graph \& Taxonomy](#10-knowledge-graph--taxonomy)
+  - [11. Memory \& Personalization](#11-memory--personalization)
+    - [11.1. Tables (Summarized)](#111-tables-summarized)
+    - [11.2. Tools](#112-tools)
+    - [11.3. Summarization Batch](#113-summarization-batch)
+    - [11.4. Profile Injection](#114-profile-injection)
+    - [11.5. Privacy \& Fencing](#115-privacy--fencing)
+    - [11.6. Retention](#116-retention)
+    - [11.7. User Profile Patch Semantics (`memory_write_profile`)](#117-user-profile-patch-semantics-memory_write_profile)
+  - [12. Voice Interaction (Realtime)](#12-voice-interaction-realtime)
+    - [12.1. Architecture:](#121-architecture)
+    - [12.2. Flags:](#122-flags)
+    - [12.3. Privacy:](#123-privacy)
+  - [13. Data Schemas (Relational Extract)](#13-data-schemas-relational-extract)
+  - [14. API Surface (Representative)](#14-api-surface-representative)
+  - [15. Tool Specifications (JSON Schemas – Summaries)](#15-tool-specifications-json-schemas--summaries)
+  - [16. Observability \& Telemetry](#16-observability--telemetry)
+  - [17. Deployment \& Runtime](#17-deployment--runtime)
+  - [18. Extensibility \& Roadmap (Selected)](#18-extensibility--roadmap-selected)
+  - [19. Appendices](#19-appendices)
+    - [19.1. Implementation History](#191-implementation-history)
+    - [19.2. Related Documentation](#192-related-documentation)
+  - [20. Technical Stack](#20-technical-stack)
+  - [21. API Design](#21-api-design)
+    - [21.1. Base Configuration](#211-base-configuration)
+    - [21.2. Environment Variables](#212-environment-variables)
+    - [21.3. OpenAI Provider Configuration (Unified)](#213-openai-provider-configuration-unified)
+  - [22. Retrieval \& Search Architecture](#22-retrieval--search-architecture)
+    - [22.1. Hybrid RAG (Semantic + Keyword with RRF)](#221-hybrid-rag-semantic--keyword-with-rrf)
+    - [22.2. Agentic Tool-Based Retrieval (Function Calling)](#222-agentic-tool-based-retrieval-function-calling)
+    - [22.3. VIP Fencing](#223-vip-fencing)
+    - [22.4. Full-Text Search (FTS) Enhancement (Lesson 1 Hybrid Add-On)](#224-full-text-search-fts-enhancement-lesson-1-hybrid-add-on)
+  - [23. Semantic Caching (First-Turn Accelerator)](#23-semantic-caching-first-turn-accelerator)
+  - [24. Database and Knowledge Graph Schema (production-ready)](#24-database-and-knowledge-graph-schema-production-ready)
+    - [24.1. Products (relational, hybrid search)](#241-products-relational-hybrid-search)
+    - [24.2. Stock (relational)](#242-stock-relational)
+    - [24.3. Knowledge graph (Apache AGE)](#243-knowledge-graph-apache-age)
+    - [24.4. Detailed Taxonomy \& Cuisine Enrichment Specification (Lesson 4)](#244-detailed-taxonomy--cuisine-enrichment-specification-lesson-4)
+    - [24.5. RAG Configuration](#245-rag-configuration)
+  - [25. Thread/Session Management Strategy](#25-threadsession-management-strategy)
+    - [25.1. Session Lifecycle](#251-session-lifecycle)
+    - [25.2. Data Storage (Lesson 1)](#252-data-storage-lesson-1)
+    - [25.3. Benefits of Hybrid Session API](#253-benefits-of-hybrid-session-api)
+    - [25.4. API Endpoints](#254-api-endpoints)
+    - [25.5. Data Models](#255-data-models)
+  - [26. Project Structure](#26-project-structure)
+  - [27. Service Responsibilities](#27-service-responsibilities)
+    - [27.1. DreamFarm Agent (Port 8001)](#271-dreamfarm-agent-port-8001)
+    - [27.2. Future Agents (Later Lessons)](#272-future-agents-later-lessons)
+    - [27.3. Infrastructure (Later Lessons)](#273-infrastructure-later-lessons)
+  - [28. Tool Integration Strategy \& Function Interfaces](#28-tool-integration-strategy--function-interfaces)
+    - [28.1. MCP vs REST API Decision](#281-mcp-vs-rest-api-decision)
+    - [28.2. Benefits of MCP-First Approach](#282-benefits-of-mcp-first-approach)
+    - [28.3. AI Tools Overview](#283-ai-tools-overview)
+    - [28.4. Internal Function-Call Interfaces (Agentic Retrieval)](#284-internal-function-call-interfaces-agentic-retrieval)
+    - [28.5. Graph Traversal Retrieval (Planned – Lesson 4 Final Task)](#285-graph-traversal-retrieval-planned--lesson-4-final-task)
+    - [28.6. Breadth-First Taxonomy Search (Updated Design: Semantic Concept Matching First)](#286-breadth-first-taxonomy-search-updated-design-semantic-concept-matching-first)
+    - [28.7. Summary of Graph Tools After Update](#287-summary-of-graph-tools-after-update)
+    - [28.8. Cypher Query Patterns (conceptual):](#288-cypher-query-patterns-conceptual)
+  - [29. Runtime Configuration Pattern](#29-runtime-configuration-pattern)
+    - [29.1. Development Flow](#291-development-flow)
+    - [29.2. Implementation Details](#292-implementation-details)
+  - [30. Development Workflow](#30-development-workflow)
+  - [31. Security Considerations](#31-security-considerations)
+    - [31.1. Authentication \& Authorization](#311-authentication--authorization)
+  - [32. Future Enhancements](#32-future-enhancements)
+  - [33. Lesson 5 – Memory \& Real Voice Chat Architecture](#33-lesson-5--memory--real-voice-chat-architecture)
+    - [33.1. Memory Overview](#331-memory-overview)
+    - [33.2. Database Schemas (Memory Tables)](#332-database-schemas-memory-tables)
+    - [33.3. Tool Interfaces](#333-tool-interfaces)
+    - [33.4. System Prompt Injection (Profile)](#334-system-prompt-injection-profile)
+    - [33.5. Summarization \& Batch Pipeline](#335-summarization--batch-pipeline)
+    - [33.6. Retention \& Purging](#336-retention--purging)
+    - [33.7. Security \& Fencing](#337-security--fencing)
+    - [33.8. Privacy Considerations](#338-privacy-considerations)
+    - [33.9. Voice Chat Architecture](#339-voice-chat-architecture)
+    - [33.10. Environment Variables (New)](#3310-environment-variables-new)
+    - [33.11. Services \& Components Additions](#3311-services--components-additions)
+    - [33.12. API Additions](#3312-api-additions)
+    - [33.13. Sequence – User Turn with Memory \& Voice (Text Mode)](#3313-sequence--user-turn-with-memory--voice-text-mode)
+    - [33.14. Failure Handling \& Edge Cases](#3314-failure-handling--edge-cases)
+    - [33.15. Testing Strategy (Outline)](#3315-testing-strategy-outline)
+    - [33.16. Implementation Order Justification](#3316-implementation-order-justification)
+    - [33.17. Non-Goals (Lesson 5 Scope)](#3317-non-goals-lesson-5-scope)
+  - [34. Code Execution \& Dynamic UI Generation](#34-code-execution--dynamic-ui-generation)
+    - [34.1. Overview \& Capabilities](#341-overview--capabilities)
+    - [34.2. Architecture Components](#342-architecture-components)
+    - [34.3. Security Model](#343-security-model)
+    - [34.4. Data Models \& Message Types](#344-data-models--message-types)
+    - [34.5. Tool Definitions](#345-tool-definitions)
+    - [34.6. Implementation Files](#346-implementation-files)
+    - [34.7. Environment Configuration](#347-environment-configuration)
+    - [34.8. Frontend Integration](#348-frontend-integration)
+    - [34.9. Reference Implementation: Weight Tracking Analysis](#349-reference-implementation-weight-tracking-analysis)
+    - [34.10. Testing Strategy](#3410-testing-strategy)
+    - [34.11. Monitoring \& Observability](#3411-monitoring--observability)
+    - [34.12. Known Limitations \& Future Work](#3412-known-limitations--future-work)
+
+
 ---
 
 ## 1. Purpose & Vision
@@ -49,37 +171,37 @@ Deployment (local dev): Docker Compose runs: frontend, agent, PostgreSQL(+extens
 
 ## 4. System Components
 
-### 4.1 Frontend (React + assistant-ui)
+### 4.1. Frontend (React + assistant-ui)
 - Chat + streaming token rendering with meta event panel
 - Auth (OIDC PKCE) with Keycloak (VIP badge detection)
 - Runtime config via `public/config.js` (build-once, deploy-anywhere)
 - Includes voice capture UI (WebSocket) via singleton `voiceSessionManager` (Strict Mode safe); memory search visualization (planned)
 
-### 4.2 Agent Backend (FastAPI)
+### 4.2. Agent Backend (FastAPI)
 - Endpoints: chat, threads, streaming, tools integration, memory, voice realtime
 - Orchestrates: RAG, agentic tool calls, semantic cache, memory injection
 - Emits structured DF_META lines for: tool calls, reasoning, cache hits, graph usage
 - Feature flags via environment variables
 - Voice: single `/voice/{thread_id}` WebSocket proxying bidirectional PCM16 audio + transcripts to OpenAI/Azure Realtime (no separate STT/TTS microservices)
 
-### 4.3 Data Layer (PostgreSQL + Extensions)
+### 4.3. Data Layer (PostgreSQL + Extensions)
 - **pgvector**: product embeddings, semantic cache, conversation summaries
 - **Full-Text Search**: `fts_document / fts_combined` GIN indexes
 - **Apache AGE**: taxonomy & relationship graph (BFS taxonomy + DFS similarity)
 - **Retentions**: raw conversations (memory), optional summary pruning
 
-### 4.4 Tool Ecosystem
+### 4.4. Tool Ecosystem
 - Internal REST (stock API)
 - MCP servers (public farmer tools, web search / Tavily)
 - Internal function tools (semantic_search, keyword_search, graph_bfs_taxonomy_search, graph_dfs_similarity_search, memory tools)
 - Controlled registration based on feature flags
 
-### 4.5 Authentication & Authorization
+### 4.5. Authentication & Authorization
 - Keycloak OIDC (roles → VIP enforcement)
 - JWT verification middleware (issuer, audience, signature)
 - VIP fencing at SQL query layer only (never trusting LLM filtering)
 
-### 4.6 Observability
+### 4.6. Observability
 - Streaming meta events
 - Structured INFO logs for retrieval/graph/memory metrics
 - Future: OpenTelemetry tracing & Langfuse evaluation hooks
@@ -124,7 +246,7 @@ All new memory & voice variables documented in section 11.
 ## 7. Conversation & Session Management
 Conversation handling now has a lightweight in‑memory layer plus a durable raw transcript store.
 
-Current mechanics:
+### 7.1. Current mechanics:
 1. Thread Lifecycle
   - `POST /threads` creates a thread ID and immediately persists an empty row in `conversations_raw` with an initial `title` (client supplied or generated: "Dream Farm Chat <timestamp>").
   - Title is stored server‑side so it survives restarts (new `title` column added to `conversations_raw`).
@@ -167,10 +289,10 @@ At request time, the backend builds a tool list conditioned by feature flags + u
 
 ## 9. Grounding & Retrieval (Data Access Stack)
 
-### 9.1 Simple Semantic RAG
+### 9.1. Simple Semantic RAG
 Vector similarity (cosine) over `simple_products.embedding` / `products.embedding` using pgvector. Inject results as `<relevant_products>` block. Feature flag: `ENABLE_RAG`.
 
-### 9.2 Hybrid Retrieval (Semantic + Keyword + RRF)
+### 9.2. Hybrid Retrieval (Semantic + Keyword + RRF)
 Pipeline:
 1. Semantic similarity list S
 2. Keyword extraction (LLM structured) → FTS query list K
@@ -178,23 +300,23 @@ Pipeline:
 4. F injected into prompt with fused score used as similarity proxy
 Resilient to failure (fallback to semantic only). Logging includes counts & fusion specifics.
 
-### 9.3 Agentic Tool-Based Search
+### 9.3. Agentic Tool-Based Search
 Instead of backend fusion, LLM orchestrates multiple tool calls:
 - `semantic_search(text)` – vector similarity (+ HyDE optional doc synthesis)
 - `keyword_search(keywords[])` – FTS search
 VIP fencing enforced inside queries: `WHERE (is_vip = false OR :user_is_vip)`.
 Model integrates results; ordering & reasoning handled in LLM layer.
 
-### 9.4 Graph-Augmented Retrieval
+### 9.4. Graph-Augmented Retrieval
 Two function-call tools (flagged by `ENABLE_GRAPH_SEARCH`):
 - `graph_bfs_taxonomy_search(hypothesis_text, max_hops, limit)` – semantic concept embedding → BFS expansion over Category/Cuisine/Certification to products
 - `graph_dfs_similarity_search(product_id, max_depth, limit)` – trait-overlap scoring via shared categories, cuisines, allergens, producer
 Concept embeddings stored in relational `concept_embeddings` table with HNSW index; BFS uses semantic selection + constrained expansion. VIP filtering applied post-scoring.
 
-### 9.5 Semantic Cache (First-Turn Accelerator)
+### 9.5. Semantic Cache (First-Turn Accelerator)
 Table: `semantic_cache(question, answer, embedding)` with high similarity threshold (e.g., ≥0.90). Used ONLY on first user message; bypasses model call on hit. Answers intentionally generic & time-insensitive.
 
-### 9.6 Retrieval Prompt Grounding Policy
+### 9.6. Retrieval Prompt Grounding Policy
 - Product-related claims must originate from `<relevant_products>` or explicit tool results.
 - Zero-hit behavior: discourage hallucination; suggest alternative phrasing or general domain advice without inventory claims.
 - Graph-derived expansions must reference underlying product IDs for traceability.
@@ -221,7 +343,7 @@ Graph (Apache AGE) complements relational store for multi-hop relationships.
 ## 11. Memory & Personalization
 Three layers: raw transcripts, summaries (semantic recall), user profile.
 
-### 11.1 Tables (Summarized)
+### 11.1. Tables (Summarized)
 | Table | Purpose |
 |-------|---------|
 | conversations_raw | Store full JSON conversation (7-day retention) |
@@ -229,23 +351,23 @@ Three layers: raw transcripts, summaries (semantic recall), user profile.
 | user_profiles | Stable personalization facts (diet, allergens, preferences) |
 | memory_enrichment_audit (optional) | Track profile mutation diffs |
 
-### 11.2 Tools
+### 11.2. Tools
 - `memory_search(query, k)` – vector similarity over user’s own summaries only
 - `memory_write_profile(...)` – write-only patch (diet, allergens, liked products, goals, notes)
 
-### 11.3 Summarization Batch
+### 11.3. Summarization Batch
 Script selects finished conversations (`summary_status='pending'`, idle > threshold), generates structured summary + optional profile updates, stores embedding & title, applies merges.
 
-### 11.4 Profile Injection
+### 11.4. Profile Injection
 `<user_profile>` block with token cap (`USER_PROFILE_MAX_TOKENS`). Field priority drop order: liked_products, disliked_products, notes tail. Hash-based dedupe avoids re-sending unchanged block.
 
-### 11.5 Privacy & Fencing
+### 11.5. Privacy & Fencing
 Hard user_id constraint in all queries; no raw message retrieval by model; only summaries & structured facts surface.
 
-### 11.6 Retention
+### 11.6. Retention
 Raw logs purged after `MEMORY_CONVERSATION_RETENTION_DAYS` (default 7). Summaries indefinite unless `MEMORY_SUMMARY_RETENTION_DAYS` set.
 
-### 11.7 User Profile Patch Semantics (`memory_write_profile`)
+### 11.7. User Profile Patch Semantics (`memory_write_profile`)
 Objective: allow the model to persist durable user preferences incrementally without ever rewriting the full profile (reduces hallucination & race risk).
 
 Patch schema sent by model (single argument `patch`):
@@ -278,6 +400,7 @@ Returned tool output shape:
   "touched": ["diet", "dislikes"],
   "current": {"diet": {"vegetarian": true}, "dislikes": ["kozí sýr"]}
 }
+
 ```
 `current` contains only the subset of fields affected (post-merge) to minimize token budget while enabling the model to confirm success to user.
 
@@ -288,7 +411,7 @@ Future enhancements (planned): rate limiting (writes/hour), audit trail table, P
 ## 12. Voice Interaction (Realtime)
 Implemented low‑latency bidirectional speech using OpenAI / Azure Realtime API (api-version `2025-04-01-preview` on Azure).
 
-Architecture:
+### 12.1. Architecture:
 1. Frontend singleton `voiceSessionManager` (outside React component tree) manages mic capture, `AudioContext`, WebSocket, playback queue; Strict Mode remounts no longer break first click.
 2. WebSocket endpoint `/voice/{thread_id}` bridges PCM16 audio both ways; server VAD (turn detection) triggers response generation & allows interruption (`speech_started` → cancel in‑flight audio).
 3. Allowed tools are intentionally minimal for latency (currently `memory_search` plus optional lightweight product searches; heavy graph tools excluded by default).
@@ -296,9 +419,11 @@ Architecture:
 5. Mute toggles client-side frame suppression without closing the session.
 6. Azure nuance: omit unsupported session fields (e.g., `output_modalities`)—client code branches automatically; OpenAI first‑party can include them.
 
-Flags: `VOICE_ENABLED`, `VOICE_MODEL` (deployment / model name). Additional per-tool voice flags intentionally deferred until needs arise.
+### 12.2. Flags: 
+`VOICE_ENABLED`, `VOICE_MODEL` (deployment / model name). Additional per-tool voice flags intentionally deferred until needs arise.
 
-Privacy: only text transcripts stored under existing retention policies; no audio logging.
+### 12.3. Privacy: 
+Only text transcripts stored under existing retention policies; no audio logging.
 
 ---
 
@@ -382,10 +507,9 @@ Logs: single-line structured key=value for graph & memory pipelines. Future: met
 | Voice | Realtime streaming tokens | Emotion-aware prosody tuning |
 | Security | Fine-grained data tagging | ABAC / policy engine |
 | Evaluation | Add Langfuse scoring | Automated regression gating |
+| Code Execution | Persistent containers | Multi-step workflow automation |
+| Dynamic UI | Template library | Interactive WebSocket components |
 
----
-
-## 19. Glossary
 | Term | Definition |
 |------|------------|
 | RAG | Retrieval-Augmented Generation – augment LLM with external context |
@@ -394,17 +518,26 @@ Logs: single-line structured key=value for graph & memory pipelines. Future: met
 | BFS Taxonomy | Breadth-first product expansion through concept nodes |
 | DFS Similarity | Depth-first trait overlap exploration from a seed product |
 | Semantic Cache | High-similarity first-turn Q&A shortcut |
+| Code Interpreter | Sandboxed Python execution environment for data analysis and visualization |
+| Adhoc UI | Dynamically generated HTML components rendered in secure iframes |
+| CSP | Content Security Policy - HTTP header controlling resource loading |
+| srcdoc | iframe attribute for injecting HTML directly (safer than external URLs) |
 
 ---
 
-## 20. Appendices
-Historical lesson-based evolution has been refactored out of the main narrative; prior incremental notes remain in `ImplementationLog.md` for audit and reasoning about decisions.
+## 19. Appendices
+
+### 19.1. Implementation History
+Incremental feature development notes and decision rationale maintained in `ImplementationLog.md` for audit trail.
+
+### 19.2. Related Documentation
+- `plan.md` files in lesson directories: step-by-step implementation guides
+- Component READMEs: operational and usage documentation
+- `CommonErrors.md`: troubleshooting guide for recurring issues
 
 ---
 
-End of unified design document.
-
-### Technical Stack
+## 20. Technical Stack
 
 **Backend:**
 - **Language**: Python 3.11+
@@ -426,14 +559,16 @@ End of unified design document.
 - **Code Quality**: Follow project coding standards
 - **Documentation**: Docstrings for all public methods and classes
 
-### API Design
+---
 
-#### Base Configuration
+## 21. API Design
+
+### 21.1. Base Configuration
 - **DreamFarm Agent Port**: 8001 (main AI agent, LLM logic, sessions, CORS)
 - **Frontend Port**: 3000 (default for React/Vite)
 - **Environment**: `.env` file for DreamFarm agent
 
-#### Environment Variables
+### 21.2. Environment Variables
 **DreamFarm Agent (.env) - Unified:**
 ```
 # OpenAI (hosted by OpenAI)
@@ -491,7 +626,7 @@ REACT_APP_API_VERSION=v1
 
 The Dockerfile includes a startup script that generates `public/config.js` from environment variables.
 
-### OpenAI Provider Configuration (Unified)
+### 21.3. OpenAI Provider Configuration (Unified)
 
 The system supports both Azure OpenAI and OpenAI API with a single client.
 Use ``OPENAI_BASE_URL`` and ``OPENAI_API_VERSION`` when talking to Azure; omit them for OpenAI-hosted.
@@ -512,7 +647,9 @@ def get_model_name():
 
 This abstraction allows the same codebase to work with both providers seamlessly.
 
-### Retrieval & Search Architecture
+---
+
+## 22. Retrieval & Search Architecture
 
 The platform provides two complementary retrieval modes:
 1. Hybrid RAG (semantic + keyword fusion) – prompt inlined context blocks (internal fusion logic)
@@ -523,11 +660,11 @@ Planned augmentation (Lesson 4 end):
 
 VIP fencing (row-level filtering) currently applies only to the agentic tool-based retrieval path; hybrid RAG remains unrestricted (shows full catalog) unless extended later.
 
-#### Hybrid RAG (Semantic + Keyword with RRF)
+### 22.1. Hybrid RAG (Semantic + Keyword with RRF)
 
 The DreamFarm Agent includes a hybrid RAG system combining semantic + full‑text retrieval:
 
-#### RAG Architecture (Hybrid)
+#### 22.1.1. RAG Architecture (Hybrid)
 1. **Semantic Pass**: Generate embedding for user query; vector similarity over `simple_products.embedding` (cosine) → ranked list S
 2. **Keyword Extraction**: LLM (Responses API structured output) extracts normalized keywords (product names, producer names, salient nouns)
 3. **Full‑Text Pass**: Build `to_tsquery` over `fts_combined` from extracted keywords → ranked list K (ts_rank)
@@ -535,7 +672,7 @@ The DreamFarm Agent includes a hybrid RAG system combining semantic + full‑tex
 5. **Prompt Injection**: Format F (same block format) → `<relevant_products>` in system prompt (existing behavior; unchanged downstream)
 6. **Logging** (INFO): counts for semantic, keywords, fts, fused
 
-Design Notes
+#### 22.1.2. Design Notes
 - **Structured Output**: Pydantic `ExtractedKeywords(keywords: List[str])` passed via `response_format` json_schema; deterministic schema for parsing
 - **Safety**: Keyword extraction failure → fallback to semantic only; empty keywords skip FTS
 - **FTS Query**: OR-joined sanitized keywords (`|`) with `simple` config & `unaccent`; limit = `RAG_MAX_RESULTS` (pre‑fusion diversity kept by fusion step)
@@ -543,7 +680,7 @@ Design Notes
 - **Score Reporting**: Final `similarity_score` field holds fused score (semantic method unchanged for tests)
 - **Extensibility**: Future third signal (graph, stock filters, reranker) can add another ranked list before fusion
 
-#### RAG Components
+#### 22.1.3. RAG Components
 
 **RAGService** (`src/services/rag_service.py`):
 - Embedding generation
@@ -553,7 +690,7 @@ Design Notes
 - Result formatting + prompt injection
 - Feature flags: `ENABLE_RAG`, interplay with `ENABLE_AGENTIC_SEARCH`
 
-#### Agentic Tool-Based Retrieval (Function Calling)
+### 22.2. Agentic Tool-Based Retrieval (Function Calling)
 Enabled via `ENABLE_AGENTIC_SEARCH=true`. The LLM receives two retrieval tool schemas and decides dynamically which (and how many times) to invoke; the backend does not merge or rerank across tool outputs—each call returns an independent result set the model can reference in subsequent reasoning.
 
 Tools (JSON schema arguments):
@@ -570,7 +707,7 @@ Fallback: If agentic search disabled or model opts not to call tools, system use
 
 HyDE Meta: When generated, truncated hash + token count emitted in a `DF_META` line with kind `hyde_generation`.
 
-#### VIP Fencing
+### 22.3. VIP Fencing
 Applied only in agentic retrieval tool queries:
 ```
 WHERE (products.is_vip = false OR :user_is_vip = true)
@@ -597,10 +734,12 @@ Notes
 - Additional btree indexes on product_id, producer_name, and product_name for lookups.
 - Full-text search enabled via generated column `fts_combined` + GIN index (unaccent + simple config).
 
-#### Full-Text Search (FTS) Enhancement (Lesson 1 Hybrid Add-On)
+### 22.4. Full-Text Search (FTS) Enhancement (Lesson 1 Hybrid Add-On)
 Hybrid support: `fts_combined` (trigger-maintained due to unaccent immutability) + GIN index for keyword fallback alongside vector search. Extension: `unaccent`.
 
-### Semantic Caching (First-Turn Accelerator)
+---
+
+## 23. Semantic Caching (First-Turn Accelerator)
 
 Purpose: Reduce latency and model cost for extremely common FIRST user turns (greetings, capability questions, generic help requests) by answering from a local cache when the opening user message semantically matches a precomputed canonical question.
 
@@ -651,11 +790,13 @@ Future Enhancements:
 - Periodic regeneration/refinement incorporating anonymized real user phrasing.
 - Multi-lingual variant sets keyed by detected language.
 
-### Database and Knowledge Graph Schema (production-ready)
+---
+
+## 24. Database and Knowledge Graph Schema (production-ready)
 
 This section specifies the target schema for production, extending the Lesson 1 "simple_products" with a richer `products` table for hybrid search, a `stock` table, and a knowledge graph using Apache AGE.
 
-#### Products (relational, hybrid search)
+### 24.1. Products (relational, hybrid search)
 
 Purpose: primary product catalog optimized for hybrid retrieval (semantic + keyword) and downstream reranking.
 
@@ -693,7 +834,7 @@ Notes
   score = 0.6 * (1 - cosine_distance(embedding, :query_vec)) + 0.4 * ts_rank_cd(fts_document, plainto_tsquery(:q))
 - Keep `simple_products` as a minimal seed/training/lesson table; `products` supersedes it for production use.
 
-#### Stock (relational)
+### 24.2. Stock (relational)
 
 Purpose: current stock quantity per product (and producer for provenance).
 
@@ -716,7 +857,7 @@ Notes
 - Matches generator output in `data/source_json/stock.json` (producerId, productId, onStock).
 - If products are unique to a producer, (product_id) could be unique; we keep a composite PK for generality.
 
-#### Knowledge graph (Apache AGE)
+### 24.3. Knowledge graph (Apache AGE)
 
 Purpose: model rich relationships (producer → product, certifications, allergens, categories) and enable graph traversals for recommendations, explanations, and exploration.
 
@@ -752,14 +893,7 @@ Relational ↔ Graph integration (recommended pattern)
   2) Use those IDs as parameters to a Cypher query for traversals/enrichment (e.g., producers, certifications, similar products) and optionally re‑rank.
   3) Join the `cypher(...)` results with relational tables on the `productId`/`producerId` properties.
 
-Taxonomy Enrichment Pipeline (categories & cuisines):
-1. Derive canonical category & cuisine sets (LLM structured output + deterministic review) – target ~50 categories, ~20 cuisines.
-2. Generate concise, neutral summaries for every category & cuisine (1–2 sentences) for graph explainability.
-3. Multi‑label classify each product to 0..N categories and 0..N cuisines (confidence‑aware; low confidence = unassigned).
-4. Persist artifacts (JSON + Parquet) for reproducibility & downstream batch import.
-5. Import script MERGEs Category / Cuisine vertices (with description) and HAS_CATEGORY / HAS_CUISINE edges into graph.
-
-#### Detailed Taxonomy & Cuisine Enrichment Specification (Lesson 4)
+### 24.4. Detailed Taxonomy & Cuisine Enrichment Specification (Lesson 4)
 
 Goals
 - Introduce two higher‑level concept layers (Category, Cuisine) above raw products to enable semantic grouping, faceted exploration, recommendation pivots, and richer natural‑language answers (e.g., "These cheeses fit Italian Mediterranean salads").
@@ -831,7 +965,6 @@ Data Models (JSON Schemas – conceptual)
   "version": "v1"
 }
 ```
-
 Edge Cases & Safeguards
 - Products with extremely short or generic descriptions may yield no assignments (allowed).
 - Confidence tie‑breaking: keep all above threshold (no forced top‑k) to avoid premature narrowing.
@@ -874,13 +1007,13 @@ AGE operational notes
 - Use `SELECT create_graph('dreamfarm');` once, then `cypher('dreamfarm', $$ ... $$)` for DML/queries.
 - Store external IDs as vertex properties (e.g., `Product {productId: '...'}`) to bridge to relational tables.
 
-#### RAG Configuration
+### 24.5. RAG Configuration
 
 **Feature Flag**: Set `ENABLE_RAG=true` to enable semantic search
 **Similarity Threshold**: `RAG_SIMILARITY_THRESHOLD=0.7` (0.0-1.0, higher = more strict)
 **Max Results**: `RAG_MAX_RESULTS=3` (top N similar products to include)
 
-#### RAG Workflow
+#### 24.5.1. RAG Workflow
 1. User asks: "I need fresh vegetables for a salad"
 2. System generates embedding for the query
 3. Cosine similarity search finds relevant products (e.g., lettuce, tomatoes, cucumbers)
@@ -888,24 +1021,26 @@ AGE operational notes
 5. System prompt includes: `<relevant_products>Product info...</relevant_products>`
 6. AI assistant responds with knowledge of available products
 
-#### Benefits
+#### 24.5.2. Benefits
 - **Semantic Understanding**: Finds products by meaning, not just keywords
 - **Real-time Context**: Always uses current product database
 - **Configurable**: Can be enabled/disabled and tuned via environment variables
 - **Scalable**: Uses PostgreSQL with proper indexing for performance
 
-### Thread/Session Management Strategy
+---
+
+## 25. Thread/Session Management Strategy
 
 For Lesson 1, we implement a simple session API consumed by the frontend while keeping conversation state on the provider via the Responses API:
 
-#### Session Lifecycle
+### 25.1. Session Lifecycle
 1. **Create Session**: Frontend calls `POST /threads` to get a session handle (`thread_id`)
 2. **Send Messages**: Frontend sends messages via `POST /threads/{thread_id}/messages`
 3. **Server-side State**: Backend calls OpenAI Responses API with `store=True` and remembers only the last `response_id` per `thread_id` to continue with `previous_response_id` on the next turn
 4. **History (Optional)**: Backend maintains a lightweight in-memory message list for UI display only; content is not used to generate responses
 5. **Persistence**: In-memory for Lesson 1; later lessons may add DB/Redis for durability
 
-#### Data Storage (Lesson 1)
+### 25.2. Data Storage (Lesson 1)
 ```python
 # In-memory storage for simplicity
 threads: Dict[str, Thread] = {}
@@ -918,7 +1053,7 @@ last_response_id: Dict[str, str] = {}    # thread_id -> last response_id for Res
 # - User authentication and authorization
 ```
 
-#### Benefits of Hybrid Session API
+### 25.3. Benefits of Hybrid Session API
 - **Stateless**: Each request is independent, easier to scale
 - **Provider State**: Uses Responses API server-side state via `previous_response_id`
 - **OpenAI Compatible**: Aligns with Responses API conversation model
@@ -926,11 +1061,11 @@ last_response_id: Dict[str, str] = {}    # thread_id -> last response_id for Res
 - **Future Ready**: Can easily add user sessions, persistence, sharing
 - **Debugging**: Easy to inspect conversation history
 
-#### API Endpoints
+### 25.4. API Endpoints
 
 **Base URL**: `http://localhost:8001`
 
-##### POST /chat
+#### 25.4.1. POST /chat
 Single-endpoint chat using server-side conversation state.
 
 Uses Responses API with `store=true` and `previous_response_id` for continuity.
@@ -953,7 +1088,7 @@ Uses Responses API with `store=true` and `previous_response_id` for continuity.
 }
 ```
 
-##### POST /threads
+#### 25.4.2. POST /threads
 Create a new conversation thread.
 
 **Request Body:**
@@ -973,7 +1108,7 @@ Create a new conversation thread.
 }
 ```
 
-##### PUT /threads/{thread_id}/title
+#### 25.4.3. PUT /threads/{thread_id}/title
 Rename (retitle) an existing thread. Only the owning user may rename a thread.
 
 **Request Body:**
@@ -997,7 +1132,7 @@ Errors:
 - 404 if thread not found (or not owned by user)
 - 422 on validation failure
 
-##### DELETE /threads/{thread_id}
+#### 25.4.4. DELETE /threads/{thread_id}
 Delete a thread and its persisted raw transcript. Idempotent (second delete returns 404).
 
 **Response:**
@@ -1008,7 +1143,7 @@ Delete a thread and its persisted raw transcript. Idempotent (second delete retu
 }
 ```
 
-##### GET /threads/{thread_id}
+#### 25.4.5. GET /threads/{thread_id}
 Get thread information.
 
 **Response:**
@@ -1022,7 +1157,7 @@ Get thread information.
 }
 ```
 
-##### POST /threads/{thread_id}/messages
+#### 25.4.6. POST /threads/{thread_id}/messages
 Send a message in a conversation thread.
 
 **Request Body:**
@@ -1043,7 +1178,7 @@ Send a message in a conversation thread.
 }
 ```
 
-##### POST /threads/{thread_id}/messages/stream
+#### 25.4.7. POST /threads/{thread_id}/messages/stream
 Send a message and stream the assistant response tokens progressively.
 
 Response is a streamed text/plain body with chunks of assistant text as they arrive.
@@ -1053,7 +1188,7 @@ Notes:
 - Uses the same prompt template and optional RAG context as the non-streaming route
 - Appends final assistant message to in-memory history when stream completes
 
-##### GET /threads/{thread_id}/messages
+#### 25.4.8. GET /threads/{thread_id}/messages
 Get conversation history for a thread.
 
 **Query Parameters:**
@@ -1077,7 +1212,7 @@ Get conversation history for a thread.
 }
 ```
 
-##### GET /health
+#### 25.4.9. GET /health
 Health check endpoint.
 
 **Response:**
@@ -1088,9 +1223,9 @@ Health check endpoint.
 }
 ```
 
-### Data Models
+### 25.5. Data Models
 
-#### Chat (Pydantic)
+#### 25.5.1. Chat (Pydantic)
 ```python
 class ChatRequest(BaseModel):
   message: str
@@ -1102,7 +1237,7 @@ class ChatResponse(BaseModel):
   timestamp: str
 ```
 
-#### Thread (Pydantic)
+#### 25.5.2. Thread (Pydantic)
 ```python
 class Thread(BaseModel):
     thread_id: str
@@ -1124,7 +1259,7 @@ class ThreadRenameRequest(BaseModel):
   title: constr(min_length=1, max_length=160)
 ```
 
-#### Message (Pydantic)
+#### 25.5.3. Message (Pydantic)
 ```python
 class Message(BaseModel):
     message_id: str
@@ -1149,14 +1284,16 @@ class GetMessagesResponse(BaseModel):
     total_count: int
 ```
 
-#### Health (Pydantic)
+#### 25.5.4. Health (Pydantic)
 ```python
 class HealthResponse(BaseModel):
     status: str
     timestamp: str
 ```
 
-### Project Structure
+---
+
+## 26. Project Structure
 
 ```
 advanced-ai-applications/
@@ -1191,9 +1328,11 @@ advanced-ai-applications/
 └── (root files not listed)
 ```
 
-### Service Responsibilities
+---
 
-#### DreamFarm Agent (Port 8001)
+## 27. Service Responsibilities
+
+### 27.1. DreamFarm Agent (Port 8001)
 **Purpose**: Main AI agent for the Dream Farm marketplace
 - **LLM Integration**: Azure OpenAI Service or OpenAI API communication
 - **Session API**: Lightweight `/threads` endpoints for session handles; Responses API maintains conversation state
@@ -1203,17 +1342,19 @@ advanced-ai-applications/
 - **API Endpoints**: All REST endpoints for the Dream Farm application
 - **Agent Orchestration**: Coordinate with other agents (Lesson 8+)
 
-#### Future Agents (Later Lessons)
+### 27.2. Future Agents (Later Lessons)
 - **Chef Agent** (Lesson 8): Specialized agent for cooking/catering services
 - **Other Domain Agents**: Additional specialized agents as business grows
 
-#### Infrastructure (Later Lessons)
+### 27.3. Infrastructure (Later Lessons)
 - **nginx/Envoy** (Lesson 10): For production load balancing, SSL, static files
 - **Authentication**: Can be added as middleware to agents or separate service
 
-### Tool Integration Strategy & Function Interfaces
+---
 
-#### MCP vs REST API Decision
+## 28. Tool Integration Strategy & Function Interfaces
+
+### 28.1. MCP vs REST API Decision
 
 **Use MCP Protocol for:**
 - RAG/knowledge base queries (Lesson 3+)
@@ -1231,7 +1372,7 @@ advanced-ai-applications/
 - Core business logic
 - Frontend-backend communication
 
-#### Benefits of MCP-First Approach
+### 28.2. Benefits of MCP-First Approach
 
 1. **Standardized Interface**: All tools speak the same protocol
 2. **AI-Native Design**: MCP is designed specifically for AI tool integration
@@ -1242,7 +1383,7 @@ advanced-ai-applications/
 
 This approach allows the API Gateway to remain focused on core business logic while delegating specialized tasks to dedicated MCP servers.
 
-#### AI Tools Overview
+### 28.3. AI Tools Overview
 
 Tools live under `tools/` (standalone services / MCP servers) or as internal function-call interfaces exposed to the LLM. Scope:
 
@@ -1263,7 +1404,7 @@ Tools live under `tools/` (standalone services / MCP servers) or as internal fun
 
 - Tavily Remote MCP (SaaS web search)
 
-#### Internal Function-Call Interfaces (Agentic Retrieval)
+### 28.4. Internal Function-Call Interfaces (Agentic Retrieval)
 - `semantic_search` (arguments: text: string) – semantic vector similarity (HyDE capable) with VIP fence.
 - `keyword_search` (arguments: keywords: string[]) – full‑text search over `fts_document` / `fts_combined` with VIP fence.
 
@@ -1273,7 +1414,7 @@ No backend fusion: model may call tools multiple times and integrate / compare r
 
 Telemetry: Each invocation emits `DF_META` line (`search_tool_call`) with counts pre/post VIP filter.
 
-#### Graph Traversal Retrieval (Planned – Lesson 4 Final Task)
+### 28.5. Graph Traversal Retrieval (Planned – Lesson 4 Final Task)
 
 Objective: Expose the knowledge graph (Apache AGE) as an additional retrieval surface complementary to vector/FTS tools, enabling the LLM to:
 - Start from abstract user intent → hypothesize likely higher‑level concepts (categories, cuisines, allergens, certifications) → fan out to candidate products (breadth-first taxonomy expansion).
@@ -1295,26 +1436,26 @@ Tools (proposed JSON schemas):
   - `limit: int` (optional, default 10, max 25)
   Returns: `{ start_product: { product_id, product_name }, similar_products: [ { product_id, product_name, shared_traits: [ { kind, id, name } ], similarity_score } ] }`
 
-##### Clarification: DFS Similarity Tool Rationale
+#### 28.5.1. Clarification: DFS Similarity Tool Rationale
 The `graph_dfs_similarity_search` tool intentionally centers on trait overlap (Categories, Cuisines, Certifications, Allergens, Producer) to surface products that are *structurally* similar in the knowledge graph. It does NOT perform semantic embedding similarity itself — that happens earlier (e.g., via semantic product search) and this DFS tool refines or broadens recommendations by relationship structure. Its scoring (weights per trait family) is documented below; no changes needed at this time.
 
 ---
 
-### Breadth-First Taxonomy Search (Updated Design: Semantic Concept Matching First)
+### 28.6. Breadth-First Taxonomy Search (Updated Design: Semantic Concept Matching First)
 
 Earlier draft examples showed ad‑hoc text matching (ILIKE / CONTAINS) against concept names/descriptions. We are replacing that with a semantic concept selection phase to produce more robust recall and nuanced alignment with user intent. This section supersedes any prior LIKE‑based concept matching references.
 
-#### Design Motivation
+#### 28.6.1. Design Motivation
 User queries describing desired attributes (e.g., “mild Italian cheese without nuts certified organic”) combine multiple abstract facets. Literal substring filtering is brittle (pluralization, synonyms, language drift). A semantic embedding layer over higher‑level concept entities (Category, Cuisine, Certification, Allergen) provides resilient matching and ranking before graph expansion.
 
-#### Key Decisions
+#### 28.6.2. Key Decisions
 1. Do **not** store embeddings directly inside AGE vertex properties for similarity search. While AGE lives in PostgreSQL, AGE itself does not expose native vector indexing operators; we instead leverage **pgvector** in dedicated relational tables and then bridge via shared IDs.
 2. Maintain a **unified concept embeddings table** covering all supported concept types instead of one table per type to simplify maintenance and multi‑type ranking.
 3. Keep graph vertices lean (IDs + minimal display properties) and perform semantic retrieval outside the graph; then pass selected vertex IDs into controlled BFS expansion.
 4. Support **negative constraints** (e.g., “without nuts”, “no dairy”) via lightweight structured extraction so we can exclude or penalize conflicting traits early.
 5. Provide explicit configurability for per‑type weights and similarity thresholds to tune precision vs. recall.
 
-#### Data Structures (Relational Layer)
+#### 28.6.3. Data Structures (Relational Layer)
 `concept_embeddings` (new table – conceptual schema):
 | Column | Type | Notes |
 | ------ | ---- | ----- |
@@ -1332,7 +1473,7 @@ Indexes / Performance:
 - Composite btree on (`concept_type`, `concept_id`).
 - Optional partial index for active concepts if future soft deletes are introduced.
 
-#### Environment / Config Additions
+#### 28.6.4. Environment / Config Additions
 | Variable | Purpose | Default |
 | -------- | ------- | ------- |
 | `GRAPH_BFS_CONCEPT_TOP_K_PER_TYPE` | Max semantic matches kept per type before expansion | 5 |
@@ -1344,7 +1485,7 @@ Indexes / Performance:
 | `GRAPH_BFS_PRODUCT_DIVERSITY_PENALTY` | Penalize overrepresentation of a single concept | 0.15 |
 | `GRAPH_BFS_SCORE_NORMALIZE` | Normalize final product scores to 0..1 | true |
 
-#### Input & Structured Extraction
+#### 28.6.5. Input & Structured Extraction
 Tool input: `hypothesis_text` (free form), `max_hops`, `limit`.
 
 Pre‑processing (LLM structured extraction schema conceptually):
@@ -1356,7 +1497,7 @@ Pre‑processing (LLM structured extraction schema conceptually):
 ```
 This step is optional but improves negative constraint handling. If extraction fails, proceed with raw text embedding and skip negative filtering (fail‑open, transparent in telemetry).
 
-#### Semantic Concept Selection Algorithm (Pseudo Steps)
+#### 28.6.6. Semantic Concept Selection Algorithm (Pseudo Steps)
 1. Receive `hypothesis_text`.
 2. (Optional) Extract positive/negative cues.
 3. Generate embedding for `hypothesis_text` (single pass; do **not** split unless text length exceeds model safe window – future optimization).
@@ -1366,7 +1507,7 @@ This step is optional but improves negative constraint handling. If extraction f
 7. Record telemetry: counts per type, filtered out below threshold, final selected.
 8. Produce ordered concept seed list with (concept_id, concept_type, similarity_score, weight = type_weight * similarity_score).
 
-#### BFS Expansion (Concept → Product)
+#### 28.6.7. BFS Expansion (Concept → Product)
 1. Initialize frontier with selected concept vertex IDs (Category/Cuisine/Certification). Allergens appear only if user *explicitly* wants inclusion; otherwise they act mainly as negative constraints (avoidance). We keep allergen vertices optional in frontier to avoid recommending allergen-rich items when user intent is exclusionary.
 2. Execute constrained breadth expansion up to `max_hops` (default 2):
    - Hop 1: Concept → Product edges (`HAS_CATEGORY`, `HAS_CUISINE`, `HAS_CERTIFICATION`).
@@ -1374,7 +1515,7 @@ This step is optional but improves negative constraint handling. If extraction f
 3. Collect candidate product IDs with per‑product matched concept set (and path metadata for explainability).
 4. Early stop if candidate set exceeds safety bound (e.g., 5 * requested limit) – mark `truncated=true` in telemetry and continue to scoring subset.
 
-#### Product Scoring (Heuristic)
+#### 28.6.8. Product Scoring (Heuristic)
 For each candidate product:
 ```
 base_score = Σ (concept_weight for each matched concept)
@@ -1396,10 +1537,10 @@ Return top `limit` products with:
 }
 ```
 
-#### VIP Filtering Interaction
+#### 28.6.9. VIP Filtering Interaction
 Apply VIP fencing *after* BFS product scoring but before final truncation: remove VIP products if user not VIP, then re-rank remaining (no score recomputation unless large removals force re-normalization). Telemetry records pre/post counts.
 
-#### Observability & Telemetry
+#### 28.6.10. Observability & Telemetry
 `DF_META` line (kind: `graph_tool_call`) fields:
 ```
 {
@@ -1414,7 +1555,7 @@ Apply VIP fencing *after* BFS product scoring but before final truncation: remov
 }
 ```
 
-#### Failure & Fallback Behavior
+#### 28.6.11. Failure & Fallback Behavior
 | Condition | Action |
 | --------- | ------ |
 | No concept passes threshold | Fallback to hybrid product RAG (semantic + keyword) and note `concept_fallback=true` |
@@ -1422,13 +1563,13 @@ Apply VIP fencing *after* BFS product scoring but before final truncation: remov
 | Extraction timeout | Skip extraction; proceed with raw text embedding |
 | Vector search timeout | Reduce per-type top-k (halve) and retry once; else fallback |
 
-#### Advantages of This Approach
+#### 28.6.12. Advantages of This Approach
 - Robust to synonymy / paraphrasing (“nut-free”, “without nuts”).
 - Encourages explainable output (assistant can cite matched concept names and why chosen).
 - Clean separation of concerns: semantic retrieval (relational + pgvector) → structural expansion (graph) → heuristic fusion.
 - Extensible: new concept layers (Season, DietaryPattern) simply add rows to `concept_embeddings` and graph vertices/edges.
 
-#### Future Enhancements
+#### 28.6.13. Future Enhancements
 1. Adaptive threshold: dynamic similarity floor based on distance gap between top and median candidate.
 2. Embedding caching: reuse embedding for subsequent refinement turns if user rephrases intent.
 3. Per‑concept decay: reduce weight for extremely common concepts (e.g., “organic”) using inverse document frequency style factor.
@@ -1437,7 +1578,7 @@ Apply VIP fencing *after* BFS product scoring but before final truncation: remov
 
 ---
 
-### Summary of Graph Tools After Update
+### 28.7. Summary of Graph Tools After Update
 | Tool | Primary Purpose | Similarity Basis | Expansion Mode |
 | ---- | ----------------| ---------------- | -------------- |
 | `semantic_search` | Product-level semantic retrieval | Vector (products.embedding) | None (direct) |
@@ -1447,7 +1588,7 @@ Apply VIP fencing *after* BFS product scoring but before final truncation: remov
 
 This updated design removes dependence on ad‑hoc textual LIKE scanning for high‑level concepts and formally introduces a semantic concept retrieval layer feeding the BFS expansion.
 
-Cypher Query Patterns (conceptual):
+### 28.8. Cypher Query Patterns (conceptual):
 
 Breadth-First (taxonomy expansion):
 ```
@@ -1534,17 +1675,19 @@ Documentation: This section formalizes design prior to implementation; code will
   - Capabilities: search, extract, map, crawl (we primarily use `tavily-search` and `tavily-extract`).
   - Notes: used only when web context is needed; disabled by default in early lessons to keep flows deterministic.
 
-### Runtime Configuration Pattern
+---
+
+## 29. Runtime Configuration Pattern
 
 The frontend uses a runtime configuration approach to support different environments without rebuilding the application:
 
-#### Development Flow
+### 29.1. Development Flow
 1. **Local Development**: Manually edit `public/config.js` with local backend URL
 2. **Docker Build**: Application is built once with a config template
 3. **Container Start**: Startup script generates `config.js` from environment variables
 4. **Application Load**: React app reads configuration from `window.APP_CONFIG`
 
-#### Implementation Details
+### 29.2. Implementation Details
 
 **Config Template (`public/config.js.template`):**
 ```javascript
@@ -1575,7 +1718,9 @@ This pattern enables:
 - **Runtime Flexibility**: Configure backend URLs without rebuilding
 - **Development Simplicity**: Manual config editing for local development
 
-### Development Workflow
+---
+
+## 30. Development Workflow
 
 1. **DreamFarm Agent Setup** (Start here for Lesson 1):
    - Use `uv` to create virtual environment and install dependencies
@@ -1602,7 +1747,9 @@ This pattern enables:
    - Deploy to Kubernetes with proper service discovery
    - Use infrastructure as code (Terraform)
 
-### Security Considerations
+---
+
+## 31. Security Considerations
 
 - Environment variables for sensitive data (API keys, endpoints)
 - No hardcoded credentials in source code
@@ -1611,10 +1758,12 @@ This pattern enables:
 - JWT verification (Keycloak) when `REQUIRE_AUTH=true`
 - Role / VIP enforcement at data access layer (defense-in-depth; currently only applied to agentic tool queries)
 
-#### Authentication & Authorization
+### 31.1. Authentication & Authorization
 Keycloak provides OIDC tokens with roles; backend middleware validates JWT (issuer & audience), extracts `user_id` (sub) and VIP status (role membership or explicit `is_vip` claim). Frontend performs Authorization Code + PKCE, stores token in memory, attaches Bearer header. Unauthorized or invalid token requests return 401 (when auth required). VIP fencing implemented via SQL predicate; LLM is instructed but not trusted to self‑filter.
 
-### Future Enhancements
+---
+
+## 32. Future Enhancements
 
 This basic architecture will be extended with:
 - RAG (Retrieval-Augmented Generation) with PostgreSQL and pgvector
@@ -1627,11 +1776,11 @@ This basic architecture will be extended with:
 
 ---
 
-## Lesson 5 – Memory & Real Voice Chat Architecture
+## 33. Lesson 5 – Memory & Real Voice Chat Architecture
 
 Lesson 5 introduces two major capability families: (1) Long‑term & contextual memory (conversation retention, semantic recall, user profile personalization) and (2) Real Voice Chat (hands‑free interaction). Both are designed with strict user isolation (row‑level fencing) and modular feature flags to remain optional in lower environments.
 
-### 1. Memory Overview
+### 33.1. Memory Overview
 
 Memory is divided into three distinct layers, each with clear lifecycle & access semantics:
 
@@ -1643,9 +1792,9 @@ Memory is divided into three distinct layers, each with clear lifecycle & access
 
 Design Principle: The model never “browses” raw message transcripts; it queries only distilled summaries (privacy & token efficiency). Profile injection is read-only from model perspective; writes require explicit tool invocation or scheduled batch inference.
 
-### 2. Database Schemas (Memory Tables)
+### 33.2. Database Schemas (Memory Tables)
 
-#### 2.1 `conversations_raw`
+#### 33.2.1. `conversations_raw`
 Schema for raw conversation transcripts used for summarization and retention.
 
 | Column | Type | Constraints | Notes |
@@ -1662,7 +1811,7 @@ Schema for raw conversation transcripts used for summarization and retention.
 
 Indexes: user_id, expires_at, summary_status. Trigger maintains `updated_at`.
 
-#### 2.2 `conversation_summaries`
+#### 33.2.2. `conversation_summaries`
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
 | id | UUID | PK | |
@@ -1675,7 +1824,7 @@ Indexes: user_id, expires_at, summary_status. Trigger maintains `updated_at`.
 
 Indexes: HNSW on `embedding (cosine)`, `(user_id, created_at DESC)`, UNIQUE(user_id, thread_id) to ensure a single summary per thread.
 
-#### 2.3 `user_profiles`
+#### 33.2.3. `user_profiles`
 | Column | Type | Constraints | Notes |
 |--------|------|-------------|-------|
 | user_id | text | PK | |
@@ -1699,7 +1848,7 @@ JSON Structure (example):
 
 Merge Semantics: set-union for list fields, overwrite for scalars/notes. Controlled by backend (model cannot read profile raw).
 
-#### 2.4 `memory_enrichment_audit` (optional, enabled if `MEMORY_AUDIT_ENABLED=true`)
+#### 33.2.4. `memory_enrichment_audit` (optional, enabled if `MEMORY_AUDIT_ENABLED=true`)
 | Column | Type | Notes |
 |--------|------|-------|
 | id | UUID | PK |
@@ -1708,9 +1857,9 @@ Merge Semantics: set-union for list fields, overwrite for scalars/notes. Control
 | change_set | jsonb | Captures diff / applied patch |
 | created_at | timestamptz | Timestamp |
 
-### 3. Tool Interfaces
+### 33.3. Tool Interfaces
 
-#### 3.1 `memory_search`
+#### 33.3.1. `memory_search`
 Function-call / tool schema:
 ```json
 {
@@ -1732,7 +1881,7 @@ Execution Flow:
 3. Return top `k` results with: `thread_id`, `summary`, `age_days`.
 4. NO raw messages are ever returned.
 
-#### 3.2 `memory_write_profile`
+#### 33.3.2. `memory_write_profile`
 Write-only patch; model supplies structured update, backend merges & persists.
 ```json
 {
@@ -1753,7 +1902,7 @@ Write-only patch; model supplies structured update, backend merges & persists.
 ```
 Backend merges arrays with set semantics (dedupe, case-normalize) and appends note (bounded length, e.g. +500 chars max growth per call). Returns `{ "status": "ok", "applied": { ... } }` (model sees confirmation only).
 
-### 4. System Prompt Injection (Profile)
+### 33.4. System Prompt Injection (Profile)
 
 At conversation start (and optionally every N turns if updated) we inject a compact profile block:
 ```
@@ -1769,7 +1918,7 @@ Truncation Rules:
 - Hard cap: `USER_PROFILE_MAX_TOKENS` (default 250 tokens). If exceeded: drop least recently referenced fields (order: `liked_products`, `disliked_products`, `notes` tail) until under limit.
 - Updated profile within a session triggers updated injection next turn (memoized hashed snapshot to avoid re-sending identical prompt content if not required).
 
-### 5. Summarization & Batch Pipeline
+### 33.5. Summarization & Batch Pipeline
 
 Script: `data/scripts/summarize_conversations.py` (planned).
 
@@ -1802,7 +1951,7 @@ Pipeline Steps:
 
 Idempotency: Script skips if `summary_status='done'` unless `--force` specified.
 
-### 6. Retention & Purging
+### 33.6. Retention & Purging
 
 Policy (default): Raw conversations purged after `MEMORY_CONVERSATION_RETENTION_DAYS` (default 7). Summaries retained indefinitely unless `MEMORY_SUMMARY_RETENTION_DAYS` set (optional). Purge script (`data/scripts/purge_memory.py`) executes:
 ```sql
@@ -1812,7 +1961,7 @@ DELETE FROM conversation_summaries WHERE created_at < now() - INTERVAL '<days> d
 ```
 Cascade ensures summaries removed if raw conversation deleted and FK ON DELETE CASCADE chosen. (If summaries should outlive raw logs, FK uses ON DELETE SET NULL; we retain cascade for simpler alignment and privacy.)
 
-### 7. Security & Fencing
+### 33.7. Security & Fencing
 
 - All memory search queries constrain by `user_id` at SQL layer (no cross-user exposure).
 - Tool descriptions explicitly state “only your own conversations.”
@@ -1820,7 +1969,7 @@ Cascade ensures summaries removed if raw conversation deleted and FK ON DELETE C
 - Profile injection sanitized (strip control chars, enforce UTF-8, length bounds). No secrets stored.
 - Optional audit table for regulatory traceability of profile mutation.
 
-### 8. Privacy Considerations
+### 33.8. Privacy Considerations
 
 | Risk | Mitigation |
 |------|------------|
@@ -1830,34 +1979,34 @@ Cascade ensures summaries removed if raw conversation deleted and FK ON DELETE C
 | Uncontrolled profile drift | Controlled merge semantics + audit diffs |
 | Hallucinated profile updates | Require explicit tool call OR batch schema fields; validation of categories (allowlist for diet/allergens) |
 
-### 9. Voice Chat Architecture
+### 33.9. Voice Chat Architecture
 
 Goal: Minimal, robust voice-only conversational mode (no mixing text + voice mid-session) delivering real-time or near-real-time audio responses while preserving a text transcript stored like any other conversation.
 
-#### 9.1 Modes
+#### 33.9.1. Modes
 1. **Text Mode** (existing) – unchanged.
 2. **Voice Mode** – separate session; UI toggles “Start Voice Chat” which establishes a WebSocket (preferred) or HTTP streaming connection.
 
-#### 9.2 MVP Flow (Low Complexity – Batch Turn Streaming)
+#### 33.9.2. MVP Flow (Low Complexity – Batch Turn Streaming)
 1. Browser captures microphone chunks (e.g., 16kHz mono PCM) → periodically sends to backend `/voice/stream` WebSocket.
 2. Backend performs incremental Speech-to-Text (STT) using streaming Whisper (or chunked fallback) producing interim transcript segments.
 3. On user pause (VAD silence or push-to-talk release) backend finalizes transcript, appends as user message, runs standard model response pipeline (including RAG/agentic/memory as configured – may be restricted for latency) and obtains text reply.
 4. Text reply synthesized via TTS (OpenAI `gpt-5-voice` style or fallback TTS model) to audio frames streamed back over the same WebSocket.
 5. Raw audio NOT stored; only transcript + assistant text stored in `conversations_raw` (same retention).
 
-#### 9.3 Future (Optional) Realtime API Integration
+#### 33.9.3. Future (Optional) Realtime API Integration
 Abstract service to swap STT + TTS with unified Realtime model (bi-directional low-latency tokens + audio). This requires expanded event loop management; out-of-scope for initial implementation but design leaves upgrade path (WebSocket abstraction preserved).
 
-#### 9.4 Latency Optimization Options
+#### 33.9.4. Latency Optimization Options
 - Disable high-latency tools in voice mode by default (`VOICE_ALLOW_AGENTIC_TOOLS=false`).
 - Memory search allowed (fast, single pgvector call) – gated by `VOICE_ENABLE_MEMORY_SEARCH=true`.
 - If latency target unmet: fallback to semantic cache for first utterance, skip RAG if cache hit.
 
-#### 9.5 Voice Session Identification
+#### 33.9.5. Voice Session Identification
 - Voice sessions produce the same minimal `{role, content}` objects; any modality metadata (e.g. voice) is tracked outside the persisted messages to keep storage lean.
 - Additional column `mode` (ENUM text) could be added to `conversations_raw` for analytics (values: `text`, `voice`).
 
-### 10. Environment Variables (New)
+### 33.10. Environment Variables (New)
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
@@ -1877,7 +2026,7 @@ Abstract service to swap STT + TTS with unified Realtime model (bi-directional l
 | TTS_ENGINE | openai | TTS provider |
 | VAD_MIN_SILENCE_MS | 1200 | Silence threshold to finalize utterance |
 
-### 11. Services & Components Additions
+### 33.11. Services & Components Additions
 
 | Component | Responsibility |
 |-----------|----------------|
@@ -1888,7 +2037,7 @@ Abstract service to swap STT + TTS with unified Realtime model (bi-directional l
 | VoiceSessionManager | WebSocket orchestration, VAD, buffering, STT segmentation |
 | STTAdapter / TTSAdapter | Pluggable interfaces (OpenAI Whisper / TTS) |
 
-### 12. API Additions
+### 33.12. API Additions
 
 | Endpoint | Method | Description |
 |----------|--------|-------------|
@@ -1897,12 +2046,12 @@ Abstract service to swap STT + TTS with unified Realtime model (bi-directional l
 | `/voice/stream` | WS | Bidirectional audio+events (MVP chunked text fallback) |
 | `/voice/health` | GET | STT/TTS readiness check |
 
-### 13. Sequence – User Turn with Memory & Voice (Text Mode)
+### 33.13. Sequence – User Turn with Memory & Voice (Text Mode)
 ```
 User Message -> (Check semantic cache if first turn) -> Persist message draft -> Inject profile -> RAG / Tools / Memory tool calls -> Model response -> Persist assistant turn -> (Optionally schedule summarization if conversation ended) -> Return stream
 ```
 
-### 14. Failure Handling & Edge Cases
+### 33.14. Failure Handling & Edge Cases
 | Case | Handling |
 |------|----------|
 | Summarization failure | Mark failed, retain raw, retry later |
@@ -1911,7 +2060,7 @@ User Message -> (Check semantic cache if first turn) -> Persist message draft ->
 | STT partial errors | Skip segment, continue; if fatal send user error event |
 | Tool latency in voice | Abort tool after timeout & proceed with partial answer (log DF_META) |
 
-### 15. Testing Strategy (Outline)
+### 33.15. Testing Strategy (Outline)
 | Layer | Tests |
 |-------|-------|
 | Unit | Profile merge, memory_search SQL fencing, summary schema validation |
@@ -1920,7 +2069,7 @@ User Message -> (Check semantic cache if first turn) -> Persist message draft ->
 | Performance | memory_search P95 under threshold (e.g., < 60ms on dev dataset) |
 | Security | Attempt cross-user search -> zero results |
 
-### 16. Implementation Order Justification
+### 33.16. Implementation Order Justification
 1. Schemas & migrations (enables incremental dev)
 2. Persistence layer & profile injection (unblocks conversation storage immediately)
 3. Batch summarizer (creates searchable memory dataset)
@@ -1929,7 +2078,7 @@ User Message -> (Check semantic cache if first turn) -> Persist message draft ->
 6. Voice streaming endpoint (isolated concerns; can piggyback storage)
 7. Latency tuning & optional constraints
 
-### 17. Non-Goals (Lesson 5 Scope)
+### 33.17. Non-Goals (Lesson 5 Scope)
 - Cross-user collaborative memory (explicitly out-of-scope)
 - Vector search over full raw message content (summary-level only)
 - Real-time token-by-token audio synthesis (initial MVP uses chunked playback)
@@ -1937,12 +2086,413 @@ User Message -> (Check semantic cache if first turn) -> Persist message draft ->
 
 ---
 
-End of Lesson 5 additions.
+## 34. Code Execution & Dynamic UI Generation
 
-### Notes
+### 34.1. Overview & Capabilities
 
-- Start extremely simple - no RAG, no database, just basic chat functionality
-- Focus on clean architecture that can be easily extended
-- Use established patterns and frameworks
-- Document all public APIs and methods
--- Follow project coding standards throughout development
+**Purpose**: Enable data analysis and dynamic visualization generation by:
+1. Allowing LLM to execute Python code for calculations, chart generation, and file processing
+2. Creating custom interactive UI components (cards, dashboards, infographics) on-demand through LLM-generated HTML
+
+**Business Value**:
+- **Data Analytics**: Users can upload CSV files and get instant analysis, statistics, and visualizations (e.g., health tracking, sales data, farm yield analysis)
+- **Custom Dashboards**: AI generates tailored visual representations of data without pre-built templates
+- **Rapid Prototyping**: Create UI mockups and interactive components through natural language
+- **Enhanced UX**: Move beyond text-only responses to rich, interactive experiences
+
+**Example Usecases**:
+- User uploads `weight_tracking.csv` → LLM analyzes trends, calculates BMI changes, generates time-series chart
+- "Create a dashboard card showing top 3 products by sales" → LLM generates interactive HTML card with animations
+- "Make an infographic comparing organic vs conventional produce prices" → Custom visual generated on-the-fly
+
+### 34.2. Architecture Components
+
+#### 34.2.1. Code Interpreter (Built-in Responses API)
+
+**Technology Choice**: Azure OpenAI Responses API `code_interpreter` tool
+- **Why**: Managed sandboxed Python environment, production-ready, integrated with Responses API
+- **Alternative considered**: E2B (more control, but adds complexity; Pyodide (browser-based, limited packages)
+
+**Container Model**:
+```
+Container Lifecycle:
+- Auto-created with `{"type": "code_interpreter", "container": {"type": "auto"}}`
+- Idle timeout: 20 minutes
+- Active lifetime: ~1 hour
+- Supports file upload (CSV, images, PDF, etc.)
+- Includes common data science packages (pandas, matplotlib, numpy, scipy)
+```
+
+**Pricing**: Additional charges beyond token costs (per container-hour)
+
+#### 34.2.2. Adhoc UI Generation (Custom MCP Tool)
+
+**Flow**:
+```
+User request → Agent → generate_infographic MCP tool → 
+Backend LLM call (specialized prompt) → HTML/CSS/JS generation → 
+Sanitization & validation → Return to agent → 
+Frontend renders in sandboxed iframe
+```
+
+**Components**:
+1. **MCP Tool Definition** (`tools/mcp_visualization_generator/`)
+   - Tool name: `generate_infographic`
+   - Input: `{description: string, data?: object, style?: string}`
+   - Output: `{html: string, type: 'custom_ui'}`
+
+2. **HTML Generator Service** (`agents/dreamfarm-agent/src/services/html_generator.py`)
+   - Calls GPT-4o with specialized system prompt
+   - Template constraints (no external scripts, inline CSS, self-contained)
+   - Validates generated HTML structure
+
+3. **Frontend Renderer** (`frontend/src/components/CustomUIMessage.tsx`)
+   - Receives custom message type: `{type: 'custom_ui', content: {html: string}}`
+   - Renders in sandboxed iframe with `srcdoc` attribute
+   - Applies security constraints
+
+### 34.3. Security Model
+
+#### 34.3.1. Code Interpreter Security
+- **Isolation**: Code runs in separate container, no access to agent host
+- **File Scope**: Only accesses uploaded files, generated files stay in container
+- **Network**: Limited/no outbound access (depends on Azure OpenAI configuration)
+- **Timeout**: Execution timeouts prevent runaway processes
+
+#### 34.3.2. Dynamic HTML Security (Defense in Depth)
+
+**Layer 1 - Generation Constraints**:
+```python
+SYSTEM_PROMPT = """
+Generate self-contained HTML with inline CSS/JS only.
+FORBIDDEN:
+- External <script src=...> or <link href=...>
+- eval(), Function(), innerHTML assignments
+- <form> with external action
+- <iframe> nested iframes
+REQUIRED:
+- All resources inline (no CDN, no external URLs)
+- Use data URIs for images if needed
+- Semantic HTML5
+"""
+```
+
+**Layer 2 - Backend Validation**:
+```python
+def sanitize_html(html: str) -> str:
+    """
+    - Parse with html5lib / BeautifulSoup
+    - Remove/reject: <script src>, <link href>, <iframe>, <object>, <embed>
+    - Whitelist allowed tags: div, span, h1-h6, p, svg, etc.
+    - Escape all attributes
+    - Validate no javascript: protocol in href/src
+    """
+```
+
+**Layer 3 - Frontend Sandboxing**:
+```tsx
+<iframe
+  srcDoc={escapedHtml}
+  sandbox="allow-scripts"  // Minimal permissions
+  style={{border: 'none', width: '100%', ...}}
+  title="Generated Visualization"
+/>
+```
+
+**Layer 4 - Content Security Policy**:
+```
+Frontend CSP: default-src 'self'; frame-src 'self'; script-src 'self' 'unsafe-inline'
+IFrame CSP (meta tag in generated HTML): default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'
+```
+
+**HTML Escaping for `srcdoc`**:
+```typescript
+function escapeSrcDoc(html: string): string {
+  return html
+    .replace(/&/g, '&amp;')      // First: escape ampersands
+    .replace(/"/g, '&quot;')     // Then: escape quotes
+    .replace(/'/g, '&apos;');    // And single quotes if using '
+}
+```
+
+### 34.4. Data Models & Message Types
+
+#### 34.4.1. Code Interpreter Messages
+```typescript
+// File upload (existing assistant-ui pattern)
+type FileMessage = {
+  role: 'user';
+  content: [
+    { type: 'text', text: 'Analyze this data' },
+    { type: 'file', file_id: string }
+  ];
+};
+
+// Code interpreter result (from Responses API)
+type CodeInterpreterResult = {
+  type: 'code_interpreter_call';
+  code_interpreter: {
+    input: string;         // Python code executed
+    outputs: Array<{
+      type: 'logs' | 'image' | 'file';
+      content?: string;    // For logs
+      file_id?: string;    // For generated files
+    }>;
+  };
+};
+```
+
+#### 34.4.2. Custom UI Messages
+```typescript
+type CustomUIMessage = {
+  role: 'assistant';
+  content: Array<{
+    type: 'custom_ui';
+    html: string;          // Sanitized HTML
+    metadata?: {
+      generator: 'llm';
+      model: string;
+      timestamp: number;
+    };
+  }>;
+};
+```
+
+### 34.5. Tool Definitions
+
+#### 34.5.1. Code Interpreter Tool (Responses API Built-in)
+```python
+# In agent initialization
+tools = [
+    {
+        "type": "code_interpreter",
+        "container": {"type": "auto"}
+    }
+]
+
+# System prompt addition
+SYSTEM_PROMPT += """
+You have access to a Python code interpreter for:
+- Data analysis (pandas, numpy, scipy)
+- Visualization (matplotlib, seaborn)
+- Mathematical calculations
+- File processing (CSV, Excel, images)
+
+Use it when user asks for:
+- Statistical analysis
+- Chart/graph generation
+- Data transformation
+- Mathematical computations
+"""
+```
+
+#### 34.5.2. Generate Infographic Tool (Custom MCP)
+```python
+{
+    "name": "generate_infographic",
+    "description": """
+    Generate custom interactive HTML visualizations, cards, or dashboards.
+    Use when user requests visual representations beyond standard charts.
+    Examples: dashboard cards, comparison tables, interactive widgets, 
+    styled statistics displays, custom layouts.
+    """,
+    "parameters": {
+        "type": "object",
+        "properties": {
+            "description": {
+                "type": "string",
+                "description": "Detailed description of desired UI component"
+            },
+            "data": {
+                "type": "object",
+                "description": "Optional structured data to display"
+            },
+            "style": {
+                "type": "string",
+                "enum": ["card", "dashboard", "infographic", "table", "chart"],
+                "description": "Visual style hint"
+            }
+        },
+        "required": ["description"]
+    }
+}
+```
+
+### 34.6. Implementation Files
+
+This section is deprecated as the feature was not implemented. The general project structure is described in section 26.
+
+### 34.7. Environment Configuration
+
+```bash
+# .env additions
+ENABLE_CODE_INTERPRETER=true
+ENABLE_CUSTOM_UI=true
+UI_GENERATOR_MODEL=gpt-4o              # Model for HTML generation
+HTML_SANITIZER_STRICT=true
+MAX_CUSTOM_UI_SIZE_KB=200
+```
+
+### 34.8. Frontend Integration
+
+#### 34.8.1. File Upload Component
+```tsx
+<FileUpload
+  accept=".csv,.xlsx,.json,.txt,.pdf"
+  maxSize={30 * 1024 * 1024}  // 30MB limit (Responses API)
+  onUpload={async (file) => {
+    const fileId = await uploadToResponsesAPI(file);
+    appendMessage({
+      role: 'user',
+      content: [
+        { type: 'text', text: `Analyze this file` },
+        { type: 'file', file_id: fileId }
+      ]
+    });
+  }}
+/>
+```
+
+#### 34.8.2. Custom UI Renderer
+```tsx
+function CustomUIMessage({ html }: { html: string }) {
+  const escapedHtml = escapeSrcDoc(html);
+  const [height, setHeight] = useState(300);
+
+  return (
+    <div className="custom-ui-container">
+      <iframe
+        srcDoc={escapedHtml}
+        sandbox="allow-scripts"
+        style={{ 
+          width: '100%', 
+          height: `${height}px`,
+          border: '1px solid var(--border)',
+          borderRadius: '8px'
+        }}
+        onLoad={(e) => {
+          // Auto-adjust height based on content
+          const iframe = e.target as HTMLIFrameElement;
+          if (iframe.contentWindow) {
+            const body = iframe.contentWindow.document.body;
+            setHeight(body.scrollHeight + 20);
+          }
+        }}
+      />
+    </div>
+  );
+}
+```
+
+### 34.9. Reference Implementation: Weight Tracking Analysis
+
+**User Journey Example**
+
+1. **File Upload**:
+   ```
+   User: "I have my weight data from the last 6 months"
+   [Uploads weight_tracking.csv with columns: date, weight_kg, notes]
+   ```
+
+2. **Code Interpreter Analysis**:
+   ```
+   Agent: *calls code_interpreter*
+   Python code:
+   import pandas as pd
+   import matplotlib.pyplot as plt
+   
+   df = pd.read_csv('weight_tracking.csv')
+   df['date'] = pd.to_datetime(df['date'])
+   
+   # Calculate statistics
+   avg_weight = df['weight_kg'].mean()
+   weight_change = df['weight_kg'].iloc[-1] - df['weight_kg'].iloc[0]
+   
+   # Generate chart
+   plt.figure(figsize=(10, 6))
+   plt.plot(df['date'], df['weight_kg'], marker='o')
+   plt.title('Weight Progress Over Time')
+   plt.xlabel('Date')
+   plt.ylabel('Weight (kg)')
+   plt.grid(True)
+   plt.savefig('weight_chart.png')
+   
+   Output: "Your average weight is 75.2kg. You've lost 3.5kg over 6 months. [image]"
+   ```
+
+3. **Custom Dashboard Card**:
+   ```
+   User: "Create a nice summary card with my stats"
+   Agent: *calls generate_infographic*
+   
+   Tool generates:
+   <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
+              padding: 2rem; border-radius: 1rem; color: white;">
+     <h2 style="margin: 0 0 1rem 0;">Weight Loss Journey 🎯</h2>
+     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem;">
+       <div style="text-align: center;">
+         <div style="font-size: 2.5rem; font-weight: bold;">-3.5kg</div>
+         <div style="opacity: 0.9;">Total Lost</div>
+       </div>
+       <div style="text-align: center;">
+         <div style="font-size: 2.5rem; font-weight: bold;">75.2kg</div>
+         <div style="opacity: 0.9;">Average</div>
+       </div>
+       <div style="text-align: center;">
+         <div style="font-size: 2.5rem; font-weight: bold;">6</div>
+         <div style="opacity: 0.9;">Months</div>
+       </div>
+     </div>
+   </div>
+   ```
+
+### 34.10. Testing Strategy
+
+| Test Type | Coverage |
+|-----------|----------|
+| Unit | HTML sanitizer (reject malicious patterns), srcDoc escaping |
+| Integration | Code interpreter: Upload CSV → analyze → return chart |
+| Integration | Custom UI: Request card → generate HTML → render safely |
+| Security | Attempt XSS via generated HTML (script injection, event handlers) |
+| Security | Verify iframe sandbox blocks parent access |
+| E2E | User uploads file → gets analysis → requests dashboard → sees rendered UI |
+
+### 34.11. Monitoring & Observability
+
+```python
+# DF_META events
+DF_META {
+  "type": "code_interpreter_call",
+  "duration_ms": 2300,
+  "code_lines": 15,
+  "outputs": ["chart.png", "stats.txt"],
+  "container_id": "cntr_abc123"
+}
+
+DF_META {
+  "type": "custom_ui_generated",
+  "generator_model": "gpt-4o",
+  "html_size_bytes": 1024,
+  "sanitized": true,
+  "generation_duration_ms": 450
+}
+```
+
+### 34.12. Known Limitations & Future Work
+
+**Current Limitations**:
+- Code interpreter timeout: ~1 minute per execution
+- Container ephemeral: Files lost after 20 min idle
+- HTML generator may occasionally produce broken layout (retry mechanism needed)
+- No real-time collaboration on generated UIs
+- Generated HTML not reactive (static after creation)
+
+**Future Enhancements**:
+- **Persistent Containers**: Keep containers alive across sessions for long analyses
+- **Interactive Components**: WebSocket connection for generated UI to communicate back
+- **Template Library**: Pre-vetted HTML templates for common visualizations
+- **Multi-step Workflows**: Chain code interpreter → data → UI generation automatically
+- **Version Control**: Store generated HTML variants, allow rollback
+- **Accessibility**: Ensure generated HTML meets WCAG standards
+
+---
