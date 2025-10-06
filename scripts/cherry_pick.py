@@ -88,7 +88,8 @@ def detect_main_branch(repo: str) -> str:
 class CommitInfo:
 	sha: str
 	subject: str
-	files: List[str]
+	files: List[str]  # simplified list of affected file paths (post-rename target names)
+	changes: List[Tuple[str, str, Optional[str]]]  # (status, path, new_path_for_renames)
 
 
 def get_commit_info(repo: str, sha: str) -> CommitInfo:
@@ -99,9 +100,26 @@ def get_commit_info(repo: str, sha: str) -> CommitInfo:
 		print(f"Error: commit '{sha}' not found.")
 		sys.exit(1)
 	subject = git(["log", "-1", "--pretty=%s", resolved], cwd=repo).stdout.strip()
-	files_raw = git(["diff-tree", "--no-commit-id", "--name-only", "-r", resolved], cwd=repo).stdout
-	files = [f.strip() for f in files_raw.splitlines() if f.strip()]
-	return CommitInfo(sha=resolved, subject=subject, files=files)
+	# capture name-status for status codes (A,M,D,R,...)
+	status_raw = git(["diff-tree", "--name-status", "-r", resolved], cwd=repo).stdout
+	changes: List[Tuple[str, str, Optional[str]]] = []
+	files: List[str] = []
+	for line in status_raw.splitlines():
+		line = line.strip()
+		if not line:
+			continue
+		parts = line.split('\t')
+		code = parts[0]
+		if code.startswith('R') and len(parts) == 3:
+			old_path, new_path = parts[1], parts[2]
+			changes.append((code, old_path, new_path))
+			files.append(new_path)
+		elif len(parts) >= 2:
+			path = parts[1]
+			changes.append((code, path, None))
+			if not code.startswith('D'):
+				files.append(path)
+	return CommitInfo(sha=resolved, subject=subject, files=files, changes=changes)
 
 
 def get_latest_commit_info(repo: str, branch: str) -> CommitInfo:
@@ -211,7 +229,7 @@ def abort_cherry_pick(repo: str) -> None:
 		pass
 
 
-def cherry_pick_into_branch(repo: str, branch: str, sha: str, *, main_wins: bool) -> Tuple[bool, Optional[str]]:
+def cherry_pick_into_branch(repo: str, branch: str, commit: CommitInfo, *, main_wins: bool) -> Tuple[bool, Optional[str]]:
 	"""Attempt cherry-pick into branch.
 
 	Returns:
@@ -230,8 +248,9 @@ def cherry_pick_into_branch(repo: str, branch: str, sha: str, *, main_wins: bool
 
 	checkout(repo, branch)
 
-	if branch_contains_commit(repo, branch, sha):
-		print(f"Already contains {sha}; skipping.")
+	sha = commit.sha
+	if branch_contains_commit(repo, branch, commit.sha):
+		print(f"Already contains {commit.sha}; skipping.")
 		return True, None
 
 	print(f"Cherry-picking {sha} into {branch}...")
@@ -279,10 +298,57 @@ def cherry_pick_into_branch(repo: str, branch: str, sha: str, *, main_wins: bool
 					print("Forced resolution failed; aborting cherry-pick.")
 					abort_cherry_pick(repo)
 					return False, err_msg + f" | forced-resolution-failed: {(ce2.stderr or ce2.stdout).strip()}"
-		print("Cherry-pick failed. Aborting.")
+		print("Cherry-pick failed.")
 		abort_cherry_pick(repo)
-		print(f"Aborted cherry-pick due to: {err_msg}")
+		if main_wins:
+			print("Falling back to manual main-wins apply of changed files...")
+			manual_ok, manual_err = manual_apply_commit(repo, commit)
+			if manual_ok:
+				print("Manual apply committed.")
+				return True, None
+			print(f"Manual apply failed: {manual_err}")
 		return False, err_msg
+
+
+def manual_apply_commit(repo: str, commit: CommitInfo) -> Tuple[bool, Optional[str]]:
+	"""Force-apply the given commit's file changes onto current branch, overwriting local versions.
+
+	Returns (success, error_message).
+	"""
+	changes_applied = False
+	for code, path, new_path in commit.changes:
+		try:
+			if code.startswith('D'):
+				# delete path if exists
+				if os.path.exists(path):
+					git(["rm", "-f", path], cwd=repo, check=False)
+			elif code.startswith('R') and new_path:
+				# rename: remove old, checkout new from commit
+				if os.path.exists(path):
+					git(["rm", "-f", path], cwd=repo, check=False)
+				git(["checkout", commit.sha, "--", new_path], cwd=repo)
+				git(["add", new_path], cwd=repo)
+				changes_applied = True
+			else:
+				# A/M/others: checkout version from commit
+				git(["checkout", commit.sha, "--", path], cwd=repo)
+				git(["add", path], cwd=repo)
+				if not code.startswith('D'):
+					changes_applied = True
+		except subprocess.CalledProcessError as e:
+			return False, f"Failed applying {code} {path}{' -> ' + new_path if new_path else ''}: {(e.stderr or e.stdout).strip()}"
+
+	# If nothing changed, treat as success (already applied)
+	if not changes_applied:
+		return True, None
+
+	# Create commit
+	message = f"{commit.subject} (manual apply from {commit.sha})\n\n(cherry-pick of {commit.sha})"
+	try:
+		git(["commit", "-m", message], cwd=repo)
+		return True, None
+	except subprocess.CalledProcessError as e:
+		return False, f"Failed to commit manual apply: {(e.stderr or e.stdout).strip()}"
 
 
 def get_branch_remote(repo: str, branch: str) -> Tuple[Optional[str], bool]:
