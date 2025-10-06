@@ -31,6 +31,17 @@ Environment:
  `VOICE_ENABLED` toggles feature; `VOICE_MODEL` selects realtime deployment; optional flags allow heavy tools or memory search. No audio retained—only transcripts under existing retention policies.
 
 Result: Single‑click start, reliable interruption, immediate transcript streaming, minimal overhead.
+ 
+## 2025-10-06 Lesson 05 README Voice Documentation Update
+
+Added comprehensive voice mode section to `lessons/L05_memory_and_voice/README.md`:
+- Architecture (frontend session manager, `/voice/{thread_id}` endpoint, Realtime API client separation).
+- Environment vars (`VOICE_ENABLED`, `VOICE_MODEL`, optional `VOICE_HEAVY_TOOLS_ENABLED`).
+- Demo flow (quick + extended memory integration), troubleshooting matrix, privacy notes (no raw audio persistence), checklist for acceptance.
+- Clarified that voice is now implemented (replaced earlier “design only” note) and fixed corrupted introductory sentence.
+
+Rationale: Align lesson documentation with actual implemented capabilities; provide ready-to-demo script and reduce onboarding friction for reviewers.
+
 <!-- Historical multi-step voice troubleshooting removed to keep log concise; see consolidated entry only. -->
 
 ## 2025-09-14 Granular Memory Feature Flags
