@@ -1,18 +1,26 @@
 #!/usr/bin/env python3
 """
-Cherry-pick the latest commit from main into all lesson branches.
+Cherry-pick a commit (default: latest on main) into all lesson branches.
 
 Branch patterns:
  - Lxx-teacher
  - Lxx-student-starter
  - Lxx-student-end
 
-The script:
+Default flow:
  1) Ensures a clean working tree
- 2) Detects main/master branch and latest commit sha, subject, changed files
- 3) Asks for confirmation
- 4) Finds lesson branches (local + remote) by pattern
- 5) Cherry-picks the commit into each branch, handling conflicts by aborting
+ 2) Detects main/master branch
+ 3) Determines target commit:
+	 * Latest on main (default), or
+	 * Specific SHA provided via --commit <sha>
+ 4) Prints commit details & confirms (unless --yes)
+ 5) Finds lesson branches (local + remote) by pattern (or subset via --only)
+ 6) Cherry-picks the commit into each branch
+
+Conflict handling modes:
+ * Default: if conflict occurs, abort cherry-pick for that branch (leaves branch unchanged) and continue.
+ * --main-wins: automatically prefer the incoming commit's version ("theirs" in git strategy terms) for textual conflicts.
+	 This uses `git cherry-pick -X theirs` so the main commit content overwrites conflicting hunks on lesson branches.
 
 Requires: git installed and available on PATH.
 """
@@ -24,6 +32,7 @@ import subprocess
 import sys
 from dataclasses import dataclass
 from typing import List, Optional, Tuple
+import argparse
 
 
 def run(cmd: List[str], cwd: Optional[str] = None, check: bool = True) -> subprocess.CompletedProcess:
@@ -82,13 +91,23 @@ class CommitInfo:
 	files: List[str]
 
 
-def get_latest_commit_info(repo: str, branch: str) -> CommitInfo:
-	"""Get latest commit SHA, subject, and changed files for the tip of branch."""
-	sha = git(["rev-parse", f"{branch}"], cwd=repo).stdout.strip()
-	subject = git(["log", "-1", "--pretty=%s", sha], cwd=repo).stdout.strip()
-	files_raw = git(["diff-tree", "--no-commit-id", "--name-only", "-r", sha], cwd=repo).stdout
+def get_commit_info(repo: str, sha: str) -> CommitInfo:
+	"""Return CommitInfo for the given SHA (must exist)."""
+	try:
+		resolved = git(["rev-parse", sha], cwd=repo).stdout.strip()
+	except subprocess.CalledProcessError:
+		print(f"Error: commit '{sha}' not found.")
+		sys.exit(1)
+	subject = git(["log", "-1", "--pretty=%s", resolved], cwd=repo).stdout.strip()
+	files_raw = git(["diff-tree", "--no-commit-id", "--name-only", "-r", resolved], cwd=repo).stdout
 	files = [f.strip() for f in files_raw.splitlines() if f.strip()]
-	return CommitInfo(sha=sha, subject=subject, files=files)
+	return CommitInfo(sha=resolved, subject=subject, files=files)
+
+
+def get_latest_commit_info(repo: str, branch: str) -> CommitInfo:
+	"""Convenience: latest commit on branch."""
+	latest = git(["rev-parse", branch], cwd=repo).stdout.strip()
+	return get_commit_info(repo, latest)
 
 
 def prompt_confirm(commit: CommitInfo, main_branch: str, assume_yes: bool = False) -> None:
@@ -192,8 +211,14 @@ def abort_cherry_pick(repo: str) -> None:
 		pass
 
 
-def cherry_pick_into_branch(repo: str, branch: str, sha: str) -> Tuple[bool, Optional[str]]:
-	"""Attempt cherry-pick into branch. Returns (success, error_message)."""
+def cherry_pick_into_branch(repo: str, branch: str, sha: str, *, main_wins: bool) -> Tuple[bool, Optional[str]]:
+	"""Attempt cherry-pick into branch.
+
+	Returns:
+		(success, error_message)
+		success=True & error_message=None  => applied (or already present)
+		success=False & error_message=...  => failed / skipped
+	"""
 	print(f"\n==> Processing {branch}...")
 	ensure_local_branch(repo, branch)
 
@@ -210,8 +235,14 @@ def cherry_pick_into_branch(repo: str, branch: str, sha: str) -> Tuple[bool, Opt
 		return True, None
 
 	print(f"Cherry-picking {sha} into {branch}...")
+	cherry_args = ["cherry-pick"]
+	if main_wins:
+		# In the context of cherry-pick, "theirs" refers to the incoming commit (from main),
+		# which is what we want to dominate conflicts.
+		cherry_args.extend(["-X", "theirs"])
+	cherry_args.extend(["-x", sha])
 	try:
-		git(["cherry-pick", "-x", sha], cwd=repo)
+		git(cherry_args, cwd=repo)
 		print("Cherry-pick succeeded.")
 		return True, None
 	except subprocess.CalledProcessError as e:
@@ -256,7 +287,17 @@ def push_branch(repo: str, branch: str) -> Tuple[bool, Optional[str]]:
 		return False, err
 
 
+def parse_args() -> argparse.Namespace:
+	p = argparse.ArgumentParser(description="Cherry-pick a commit (default latest on main) into lesson branches.")
+	p.add_argument("--commit", metavar="SHA", help="Specific commit SHA to cherry-pick (default: latest on main).")
+	p.add_argument("--yes", action="store_true", help="Assume yes to confirmation prompt.")
+	p.add_argument("--main-wins", action="store_true", help="Auto-resolve conflicts by taking main commit changes (git -X theirs).")
+	p.add_argument("--only", nargs="*", metavar="BRANCH", help="Limit to specific lesson branches (names must match patterns).")
+	return p.parse_args()
+
+
 def main() -> None:
+	args = parse_args()
 	repo = ensure_repo_root()
 	os.chdir(repo)
 	ensure_clean_worktree(repo)
@@ -264,16 +305,26 @@ def main() -> None:
 	# Remember original branch to restore later
 	orig_branch = current_branch(repo)
 
-	# Detect main branch and latest commit info
+	# Detect main branch (even if a specific commit is passed we still fetch & ensure up-to-date refs)
 	main_branch = detect_main_branch(repo)
-	print(f"Checking out {main_branch} to get latest commit...")
+	print(f"Checking out {main_branch} for reference & fetch...")
 	checkout(repo, main_branch)
 	fetch_all(repo)
-	commit = get_latest_commit_info(repo, main_branch)
-	prompt_confirm(commit, main_branch, assume_yes=False)
+
+	# Determine target commit
+	if args.commit:
+		commit = get_commit_info(repo, args.commit)
+		print(f"Using specified commit: {commit.sha}")
+	else:
+		commit = get_latest_commit_info(repo, main_branch)
+		print(f"Using latest commit on {main_branch}: {commit.sha}")
+	prompt_confirm(commit, main_branch, assume_yes=args.yes)
 
 	# Gather lesson branches
 	lessons = gather_lesson_branches(repo)
+	if args.only:
+		requested = set(args.only)
+		lessons = [b for b in lessons if b in requested]
 	if not lessons:
 		print("No lesson branches found. Nothing to do.")
 		checkout(repo, orig_branch)
@@ -290,7 +341,7 @@ def main() -> None:
 	push_failures: List[Tuple[str, str]] = []
 
 	for b in lessons:
-		ok, err = cherry_pick_into_branch(repo, b, commit.sha)
+		ok, err = cherry_pick_into_branch(repo, b, commit.sha, main_wins=args.main_wins)
 		if ok and err is None:
 			successes.append(b)
 			pok, perr = push_branch(repo, b)
