@@ -439,7 +439,8 @@ def main() -> None:
 	push_failures: List[Tuple[str, str]] = []
 
 	for b in lessons:
-		ok, err = cherry_pick_into_branch(repo, b, commit.sha, main_wins=args.main_wins)
+		# Pass full CommitInfo so downstream logic (manual apply, status parsing) has context
+		ok, err = cherry_pick_into_branch(repo, b, commit, main_wins=args.main_wins)
 		if ok and err is None:
 			successes.append(b)
 			pok, perr = push_branch(repo, b)
