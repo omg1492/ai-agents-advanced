@@ -1,3 +1,20 @@
+## 2025-10-06 Threads & Streaming Integration Tests Use Real LLM
+
+- Converted `tests/test_streaming_api_integration.py` and `tests/test_threads_api_integration.py` to rely on the real OpenAI/Azure configuration instead of local mocks.
+- Added configuration guard that skips the tests when mandatory credentials are absent, and relaxed assertions to only require non-empty assistant output while still validating history persistence.
+- Re-tagged both files as `pytest.mark.integration` so the unit-focused default pytest run stays fast while the integration suite now exercises the live LLM path end-to-end.
+
+Result: running `pytest -m integration` now verifies the streaming and thread flows against the actual model responses without brittle hard-coded greetings.
+
+## 2025-10-06 Voice Integration Tests Stabilized
+
+Adjusted `tests/test_voice_service_integration.py` to reflect the updated voice WebSocket contract:
+- Inject mocked `auth_service`, `voice_service`, `template_service`, and `config_service` after app startup so integration tests no longer rely on real service initialization.
+- Updated mocked handlers to accept the new `handle_voice_session` keyword arguments (`user_id`, `system_prompt`, `enable_heavy_tools`) and capture thread metadata for assertions.
+- Swapped brittle connection assertions for explicit `WebSocketDisconnect` checks and ensured message echo/argument tracking behave as expected.
+
+Result: all seven voice integration tests pass locally, and the full `-m integration` suite completes cleanly.
+
 ## 2025-10-05 Voice Mode Consolidated
 
 Implemented low‑latency voice conversation using Azure/OpenAI Realtime API.
