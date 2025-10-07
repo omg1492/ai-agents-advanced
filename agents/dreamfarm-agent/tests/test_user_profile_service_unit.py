@@ -14,7 +14,7 @@ import pytest
 from types import SimpleNamespace
 
 from src.services.user_profile_service import UserProfileService
-from src.services.config_service import AppConfig, DatabaseConfig, OpenAIConfig, RagConfig
+from src.services.config_service import AppConfig, DatabaseConfig, OpenAIConfig, RagConfig, CodeInterpreterConfig
 
 
 class DummyConn:
@@ -53,6 +53,7 @@ def build_cfg():
         db=DatabaseConfig(host="localhost", port=5432, database="aidb", user="admin", password="pwd"),
         rag=RagConfig(enabled=False, similarity_threshold=0.5, max_results=3),
         semantic_cache=None,
+        code_interpreter=CodeInterpreterConfig(enabled=False, container_type="auto"),
         farmer_tools=None,
         tavily=None,
         stock_tool=None,

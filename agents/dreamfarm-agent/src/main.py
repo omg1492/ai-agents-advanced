@@ -6,7 +6,7 @@ from datetime import datetime, timezone
 import json
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, Depends, status, Query, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, HTTPException, Request, Depends, status, Query, WebSocket, WebSocketDisconnect, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
@@ -14,6 +14,7 @@ import warnings
 
 from src.models.health import HealthResponse
 from src.models.chat import ChatRequest, ChatResponse
+from src.models.file import FileUploadResponse, FileUploadError
 from src.models.thread import (
     CreateThreadRequest,
     CreateThreadResponse,
@@ -301,6 +302,111 @@ async def debug_user_profile(user_id: str, user_ctx: tuple[str, bool, dict] = De
     except Exception as e:
         logger.error(f"Debug profile fetch failed: {e}")
         raise HTTPException(status_code=500, detail="Profile fetch failed")
+
+
+@app.post("/files/upload", response_model=FileUploadResponse)
+async def upload_file(
+    file: UploadFile = File(...),
+    user_ctx: tuple[str, bool, dict] = Depends(_require_user)
+):
+    """Upload a file for code interpreter processing.
+    
+    Accepts CSV, Excel, JSON, TXT, PDF, and image files up to 30MB.
+    Returns Azure OpenAI file ID that can be attached to messages.
+    
+    Args:
+        file: Uploaded file from multipart/form-data
+        user_ctx: Authenticated user context
+        
+    Returns:
+        FileUploadResponse with file_id and metadata
+        
+    Raises:
+        HTTPException: On validation errors or upload failures
+    """
+    username, is_vip, _ = user_ctx
+    logger.info(f"/files/upload user={username} filename={file.filename} content_type={file.content_type}")
+    
+    # Check if code interpreter is enabled
+    if not (config_service.config.code_interpreter and config_service.config.code_interpreter.enabled):
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Code interpreter is not enabled"
+        )
+    
+    # Validate file type
+    allowed_extensions = {'.csv', '.xlsx', '.xls', '.json', '.txt', '.pdf', '.png', '.jpg', '.jpeg', '.gif'}
+    allowed_content_types = {
+        'text/csv',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/json',
+        'text/plain',
+        'application/pdf',
+        'image/png',
+        'image/jpeg',
+        'image/gif'
+    }
+    
+    # Check extension
+    if file.filename:
+        ext = os.path.splitext(file.filename)[1].lower()
+        if ext not in allowed_extensions:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Unsupported file type: {ext}. Allowed: {', '.join(allowed_extensions)}"
+            )
+    
+    # Check content type (if provided)
+    if file.content_type and file.content_type not in allowed_content_types:
+        logger.warning(f"Content type {file.content_type} not in allowed list, but extension is valid")
+    
+    # Read file content and check size (30MB limit per Responses API)
+    MAX_SIZE = 30 * 1024 * 1024  # 30MB in bytes
+    content = await file.read()
+    size_bytes = len(content)
+    
+    if size_bytes > MAX_SIZE:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"File too large: {size_bytes} bytes. Maximum: {MAX_SIZE} bytes (30MB)"
+        )
+    
+    if size_bytes == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="File is empty"
+        )
+    
+    # Upload to Azure OpenAI Files API
+    try:
+        # Create a file-like object for the OpenAI SDK
+        import io
+        file_obj = io.BytesIO(content)
+        file_obj.name = file.filename or "uploaded_file"
+        
+        # Upload using OpenAI service client
+        response = await openai_service.client.files.create(
+            file=file_obj,
+            purpose="assistants"
+        )
+        
+        logger.info(f"File uploaded successfully: file_id={response.id} filename={file.filename} size={size_bytes}")
+        
+        return FileUploadResponse(
+            file_id=response.id,
+            filename=file.filename or "unknown",
+            size_bytes=size_bytes,
+            purpose="assistants",
+            status="uploaded"
+        )
+        
+    except Exception as e:
+        logger.error(f"File upload failed: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to upload file to Azure OpenAI: {str(e)}"
+        )
 
 
 @app.post("/chat", response_model=ChatResponse)

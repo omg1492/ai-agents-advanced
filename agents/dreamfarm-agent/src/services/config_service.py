@@ -135,6 +135,7 @@ class AppConfig:
     agentic_search: Optional["AgenticSearchConfig"]  # forward ref
     graph_search: Optional["GraphSearchConfig"]  # forward ref
     memory_search: Optional["MemorySearchConfig"]  # forward ref
+    code_interpreter: Optional["CodeInterpreterConfig"]  # forward ref
 
 
 @dataclass
@@ -164,6 +165,18 @@ class MemorySearchConfig:
     """
     enabled: bool
     max_results: int
+
+
+@dataclass
+class CodeInterpreterConfig:
+    """Configuration for Azure OpenAI Code Interpreter tool.
+
+    When enabled, the agent can execute Python code for data analysis,
+    visualization, and mathematical calculations in a sandboxed container.
+    Uses Azure OpenAI Responses API built-in code_interpreter capability.
+    """
+    enabled: bool
+    container_type: str = "auto"
 
 
 class ConfigService:
@@ -332,6 +345,13 @@ class ConfigService:
             max_results=int(os.getenv("MEMORY_SEARCH_MAX_RESULTS", "5")),
         ) if memory_search_enabled else None
 
+        # Code interpreter configuration (Python execution sandbox)
+        code_interpreter_enabled = os.getenv("ENABLE_CODE_INTERPRETER", "false").lower() in ["true", "1", "yes", "on"]
+        code_interpreter_cfg = CodeInterpreterConfig(
+            enabled=code_interpreter_enabled,
+            container_type=os.getenv("CODE_INTERPRETER_CONTAINER_TYPE", "auto"),
+        ) if code_interpreter_enabled else None
+
         return AppConfig(
             environment=os.getenv("ENVIRONMENT", "development"),
             cors_origins=cors_origins,
@@ -348,6 +368,7 @@ class ConfigService:
             agentic_search=agentic_cfg,
             graph_search=graph_search_cfg,
             memory_search=memory_search_cfg,
+            code_interpreter=code_interpreter_cfg,
         )
     
     def _get_required_env(self, key: str) -> str:

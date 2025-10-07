@@ -17,6 +17,7 @@ from src.services.config_service import (
     RagConfig,
     SemanticCacheConfig,
     MemorySearchConfig,
+    CodeInterpreterConfig,
 )
 
 
@@ -30,6 +31,7 @@ def build_config():
         db=DatabaseConfig(host="localhost", port=5432, database="aidb", user="admin", password="pwd"),
         rag=RagConfig(enabled=False, similarity_threshold=0.5, max_results=3),
         semantic_cache=SemanticCacheConfig(enabled=False, similarity_threshold=0.9),
+        code_interpreter=CodeInterpreterConfig(enabled=False, container_type="auto"),
         farmer_tools=None,
         tavily=None,
         stock_tool=None,

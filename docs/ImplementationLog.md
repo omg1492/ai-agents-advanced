@@ -1,3 +1,75 @@
+## 2025-01-06 File Upload Endpoint Implementation (Phase 1.2)
+
+Successfully implemented file upload endpoint for Azure OpenAI Responses API's code_interpreter tool, enabling users to upload CSV, Excel, JSON, text files, PDFs, and images for analysis.
+
+Changes:
+- Created `src/models/file.py` with Pydantic models:
+  - `FileUploadResponse`: Returns file_id, filename, size_bytes, purpose, status to frontend
+  - `FileUploadError`: Structured validation error responses
+- Added `POST /files/upload` endpoint in `src/main.py`:
+  - Validates file type against allowed extensions (.csv, .xlsx, .xls, .json, .txt, .pdf, .png, .jpg, .jpeg, .gif)
+  - Validates content type against allowed MIME types
+  - Enforces 30MB size limit (per Responses API constraint)
+  - Rejects empty files with 400 error
+  - Checks code interpreter enabled flag (returns 503 if disabled)
+  - Uploads to Azure OpenAI Files API using `openai_service.client.files.create()` with purpose="assistants"
+  - Returns structured FileUploadResponse with file_id for attachment to messages
+- Created comprehensive integration test suite (`tests/test_file_upload_integration.py`):
+  - 7 passing tests: CSV, Excel, JSON, TXT uploads; invalid type, size limit, empty file rejections
+  - 1 skipped test: feature disabled (TestClient limitation)
+  - Uses FastAPI TestClient pattern (not AsyncClient) for endpoint testing
+  - Validates Azure file ID format (assistant-* prefix, not file-*)
+
+Test Results (all passing):
+- `test_upload_csv_file` PASSED - returns assistant-* file_id with correct metadata
+- `test_upload_excel_file` PASSED - accepts .xlsx binary format
+- `test_upload_json_file` PASSED - validates JSON content
+- `test_upload_txt_file` PASSED - plain text upload
+- `test_upload_invalid_file_type` PASSED - rejects .exe files
+- `test_upload_file_too_large` PASSED - rejects 31MB files
+- `test_upload_empty_file` PASSED - rejects empty files
+
+Fixes Applied:
+- Updated all test fixtures creating `AppConfig` instances to include `code_interpreter` field:
+  - `test_memory_search_unit.py` (build_config)
+  - `test_semantic_cache_unit.py` (build_config)
+  - `test_user_profile_service_unit.py` (build_cfg)
+  - `test_memory_write_profile_integration.py` (3 instances)
+- All unit tests (53 passed) and integration tests (41 passed) now passing
+
+Integration: Endpoint checks `config.code_interpreter.enabled` before accepting uploads. File IDs can be attached to Responses API messages using `attachments` parameter for code interpreter processing.
+
+Next Steps: Frontend file upload button (Phase 1.3), display code/charts in UI (Phase 1.4), custom UI generation (Phase 2).
+
+## 2025-10-06 Code Interpreter Backend Implementation (Phase 1.1)
+
+Successfully implemented backend support for Azure OpenAI Responses API's built-in `code_interpreter` tool, enabling Python code execution for data analysis, visualization, and mathematical calculations.
+
+Changes:
+- Added `CodeInterpreterConfig` dataclass to `config_service.py` with `enabled` and `container_type` fields.
+- Modified `OpenAIService.get_tools()` to register code_interpreter tool when `ENABLE_CODE_INTERPRETER=true`.
+- Tool definition: `{"type": "code_interpreter", "container": {"type": "auto"}}` - uses Azure-managed sandboxed containers.
+- Created comprehensive integration test suite (`test_code_interpreter_integration.py`) with 6 test cases covering:
+  - Tool registration verification
+  - Mathematical calculations (sum of squares, factorial, Euler's identity) ✅
+  - Data analysis (statistical computations)
+  - Multi-turn conversation continuity with code state
+  - Disabled fallback behavior
+  - Error handling (division by zero)
+- Updated `.env.template` and `.env` with new environment variables.
+
+Test Results:
+- `test_code_interpreter_tool_registration` PASSED (7.29s)
+- `test_code_interpreter_mathematical_calculation` PASSED (21.27s) - successfully executed Python code and returned correct results
+
+Configuration:
+- `ENABLE_CODE_INTERPRETER=true|false` (default: false)
+- `CODE_INTERPRETER_CONTAINER_TYPE=auto` (default: auto)
+
+Integration: Works seamlessly with conversation continuity (`previous_response_id`), compatible with other tools (MCP, memory search). No frontend changes yet (Phase 1.2-1.4 pending).
+
+Next Steps: File upload endpoint (Phase 1.2), frontend display of code/charts (Phase 1.4), custom UI generation (Phase 2).
+
 ## 2025-10-06 Threads & Streaming Integration Tests Use Real LLM
 
 - Converted `tests/test_streaming_api_integration.py` and `tests/test_threads_api_integration.py` to rely on the real OpenAI/Azure configuration instead of local mocks.

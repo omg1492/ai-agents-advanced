@@ -119,11 +119,23 @@ class OpenAIService:
         """Return tool definitions for the Responses API.
 
         Includes (when enabled):
+        - Code Interpreter (built-in Azure OpenAI tool)
         - Remote MCP Farmer Tools server
         - Remote MCP Tavily Search server
         - Local function tool ``get_stock`` for the stock custom tool
         """
         tools: list[dict] = []
+
+        # Code Interpreter tool (built-in Azure OpenAI capability)
+        if getattr(self._app_config, "code_interpreter", None) and self._app_config.code_interpreter.enabled:  # type: ignore[attr-defined]
+            container_type = getattr(self._app_config.code_interpreter, "container_type", "auto")
+            tools.append(
+                {
+                    "type": "code_interpreter",
+                    "container": {"type": container_type}
+                }
+            )
+            logger.info("Code interpreter tool enabled (container_type=%s)", container_type)
 
         # Remote MCP tool - Farmer Tools
         if self._farmer_tools and getattr(self._farmer_tools, "enabled", False):
