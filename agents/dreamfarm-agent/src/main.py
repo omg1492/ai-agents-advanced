@@ -2,8 +2,10 @@
 
 import os
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+import io
 import json
+import secrets
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Depends, status, Query, WebSocket, WebSocketDisconnect, UploadFile, File
@@ -14,7 +16,7 @@ import warnings
 
 from src.models.health import HealthResponse
 from src.models.chat import ChatRequest, ChatResponse
-from src.models.file import FileUploadResponse, FileUploadError
+from src.models.file import FileUploadResponse
 from src.models.thread import (
     CreateThreadRequest,
     CreateThreadResponse,
@@ -82,6 +84,39 @@ _threads: dict[str, ThreadModel] = {}
 _history: dict[str, list[MessageModel]] = {}
 _last_response_id: dict[str, str] = {}
 _semantic_cache_bootstrap: dict[str, dict] = {}  # thread_id -> {user:str, assistant:str, injected:bool}
+# Temp cache for code interpreter generated files: file_id -> {container_id, filename, created_at}
+_generated_file_registry: dict[str, dict[str, object]] = {}
+_GENERATED_FILE_TTL_SECONDS = 60 * 60  # 1 hour TTL for container/file mappings
+
+
+def _register_generated_file(file_id: str, container_id: str | None, filename: str | None) -> str | None:
+    """Store generated file metadata for later download requests.
+
+    Returns a short-lived access token that can be used as a query parameter
+    when Authorization headers are not available (e.g., <img> tags).
+    """
+    if not file_id:
+        return None
+    _cleanup_generated_file_registry()
+    download_token = secrets.token_urlsafe(24)
+    _generated_file_registry[file_id] = {
+        "container_id": container_id,
+        "filename": filename or file_id,
+        "created_at": datetime.now(timezone.utc),
+        "token": download_token,
+    }
+    return download_token
+
+
+def _cleanup_generated_file_registry() -> None:
+    """Remove expired generated file metadata entries."""
+    if not _generated_file_registry:
+        return
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=_GENERATED_FILE_TTL_SECONDS)
+    stale_ids = [fid for fid, meta in _generated_file_registry.items()
+                 if isinstance(meta.get("created_at"), datetime) and meta["created_at"] < cutoff]
+    for fid in stale_ids:
+        _generated_file_registry.pop(fid, None)
 
 
 @asynccontextmanager
@@ -407,6 +442,54 @@ async def upload_file(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to upload file to Azure OpenAI: {str(e)}"
         )
+
+
+@app.get("/files/{file_id}/content")
+async def download_generated_file(
+    file_id: str,
+    request: Request,
+    token: str | None = Query(None)
+):
+    """Proxy generated file content from Azure OpenAI container storage."""
+    if openai_service is None:
+        raise HTTPException(status_code=503, detail="OpenAI service not ready")
+
+    _cleanup_generated_file_registry()
+    meta = _generated_file_registry.get(file_id)
+    if not meta:
+        raise HTTPException(status_code=404, detail="Generated file not found or expired")
+
+    if token:
+        expected = meta.get("token")
+        if not isinstance(expected, str) or not secrets.compare_digest(token, expected):
+            raise HTTPException(status_code=401, detail="Invalid download token")
+    elif auth_service is not None:
+        # Fall back to header-based auth when tokens are not provided
+        _require_user(request)
+
+    container_id = meta.get("container_id")
+    if container_id is not None and not isinstance(container_id, str):
+        container_id = None
+
+    filename = str(meta.get("filename") or file_id)
+
+    try:
+        content_bytes, content_type = await openai_service.download_generated_file(
+            file_id=file_id,
+            container_id=container_id,
+        )
+    except FileNotFoundError:
+        logger.warning(f"Generated file not found in container: file_id={file_id} container_id={container_id}")
+        raise HTTPException(status_code=404, detail="File no longer available")
+    except Exception as exc:  # pragma: no cover - network errors
+        logger.exception(f"Failed to fetch generated file {file_id}: {exc}")
+        raise HTTPException(status_code=502, detail="Failed to fetch generated file")
+
+    headers = {
+        "Content-Disposition": f'inline; filename="{filename}"'
+    }
+    media_type = content_type or "application/octet-stream"
+    return StreamingResponse(io.BytesIO(content_bytes), media_type=media_type, headers=headers)
 
 
 @app.post("/chat", response_model=ChatResponse)
@@ -882,6 +965,8 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
         nonlocal input_messages, response_id_local, full_text, tools
         # Capture last graph search products for optional fallback if model emits no text
         last_graph_products: list[dict] = []
+        # Track files generated by code_interpreter for URL replacement
+        generated_files: dict[str, str] = {}  # filename -> file_id mapping
         
         while True:
             try:
@@ -903,17 +988,63 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                     pending_outputs = []
                     current_reasoning_item = None
                     
+                    # Capture response_id from the stream object (try multiple attributes)
+                    if hasattr(response, 'id'):
+                        response_id_local = response.id
+                        logger.info(f"Captured response_id from stream.id: {response_id_local}")
+                    elif hasattr(response, 'response_id'):
+                        response_id_local = response.response_id
+                        logger.info(f"Captured response_id from stream.response_id: {response_id_local}")
+                    else:
+                        logger.warning("Could not find response_id attribute on stream object")
+                    
                     # Process streaming events from the model
                     async for event in response:
+                        # Try to capture response_id from any event that has it
                         if hasattr(event, "response_id"):
-                            response_id_local = event.response_id
+                            if response_id_local is None:
+                                response_id_local = event.response_id
+                                logger.info(f"✓ Captured response_id from event.response_id: {response_id_local}")
+                        
+                        # Also check for 'id' attribute on event
+                        if response_id_local is None and hasattr(event, "id"):
+                            response_id_local = event.id
+                            logger.info(f"✓ Captured response_id from event.id: {response_id_local}")
                             
                         et = getattr(event, "type", "")
+                        
+                        # Debug: log ALL event types to understand flow
+                        if et.startswith("response.code_interpreter") or et == "response.output_text.delta":
+                            logger.debug(f"Event: {et}")
                         
                         # Stream text deltas directly to client
                         if et == "response.output_text.delta":
                             delta = getattr(event, "delta", "")
                             if delta:
+                                # Replace sandbox:// URLs with our API endpoint URLs
+                                # This makes generated file links (e.g., plots) clickable
+                                import re
+                                def replace_sandbox_url(match):
+                                    filename = match.group(1)
+                                    file_id = generated_files.get(filename)
+                                    if file_id:
+                                        # Replace with our API endpoint
+                                        logger.info(f"Replacing sandbox URL: {filename} -> /files/{file_id}/content")
+                                        return f'/files/{file_id}/content'
+                                    else:
+                                        logger.warning(f"No file_id found for {filename}, mapping: {generated_files}")
+                                        return match.group(0)  # Keep original if not found
+                                
+                                # Check if delta contains sandbox URLs
+                                if 'sandbox:' in delta:
+                                    logger.info(f"Text delta contains sandbox URL: {delta}")
+                                    logger.info(f"Current generated_files mapping: {generated_files}")
+                                
+                                delta = re.sub(
+                                    r'sandbox:/mnt/data/([a-zA-Z0-9_\-\.]+)',
+                                    replace_sandbox_url,
+                                    delta
+                                )
                                 full_text += delta
                                 yield delta
                         
@@ -951,7 +1082,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                             logger.info(f"Code interpreter code finalized: {len(code)} chars")
                         
                         elif et == "response.code_interpreter_call.completed":
-                            # Emit meta event when code interpreter completes
+                            # Note: streaming events don't contain outputs - will be retrieved in response.completed
                             meta = {
                                 "kind": "tool_event",
                                 "event_type": et,
@@ -960,7 +1091,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                             }
                             logger.info(f"Code interpreter completed: {meta}")
                             yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
-                                
+                        
                         # Handle function call arguments streaming
                         elif et == "response.function_call_arguments.delta":
                             # Don't yield function args to client, just log
@@ -978,6 +1109,15 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                                     current_reasoning_item = item
                                     input_messages.append(item)
                                     logger.info("Reasoning step completed")
+                                
+                                # Handle code_interpreter_call items (check for output files)
+                                elif item_type == "code_interpreter_call":
+                                    # Add to input messages
+                                    input_messages.append(item)
+                                    
+                                    # Note: outputs are NOT available in streaming output_item.done events
+                                    # We'll retrieve them in response.completed event
+                                    logger.info("Code interpreter call item received (outputs not available in streaming)")
                                 
                                 # Handle function calls
                                 elif item_type == "function_call":
@@ -1220,7 +1360,77 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                                     logger.debug(f"Tool event (added): {meta}")
                                     yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
                         
-                # After stream ends, check if we need to continue the loop
+                # After stream ends (still inside async with response block), assemble the final response snapshot.
+                logger.info(f"Stream processing completed, response_id_local={response_id_local}")
+
+                final_response = None
+
+                # Preferred path: leverage the stream helper to obtain the accumulated response without another API call.
+                if hasattr(response, "get_final_response"):
+                    try:
+                        final_response = await response.get_final_response()
+                        if final_response is not None:
+                            logger.info("✓ Obtained final response from stream manager")
+                            if response_id_local is None:
+                                response_id_local = getattr(final_response, "id", None)
+                    except Exception as stream_final_err:  # pragma: no cover
+                        logger.warning(f"Unable to obtain final response from stream manager: {stream_final_err}")
+
+                # Fallback: perform explicit retrieval if we still lack the full response object.
+                if final_response is None and response_id_local:
+                    try:
+                        logger.info(f"Retrieving full response {response_id_local} for code_interpreter file annotations...")
+                        final_response = await openai_service.client.responses.retrieve(response_id_local)
+                    except Exception as retrieve_err:  # pragma: no cover
+                        logger.exception(f"Failed to retrieve response {response_id_local} for annotations: {retrieve_err}")
+
+                if final_response is not None:
+                    output_files = []
+                    if hasattr(final_response, 'output'):
+                        for item in final_response.output:
+                            # Look for message items with content
+                            if item.type == 'message' and hasattr(item, 'content'):
+                                for content_block in item.content:
+                                    # Check for annotations containing file references
+                                    if hasattr(content_block, 'annotations') and content_block.annotations:
+                                        for annotation in content_block.annotations:
+                                            if hasattr(annotation, 'file_id'):
+                                                container_id = getattr(annotation, 'container_id', None)
+                                                file_id = getattr(annotation, 'file_id', None)
+                                                filename = getattr(annotation, 'filename', None)
+
+                                                if file_id and filename:
+                                                    generated_files[filename] = file_id
+                                                    download_token = _register_generated_file(file_id, container_id, filename)
+                                                    logger.info(f"✓ Extracted from annotation: {filename} -> {file_id} (container: {container_id})")
+
+                                                    output_files.append({
+                                                        "type": "file",
+                                                        "file_id": file_id,
+                                                        "container_id": container_id,
+                                                        "filename": filename,
+                                                        "download_token": download_token,
+                                                    })
+                                                else:
+                                                    logger.warning(f"Annotation missing file_id or filename: {annotation}")
+
+                    if output_files:
+                        files_meta = {
+                            "kind": "tool_event",
+                            "event_type": "code_interpreter.files_generated",
+                            "tool_name": "code_interpreter",
+                            "files": output_files
+                        }
+                        logger.info(f"Sending {len(output_files)} file mappings to frontend: {files_meta}")
+                        yield "\nDF_META:" + json.dumps(files_meta, ensure_ascii=False) + "\n"
+                    else:
+                        logger.info("No file annotations found in response")
+                elif response_id_local:
+                    logger.warning(f"Final response not available even after retrieval attempt (response_id={response_id_local})")
+                else:
+                    logger.warning("Final response not available and response_id could not be determined")
+                
+                # Check if we need to continue the loop
                 if not pending_outputs:
                     break  # No more tool calls → finished
                     
@@ -1380,6 +1590,8 @@ async def voice_endpoint(websocket: WebSocket, thread_id: str):
     Handles speech-to-speech interaction via OpenAI Realtime API.
     Persists transcripts with mode='voice' flag.
     """
+
+
     await websocket.accept()
     
     # Extract auth from query params (WebSocket doesn't support headers easily)

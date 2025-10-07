@@ -182,6 +182,7 @@ Deployment (local dev): Docker Compose runs: frontend, agent, PostgreSQL(+extens
 - Orchestrates: RAG, agentic tool calls, semantic cache, memory injection
 - Emits structured DF_META lines for: tool calls, reasoning, cache hits, graph usage
 - Feature flags via environment variables
+- Code-interpreter artefacts are proxied via `/files/{file_id}/content`, which validates either the user's bearer token or a short-lived download token minted when the file metadata is registered (used by the frontend for inline `<img>` rendering without exposing long-lived credentials). When Azure omits a `container_id`, the backend falls back to the generic `/files/{file_id}/content` endpoint, so generated charts remain accessible even if container metadata is unavailable.
 - Voice: single `/voice/{thread_id}` WebSocket proxying bidirectional PCM16 audio + transcripts to OpenAI/Azure Realtime (no separate STT/TTS microservices)
 
 ### 4.3. Data Layer (PostgreSQL + Extensions)
@@ -2285,6 +2286,14 @@ Use it when user asks for:
 - Mathematical computations
 """
 ```
+
+**File Display Architecture:**
+- Generated files (plots, CSVs) returned with `sandbox:/mnt/data/filename.png` URLs (not browser-accessible)
+- Backend detects outputs in `response.output_item.done` events, extracts file_id + filename
+- Builds stateful filename→file_id mapping within request scope
+- Replaces sandbox URLs during text streaming with `/files/{file_id}/content` proxy endpoint
+- Proxy downloads from Azure Files API on-demand, serves with inline display headers
+- Frontend markdown rendering auto-displays images via replaced URLs
 
 #### 34.5.2. Generate Infographic Tool (Custom MCP)
 ```python

@@ -36,6 +36,10 @@ export class DreamFarmAPI {
     this.baseUrl = config.BACKEND_URL;
   }
 
+  getBaseUrl(): string {
+    return this.baseUrl.replace(/\/$/, '');
+  }
+
   /**
    * Create a new conversation thread
    */

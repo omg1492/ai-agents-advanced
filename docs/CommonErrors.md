@@ -39,6 +39,8 @@ export const voiceSessionManager = (() => { /* holds ws, audioCtx, mediaStream *
 | Missing reasoning pairing | `fc_* ... without ... rs_*` | Not persisting preceding reasoning items | Append `reasoning` → then `function_call` → then output | Maintain ordered item log; test multi‑tool chain |
 | Structured output TypeError | `unexpected keyword 'response_format'` | Using `response_format` with async Responses API | Use `client.responses.parse(..., response_format=Model)` | Wrap in small unit test mocking client |
 | **Code Interpreter files parameter** | `Unknown parameter: 'tools[0].container.files'` | **Azure requires `file_ids` not `files` (docs are wrong)** | Use `{"type":"code_interpreter","container":{"type":"auto","file_ids":[...]}}` | **Research: MS Q&A + OpenAI forums revealed solution; adhoc test proved it** |
+| **Code Interpreter output files** | `sandbox:/mnt/data/file.png` links don't work; `outputs` field always None | **Azure Responses API stores file info in annotations, NOT outputs** | Parse `response.output[].content[].annotations[]` for `file_id`, `container_id`, `filename`; build filename→file_id mapping | **Research: GitHub repo + MS docs revealed annotations approach; testing confirmed outputs always None in ALL scenarios** |
+| **Code Interpreter download 404** | Browser requests `/files/<id>/content` → 404 (log: `Generated file not found or expired`) | Starší odpovědi bez download tokenu nebo Azure vrátilo výsledek bez `container_id`, takže nebyla zapsaná metadata | Spusťte analýzu znovu (aby vznikl nový token) nebo přejděte na verzi s fallbackem `/files/{file_id}/content`; frontend nyní připojuje `?token=...` | Při registraci souborů vždy ukládat token + tolerovat chybějící `container_id`; frontend musí token doplnit do URL |
 | Reasoning model no text output | Streaming returns 0 chunks; log shows "Reasoning step completed" | Reasoning model can complete without emitting text (pure reasoning response) | Accept reasoning-only responses OR use non-streaming endpoint | Test both streaming/non-streaming; handle empty text case |
 
 Realtime session example:
@@ -67,6 +69,37 @@ tools = [{
 5. Adhoc test proved: `file_ids` ✅ works, `files` ❌ fails
 6. Timeline: feature deployed working August 7, 2025
 7. **Key lesson**: Azure OpenAI implementation can differ from OpenAI docs; community sources more reliable
+
+**Discovery Process for Code Interpreter Output Files Issue:**
+1. Initial assumption: `outputs` field in streaming events contains file info → **Testing proved: always None**
+2. Second attempt: retrieve full response, extract from `outputs` → **Testing proved: still None in ALL scenarios**
+3. Created adhoc test (`adhoc_test_outputs.py`) comparing streaming vs non-streaming vs retrieved → **Definitively proved: `outputs` attribute exists but value always None**
+4. Heavy research using multiple tools (Azure docs search, Tavily search, webpage fetch, code sample search)
+5. **BREAKTHROUGH**: Found GitHub repo (LazaUK/AIFoundry-ResponsesAPI-CodeInterpreter) with working implementation
+6. Extracted complete working code from Jupyter notebook showing correct approach
+7. **Correct location**: Files referenced in `response.output[].content[].annotations[]` NOT in `outputs`
+8. **Annotations structure**: Each annotation contains: `container_id`, `file_id`, `filename`
+9. **Download mechanism**: Container API endpoint `/openai/v1/containers/{container_id}/files/{file_id}/content`
+10. **Key lesson**: API reference showing field existence doesn't mean field is populated; Azure Responses API intentionally uses annotations (different from Assistants API); working example code more valuable than API docs
+
+**Code Interpreter Annotations Extraction Pattern:**
+```python
+# CORRECT approach - extract from annotations:
+generated_files = {}
+for item in response.output:
+    if item.type == 'message' and hasattr(item, 'content'):
+        for content_block in item.content:
+            if hasattr(content_block, 'annotations') and content_block.annotations:
+                for annotation in content_block.annotations:
+                    if hasattr(annotation, 'file_id'):
+                        container_id = annotation.container_id
+                        file_id = annotation.file_id
+                        filename = annotation.filename
+                        generated_files[filename] = file_id
+
+# WRONG approach - outputs is always None:
+# outputs = getattr(output_item, 'outputs', None)  # ← This will ALWAYS be None!
+```
 
 Reasoning stream rule of thumb: Always record EVERY item the model streams (reasoning / function_call / output / message) in exact order.
 

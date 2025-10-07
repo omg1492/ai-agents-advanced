@@ -148,17 +148,11 @@ This lesson implements two major capabilities:
 
 ### 1.5 Demo Data & Testing
 
-- [ ] **File**: `data/examples/weight_tracking.csv` (NEW)
+- [ ] **File**: `data/user_upload/test_data.csv` (NEW)
   - [ ] Create sample CSV with columns: `date,weight_kg,notes`
-  - [ ] 20-30 rows spanning 6 months
+  - [ ] 200-300 rows spanning 12 months
   - [ ] Include some weight variance for interesting charts
 
-- [ ] **End-to-End Test**:
-  - [ ] Upload `weight_tracking.csv`
-  - [ ] Send message: "Analyze my weight data and show trends"
-  - [ ] Verify agent calls code_interpreter
-  - [ ] Verify chart generated and displayed
-  - [ ] Verify statistics calculated correctly
 
 ---
 
@@ -193,7 +187,7 @@ This lesson implements two major capabilities:
   Return only the HTML code, no explanations or markdown.
   """
   ```
-  - [ ] Call GPT-4o with description + data
+  - [ ] Call LLM with description + data
   - [ ] Return generated HTML string
 
 - [ ] **File**: `agents/dreamfarm-agent/src/services/html_sanitizer.py` (NEW)

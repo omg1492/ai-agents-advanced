@@ -28,6 +28,8 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
   private pendingThreadMeta: any | null = null;
   // Track file attachments for next message
   private pendingAttachments: string[] = [];
+  // Track code interpreter generated files (filename -> {fileId, token})
+  private generatedFiles: Map<string, { fileId: string; token?: string }> = new Map();
 
   /**
    * Add file attachment for next message
@@ -105,14 +107,40 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
             const jsonStr = line.slice(META_PREFIX.length);
             try {
               const meta = JSON.parse(jsonStr);
+              
+              // Handle code_interpreter.files_generated event
+              if (meta.event_type === 'code_interpreter.files_generated' && meta.files) {
+                for (const file of meta.files) {
+                  if (file.filename && file.file_id) {
+                    this.generatedFiles.set(file.filename, {
+                      fileId: file.file_id,
+                      token: typeof file.download_token === 'string' ? file.download_token : undefined,
+                    });
+                  }
+                }
+
+                // Reprocess any text we've already streamed now that file_ids are known
+                const replaced = this.replaceSandboxUrls(fullText);
+                if (replaced !== fullText) {
+                  fullText = replaced;
+                  yield { content: [{ type: 'text' as const, text: fullText }] };
+                }
+              }
+              
               // Broadcast meta event to the app; UI can render separately
               window.dispatchEvent(new CustomEvent('df-meta', { detail: meta }));
             } catch {
               // ignore parse errors
             }
           } else {
+            // Replace sandbox:// URLs with /files/{file_id}/content before displaying
+            let processedLine = line;
+            if (line.includes('sandbox:')) {
+              processedLine = this.replaceSandboxUrls(line);
+            }
+            
             // restore the newline that split removed
-            fullText += line + "\n";
+            fullText += processedLine + "\n";
             yield { content: [{ type: 'text' as const, text: fullText }] };
           }
         }
@@ -145,12 +173,52 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
   }
 
   /**
+   * Replace sandbox:// URLs with /files/{file_id}/content URLs
+   * Uses the generated files mapping built from DF_META events
+   */
+  private replaceSandboxUrls(text: string): string {
+    const baseUrl = dreamFarmAPI.getBaseUrl();
+    const toAbsoluteUrl = (fileId: string, token?: string) => {
+      const url = `${baseUrl}/files/${fileId}/content`;
+      return token ? `${url}?token=${encodeURIComponent(token)}` : url;
+    };
+
+    const replaceMarkdownLinks = text.replace(/\[([^\]]*)\]\(sandbox:\/mnt\/data\/([^\)]+)\)/g, (match, label, filename) => {
+      const entry = this.generatedFiles.get(filename);
+      if (!entry) {
+        return match;
+      }
+
+      const url = toAbsoluteUrl(entry.fileId, entry.token);
+      const isImage = /\.(png|jpe?g|gif|bmp|svg|webp)$/i.test(filename);
+
+      if (isImage) {
+        const altText = label || filename;
+        return `![${altText}](${url})`;
+      }
+
+      return `[${label || filename}](${url})`;
+    });
+
+    return replaceMarkdownLinks.replace(/sandbox:\/mnt\/data\/([\w.-]+)/g, (match, filename) => {
+      const entry = this.generatedFiles.get(filename);
+      if (!entry) {
+        return match;
+      }
+
+      return toAbsoluteUrl(entry.fileId, entry.token);
+    });
+  }
+
+  /**
    * Reset the adapter (create new thread)
    */
   reset() {
     this.currentThreadId = null;
     // Clear the history cache to prevent old messages from showing
     this.loadedHistory = {};
+    // Clear generated files mapping when starting new thread
+    this.generatedFiles.clear();
   }
 
   /**
@@ -172,6 +240,8 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
    */
   setThreadId(threadId: string | null) {
     this.currentThreadId = threadId;
+    // Clear generated files mapping when switching threads
+    this.generatedFiles.clear();
   }
 
   /**

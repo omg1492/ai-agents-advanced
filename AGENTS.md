@@ -12,7 +12,7 @@ Provide a clear, single reference for implementing, extending, and maintaining A
 4. Explicit > implicit for data contracts, configuration, and side effects.
 5. Make cheap experiments disposable (prefixed `adhoc_`), not permanent.
 
-## 3. Project‑Wide Conventions (from `general.instructions.md`)
+## 3. Project‑Wide Conventions
 
 ### 3.1 Documentation
 * Primary documentation channel inside code: **docstrings** (revise them whenever code changes behavior or signature).
@@ -39,7 +39,7 @@ When investigating complex issues:
 * Data validation: **Pydantic** models (under `models/`).
 * Frontend: **React** + `assistant-ui` (Tailwind present).
 
-## 4. Python Agent & Service Guidelines (from `python.instructions.md`)
+## 4. Python Agent & Service Guidelines
 
 ### 4.1 Structure & Modeling
 * Use Pydantic models for request/response & internal validated schemas. Place in `models/`.
@@ -61,7 +61,7 @@ When investigating complex issues:
 ### 4.5 Ports & Local Dev
 * Assign distinct default ports per service to avoid collisions (document them in the service `README.md`).
 
-## 5. Infrastructure as Code (from `terraform.instructions.md`)
+## 5. Infrastructure as Code
 
 ### 5.1 Providers
 * Use `azurerm` for standard Azure resources.
@@ -133,14 +133,7 @@ Ad‑Hoc Script Flow:
 3. Migrate result into tests or code. 
 4. Delete script.
 
-## 10. Enforcement & Linting (Future Considerations)
-
-Potential future additions (discuss before implementing):
-* Pre‑commit hook scanning for `adhoc_` artifacts lingering.
-* Static check rejecting prohibited comment patterns (e.g., “previous implementation”).
-* CI step validating docstring presence for public symbols.
-
-## 11. Scope & Precedence
+## 10. Scope & Precedence
 
 This `AGENTS.md` centralizes operational & stylistic guidance. If conflicts arise:
 1. Explicit user instruction (chat) overrides this file case‑by‑case.

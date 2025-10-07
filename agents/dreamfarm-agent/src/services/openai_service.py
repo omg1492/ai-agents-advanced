@@ -610,6 +610,46 @@ class OpenAIService:
         resp_id = getattr(response, "id", None) or ""
         return text, resp_id
 
+    async def download_generated_file(self, file_id: str, container_id: str | None = None) -> tuple[bytes, str | None]:
+        """Download a generated file from temporary storage.
+
+        Azure OpenAI exposes generated artifacts under container-specific URLs, while
+        OpenAI-hosted files can be retrieved directly via /files/{file_id}/content.
+        This helper supports both by falling back to the generic files endpoint when
+        a container identifier is unavailable.
+        """
+        if not file_id:
+            raise ValueError("file_id is required")
+
+        base_url = self._config.base_url or str(self.client._client.base_url)
+        if not base_url:
+            raise RuntimeError("Base URL missing; cannot download generated files")
+
+        base_url = base_url.rstrip("/")
+        if container_id:
+            url = f"{base_url}/containers/{container_id}/files/{file_id}/content"
+        else:
+            url = f"{base_url}/files/{file_id}/content"
+
+        params = None
+        if self._config.api_version:
+            params = {"api-version": self._config.api_version}
+
+        headers: dict[str, str] = {}
+        # Azure OpenAI expects api-key header; OpenAI expects Authorization
+        if self._config.base_url:
+            headers["api-key"] = self._config.api_key
+        else:
+            headers["Authorization"] = f"Bearer {self._config.api_key}"
+
+        async with self.client._client.stream("GET", url, params=params, headers=headers) as resp:
+            if resp.status_code == 404:
+                raise FileNotFoundError(f"Generated file not found (file_id={file_id})")
+            resp.raise_for_status()
+            data = await resp.aread()
+            content_type = resp.headers.get("Content-Type")
+            return data, content_type
+
     # ------------------------ internal helpers ------------------------ #
     @staticmethod
     def _extract_function_calls(response: Any) -> List[dict]:
