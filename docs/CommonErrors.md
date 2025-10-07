@@ -38,6 +38,8 @@ export const voiceSessionManager = (() => { /* holds ws, audioCtx, mediaStream *
 | Realtime session errors | `Unknown parameter: 'session.type'` | Azure preview excludes `type`, `model`, `output_modalities` in session.update | Only send supported keys (`modalities`, `voice`, formats, tools) | Branch logic: add `output_modalities` only for non‑Azure |
 | Missing reasoning pairing | `fc_* ... without ... rs_*` | Not persisting preceding reasoning items | Append `reasoning` → then `function_call` → then output | Maintain ordered item log; test multi‑tool chain |
 | Structured output TypeError | `unexpected keyword 'response_format'` | Using `response_format` with async Responses API | Use `client.responses.parse(..., response_format=Model)` | Wrap in small unit test mocking client |
+| **Code Interpreter files parameter** | `Unknown parameter: 'tools[0].container.files'` | **Azure requires `file_ids` not `files` (docs are wrong)** | Use `{"type":"code_interpreter","container":{"type":"auto","file_ids":[...]}}` | **Research: MS Q&A + OpenAI forums revealed solution; adhoc test proved it** |
+| Reasoning model no text output | Streaming returns 0 chunks; log shows "Reasoning step completed" | Reasoning model can complete without emitting text (pure reasoning response) | Accept reasoning-only responses OR use non-streaming endpoint | Test both streaming/non-streaming; handle empty text case |
 
 Realtime session example:
 ```python
@@ -45,6 +47,26 @@ session = {"modalities":["text","audio"],"voice":"alloy"}
 if not is_azure: session["output_modalities"]=["text","audio"]
 await conn.session.update(session=session)
 ```
+
+Code Interpreter with files example:
+```python
+# CORRECT (Azure OpenAI Responses API):
+tools = [{
+    "type": "code_interpreter",
+    "container": {"type": "auto", "file_ids": ["assistant-abc123", "assistant-xyz789"]}
+}]
+# WRONG (documented but doesn't work):
+# "container": {"files": [...]}  ← This parameter name is incorrect!
+```
+
+**Discovery Process for Code Interpreter Issue:**
+1. Microsoft documentation shows `"files"` parameter
+2. Azure API rejects with: `Unknown parameter: 'tools[0].container.files'`
+3. Web research (Tavily) found MS Q&A thread: users reported same issue July 2025
+4. Community solution: use `"file_ids"` instead of `"files"`
+5. Adhoc test proved: `file_ids` ✅ works, `files` ❌ fails
+6. Timeline: feature deployed working August 7, 2025
+7. **Key lesson**: Azure OpenAI implementation can differ from OpenAI docs; community sources more reliable
 
 Reasoning stream rule of thumb: Always record EVERY item the model streams (reasoning / function_call / output / message) in exact order.
 

@@ -84,14 +84,14 @@ export class DreamFarmAPI {
   /**
    * Send a message in a thread
    */
-  async sendMessage(threadId: string, message: string, abortSignal?: AbortSignal) {
+  async sendMessage(threadId: string, message: string, attachments?: string[], abortSignal?: AbortSignal) {
   const response = await fetch(`${this.baseUrl}/threads/${threadId}/messages`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
     ...this.getAuthHeader(),
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, attachments: attachments || [] }),
       signal: abortSignal,
     });
 
@@ -105,7 +105,7 @@ export class DreamFarmAPI {
   /**
    * Send a message and receive a streaming text response
    */
-  async sendMessageStream(threadId: string, message: string, abortSignal?: AbortSignal) {
+  async sendMessageStream(threadId: string, message: string, attachments?: string[], abortSignal?: AbortSignal) {
   const response = await fetch(`${this.baseUrl}/threads/${threadId}/messages/stream`, {
       method: 'POST',
       headers: {
@@ -113,7 +113,7 @@ export class DreamFarmAPI {
         'Accept': 'text/plain',
     ...this.getAuthHeader(),
       },
-      body: JSON.stringify({ message }),
+      body: JSON.stringify({ message, attachments: attachments || [] }),
       signal: abortSignal,
     });
 
@@ -177,6 +177,31 @@ export class DreamFarmAPI {
     
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.statusText}`);
+    }
+
+    return response.json();
+  }
+
+  /**
+   * Upload file for code interpreter (CSV, Excel, JSON, TXT, PDF, images)
+   * Returns file_id to attach to messages
+   */
+  async uploadFile(file: File): Promise<{ file_id: string; filename: string; size_bytes: number; purpose: string; status: string }> {
+    const formData = new FormData();
+    formData.append('file', file);
+
+    const response = await fetch(`${this.baseUrl}/files/upload`, {
+      method: 'POST',
+      headers: {
+        ...this.getAuthHeader(),
+        // Don't set Content-Type - browser will set it with boundary for multipart/form-data
+      },
+      body: formData,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Failed to upload file: ${response.statusText}`);
     }
 
     return response.json();

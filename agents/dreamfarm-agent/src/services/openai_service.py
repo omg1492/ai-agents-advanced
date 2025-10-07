@@ -115,7 +115,7 @@ class OpenAIService:
             bool(self._memory_search and self._memory_search.enabled),
         )
 
-    def get_tools(self) -> Optional[list[dict]]:
+    def get_tools(self, file_ids: Optional[list[str]] = None) -> Optional[list[dict]]:
         """Return tool definitions for the Responses API.
 
         Includes (when enabled):
@@ -123,19 +123,28 @@ class OpenAIService:
         - Remote MCP Farmer Tools server
         - Remote MCP Tavily Search server
         - Local function tool ``get_stock`` for the stock custom tool
+        
+        Args:
+            file_ids: Optional list of file IDs to pass to code_interpreter container.
+                     Note: Azure OpenAI uses 'file_ids' (not 'files' as in OpenAI docs).
         """
         tools: list[dict] = []
 
         # Code Interpreter tool (built-in Azure OpenAI capability)
         if getattr(self._app_config, "code_interpreter", None) and self._app_config.code_interpreter.enabled:  # type: ignore[attr-defined]
             container_type = getattr(self._app_config.code_interpreter, "container_type", "auto")
-            tools.append(
-                {
-                    "type": "code_interpreter",
-                    "container": {"type": container_type}
-                }
+            container: dict[str, Any] = {"type": container_type}
+            
+            # Add file_ids if provided (Azure requires 'file_ids', not 'files')
+            if file_ids:
+                container["file_ids"] = file_ids
+            
+            tools.append({"type": "code_interpreter", "container": container})
+            logger.info(
+                "Code interpreter tool enabled (container_type=%s, files=%d)",
+                container_type,
+                len(file_ids) if file_ids else 0
             )
-            logger.info("Code interpreter tool enabled (container_type=%s)", container_type)
 
         # Remote MCP tool - Farmer Tools
         if self._farmer_tools and getattr(self._farmer_tools, "enabled", False):
@@ -410,13 +419,23 @@ class OpenAIService:
         previous_response_id: Optional[str] = None,
         user_is_vip: bool = False,
         user_id: Optional[str] = None,
+        attachments: Optional[list[str]] = None,
     ) -> tuple[str, str]:
         """Generate a response handling any synchronous function tool calls.
 
         Implements a simple tool-call loop for the local ``get_stock`` function
         tool. Remote MCP tools are handled entirely by the platform.
+        
+        Args:
+            user_text: User message text
+            system_prompt: System instructions
+            previous_response_id: For conversation continuity
+            user_is_vip: VIP status
+            user_id: User identifier
+            attachments: List of file_ids from Files API for code_interpreter
         """
-        tools = self.get_tools()
+        # Pass file_ids to get_tools to include in code_interpreter container
+        tools = self.get_tools(file_ids=attachments)
         kwargs: dict[str, Any] = {}
         if tools:
             kwargs["tools"] = tools

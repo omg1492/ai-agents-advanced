@@ -24,7 +24,8 @@ import { Button } from "@/components/ui/button";
 import { MarkdownText } from "@/components/markdown-text";
 import { TooltipIconButton } from "@/components/tooltip-icon-button";
 import { VoiceButton } from "@/components/voice-button";
-import { useEffect, useState, useCallback, useRef } from "react";
+import { FileUploadButton } from "@/components/file-upload-button";
+import { useEffect, useState, useRef } from "react";
 import { dreamFarmChatAdapter } from '@/services/chatAdapter';
 
 interface ThreadProps { threadId?: string | null }
@@ -143,14 +144,7 @@ export const Thread: FC<ThreadProps> = ({ threadId }) => {
 
         <div className="sticky bottom-0 mt-3 flex w-full max-w-[var(--thread-max-width)] flex-col items-center justify-end rounded-t-lg bg-inherit pb-4">
           <ThreadScrollToBottom />
-          <div className="w-full flex flex-col gap-2">
-            <VoiceButton 
-              key="voice-button-stable"
-              threadId={threadId || null} 
-              onTranscript={handleVoiceTranscript}
-            />
-            <Composer />
-          </div>
+          <Composer threadId={threadId} onVoiceTranscript={handleVoiceTranscript} />
         </div>
       </ThreadPrimitive.Viewport>
     </ThreadPrimitive.Root>
@@ -226,24 +220,65 @@ const ThreadWelcomeSuggestions: FC = () => {
   );
 };
 
-const Composer: FC = () => {
+interface ComposerProps {
+  threadId?: string | null;
+  onVoiceTranscript: (role: 'user' | 'assistant', text: string) => void;
+}
+
+const Composer: FC<ComposerProps> = ({ threadId, onVoiceTranscript }) => {
+  const [errorMessage, setErrorMessage] = useState<string>("");
+
+  const handleFileUploaded = (fileId: string, filename: string) => {
+    console.log(`File uploaded: ${filename} (${fileId})`);
+    dreamFarmChatAdapter.addAttachment(fileId);
+    setErrorMessage(""); // Clear any previous errors
+  };
+
+  const handleFileError = (error: string) => {
+    console.error(`File upload error: ${error}`);
+    setErrorMessage(error);
+    // Auto-clear error after 5 seconds
+    setTimeout(() => setErrorMessage(""), 5000);
+  };
+
   return (
-    <ComposerPrimitive.Root className="focus-within:border-ring/20 flex w-full flex-wrap items-end rounded-lg border bg-inherit px-2.5 shadow-sm transition-colors ease-in">
-      <ComposerPrimitive.Input
-        key={Math.random().toString(36).slice(2)}
-        rows={1}
-        autoFocus
-        placeholder="Write a message..."
-        className="placeholder:text-muted-foreground max-h-40 flex-grow resize-none border-none bg-transparent px-2 py-4 text-sm outline-none focus:ring-0 disabled:cursor-not-allowed"
-      />
-      <ComposerAction />
-    </ComposerPrimitive.Root>
+    <div className="flex flex-col gap-1 w-full">
+      <ComposerPrimitive.Root className="focus-within:border-ring/20 flex w-full flex-col rounded-lg border bg-inherit shadow-sm transition-colors ease-in">
+        <div className="flex items-center gap-1 px-2.5">
+          <FileUploadButton 
+            onFileUploaded={handleFileUploaded}
+            onError={handleFileError}
+          />
+          <ComposerPrimitive.Input
+            key={Math.random().toString(36).slice(2)}
+            rows={1}
+            autoFocus
+            placeholder="Write a message..."
+            className="placeholder:text-muted-foreground max-h-40 flex-grow resize-none border-none bg-transparent px-2 py-4 text-sm outline-none focus:ring-0 disabled:cursor-not-allowed"
+          />
+          <ComposerAction threadId={threadId} onVoiceTranscript={onVoiceTranscript} />
+        </div>
+      </ComposerPrimitive.Root>
+      {errorMessage && (
+        <div className="text-xs text-destructive px-2">{errorMessage}</div>
+      )}
+    </div>
   );
 };
 
-const ComposerAction: FC = () => {
+interface ComposerActionProps {
+  threadId?: string | null;
+  onVoiceTranscript: (role: 'user' | 'assistant', text: string) => void;
+}
+
+const ComposerAction: FC<ComposerActionProps> = ({ threadId, onVoiceTranscript }) => {
   return (
-    <>
+    <div className="flex items-center gap-1">
+      <VoiceButton 
+        key="voice-button-stable"
+        threadId={threadId || null} 
+        onTranscript={onVoiceTranscript}
+      />
       <ThreadPrimitive.If running={false}>
         <ComposerPrimitive.Send asChild>
           <TooltipIconButton
@@ -266,7 +301,7 @@ const ComposerAction: FC = () => {
           </TooltipIconButton>
         </ComposerPrimitive.Cancel>
       </ThreadPrimitive.If>
-    </>
+    </div>
   );
 };
 

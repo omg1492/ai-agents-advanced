@@ -26,6 +26,24 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
   private loadedHistory: Record<string, any[] | undefined> = {};
   // Track a lazily created thread that hasn't been announced to UI yet
   private pendingThreadMeta: any | null = null;
+  // Track file attachments for next message
+  private pendingAttachments: string[] = [];
+
+  /**
+   * Add file attachment for next message
+   */
+  addAttachment(fileId: string) {
+    if (!this.pendingAttachments.includes(fileId)) {
+      this.pendingAttachments.push(fileId);
+    }
+  }
+
+  /**
+   * Clear pending attachments
+   */
+  clearAttachments() {
+    this.pendingAttachments = [];
+  }
 
   /**
    * Ensure we have a thread to work with
@@ -55,8 +73,11 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
 
     const userMessage = convertMessage(lastMessage);
 
-    // Request a streaming response
-    const stream = await dreamFarmAPI.sendMessageStream(threadId, userMessage.content, abortSignal);
+    // Request a streaming response with attachments
+    const attachments = [...this.pendingAttachments]; // Copy attachments
+    this.clearAttachments(); // Clear for next message
+    
+    const stream = await dreamFarmAPI.sendMessageStream(threadId, userMessage.content, attachments, abortSignal);
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   const META_PREFIX = 'DF_META:';

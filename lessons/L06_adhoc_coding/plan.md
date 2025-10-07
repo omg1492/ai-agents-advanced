@@ -72,20 +72,64 @@ This lesson implements two major capabilities:
 
 **Note**: Azure OpenAI file IDs use "assistant-" prefix (not "file-"). All validation tests pass (7 passed, 1 skipped).
 
-### 1.3 Frontend: File Upload Component
+### 1.3 Frontend: File Upload Component ✅ COMPLETED
 
-- [ ] **File**: `frontend/src/components/FileUploadButton.tsx` (NEW)
-  - [ ] Create file input component
-  - [ ] Accept types: `.csv,.xlsx,.json,.txt,.pdf,.png,.jpg`
-  - [ ] Show upload progress
-  - [ ] On success, trigger message with file attachment
-  - [ ] Handle errors (file too large, unsupported type)
+- [x] **File**: `frontend/src/components/file-upload-button.tsx` (NEW)
+  - [x] Created reusable file input component with upload icon
+  - [x] Accepts types: `.csv,.xlsx,.xls,.json,.txt,.pdf,.png,.jpg,.jpeg,.gif`
+  - [x] Shows upload progress with loading spinner
+  - [x] Displays uploaded file name with remove button
+  - [x] Handles errors (file too large >30MB, unsupported type, empty files)
+  - [x] Validates file size and type before upload
+  - [x] Triggers callback with file_id on success
 
-- [ ] **File**: `frontend/src/components/Chat/ChatInput.tsx` (MODIFY)
-  - [ ] Add FileUploadButton to chat input area
-  - [ ] Attach uploaded file_id to outgoing message
+- [x] **File**: `frontend/src/services/api.ts` (MODIFY)
+  - [x] Added `uploadFile(file: File)` method using FormData
+  - [x] Returns FileUploadResponse with file_id
+  - [x] Updated `sendMessage` and `sendMessageStream` to accept optional attachments array
+  - [x] Attachments passed as `string[]` of file_ids
 
-- [ ] **Test**: Upload file via UI, verify message sent with file reference
+- [x] **File**: `frontend/src/services/chatAdapter.ts` (MODIFY)
+  - [x] Added `pendingAttachments: string[]` property
+  - [x] Added `addAttachment(fileId: string)` method
+  - [x] Added `clearAttachments()` method
+  - [x] Passes attachments to `sendMessageStream` on message send
+  - [x] Clears attachments after sending
+
+- [x] **File**: `frontend/src/components/thread.tsx` (MODIFY)
+  - [x] Imported FileUploadButton component
+  - [x] Added FileUploadButton to Composer with VoiceButton and Send button in action bar
+  - [x] Handles `onFileUploaded` callback to add attachment via chatAdapter
+  - [x] Handles `onError` callback to display error message
+  - [x] Error messages auto-clear after 5 seconds
+  - [x] Fixed composer width to match suggestion buttons (w-full class)
+  - [x] Improved button alignment (items-center for proper vertical alignment)
+
+- [x] **File**: `agents/dreamfarm-agent/src/models/thread.py` (MODIFY)
+  - [x] Added `attachments: list[str] = []` field to SendMessageRequest
+
+- [x] **File**: `agents/dreamfarm-agent/src/services/openai_service.py` (MODIFY)
+  - [x] Added `attachments: Optional[list[str]]` parameter to generate_response
+  - [x] Converts file_ids to Responses API attachment format: `{"file_id": fid, "tools": [{"type": "code_interpreter"}]}`
+  - [x] Passes attachments to `responses.create()` call
+
+- [x] **File**: `agents/dreamfarm-agent/src/main.py` (MODIFY)
+  - [x] Updated both `/threads/{thread_id}/messages` (non-streaming) endpoint
+  - [x] Updated `/threads/{thread_id}/messages/stream` (streaming) endpoint
+  - [x] Fixed streaming endpoint: attachments included in initial input message (not as stream parameter)
+  - [x] Both endpoints properly format attachments for code_interpreter tool
+  - [x] Added `from typing import Any` import for proper type hints
+
+- [x] **File**: `tests/test_attachments_integration.py` (NEW)
+  - [x] Created comprehensive integration tests for attachment functionality
+  - [x] Test file upload + streaming message with attachment
+  - [x] Test file upload + non-streaming message with attachment
+  - [x] Test messages without attachments still work
+  - [x] Test multiple attachments in single message
+
+**Integration**: File upload button appears in chat input alongside Voice and Send buttons. User uploads file → receives file_id → file_id attached to next message → Responses API receives attachment formatted correctly for code_interpreter processing. Playwright MCP testing confirmed UI works end-to-end. Streaming bug fixed (attachments must be in input message, not stream kwargs).
+
+**Next**: Proceed to Phase 1.4 (display code execution results).
 
 ### 1.4 Frontend: Display Code Interpreter Results
 

@@ -48,6 +48,7 @@ class SendMessageRequest(BaseModel):
 	"""Request to send a new user message."""
 
 	message: str
+	attachments: list[str] = []  # List of file_ids from Files API
 
 
 class SendMessageResponse(BaseModel):

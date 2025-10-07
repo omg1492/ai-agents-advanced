@@ -709,6 +709,7 @@ async def send_message(thread_id: str, payload: SendMessageRequest, user_ctx: tu
             previous_response_id=prev_resp_id,
             user_is_vip=is_vip,
             user_id=username,
+            attachments=payload.attachments if payload.attachments else None,
         )
     except Exception as e:
         logger.error(f"Failed to generate AI response: {e}")
@@ -874,6 +875,7 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
     input_messages = [{"role": "user", "content": payload.message}]
     response_id_local = prev_resp_id
     full_text = ""
+    attachments_local = payload.attachments  # Capture for use in nested function
     
     async def token_generator():
         """Loop-based streaming generator following proven GPT-5 reasoning pattern."""
@@ -883,8 +885,10 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
         
         while True:
             try:
-                # Stream from OpenAI Responses API
-                stream_kwargs = {"tools": tools} if tools else {}
+                # Get tools with file_ids included in code_interpreter container
+                current_tools = openai_service.get_tools(file_ids=attachments_local)
+                stream_kwargs = {"tools": current_tools} if current_tools else {}
+                    
                 async with openai_service.client.responses.stream(
                     model=openai_service.model_name,
                     instructions=system_prompt or None,
@@ -912,6 +916,50 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                             if delta:
                                 full_text += delta
                                 yield delta
+                        
+                        # Code interpreter events
+                        elif et == "response.code_interpreter_call.in_progress":
+                            # Emit meta event when code interpreter starts
+                            meta = {
+                                "kind": "tool_event",
+                                "event_type": et,
+                                "tool_name": "code_interpreter",
+                                "status": "in_progress"
+                            }
+                            logger.info(f"Code interpreter started: {meta}")
+                            yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
+                        
+                        elif et == "response.code_interpreter_call.interpreting":
+                            # Emit meta event during interpretation
+                            meta = {
+                                "kind": "tool_event",
+                                "event_type": et,
+                                "tool_name": "code_interpreter",
+                                "status": "interpreting"
+                            }
+                            logger.debug(f"Code interpreter interpreting: {meta}")
+                            yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
+                        
+                        elif et == "response.code_interpreter_call_code.delta":
+                            # Code being streamed - optionally capture for logging
+                            delta = getattr(event, "delta", "")
+                            logger.debug(f"Code interpreter code delta: {delta}")
+                        
+                        elif et == "response.code_interpreter_call_code.done":
+                            # Code finalized
+                            code = getattr(event, "code", "")
+                            logger.info(f"Code interpreter code finalized: {len(code)} chars")
+                        
+                        elif et == "response.code_interpreter_call.completed":
+                            # Emit meta event when code interpreter completes
+                            meta = {
+                                "kind": "tool_event",
+                                "event_type": et,
+                                "tool_name": "code_interpreter",
+                                "status": "completed"
+                            }
+                            logger.info(f"Code interpreter completed: {meta}")
+                            yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
                                 
                         # Handle function call arguments streaming
                         elif et == "response.function_call_arguments.delta":
