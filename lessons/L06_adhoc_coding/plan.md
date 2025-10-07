@@ -129,29 +129,12 @@ This lesson implements two major capabilities:
 
 **Integration**: File upload button appears in chat input alongside Voice and Send buttons. User uploads file → receives file_id → file_id attached to next message → Responses API receives attachment formatted correctly for code_interpreter processing. Playwright MCP testing confirmed UI works end-to-end. Streaming bug fixed (attachments must be in input message, not stream kwargs).
 
-**Next**: Proceed to Phase 1.4 (display code execution results).
-
-### 1.4 Frontend: Display Code Interpreter Results
-
-- [ ] **File**: `frontend/src/components/Messages/CodeInterpreterMessage.tsx` (NEW)
-  - [ ] Component to display code execution results
-  - [ ] Show executed Python code in syntax-highlighted block
-  - [ ] Display logs output
-  - [ ] Render generated images inline
-  - [ ] Show downloadable files with links
-
-- [ ] **File**: `frontend/src/components/Messages/MessageRenderer.tsx` (MODIFY)
-  - [ ] Detect `code_interpreter_call` message type
-  - [ ] Render using CodeInterpreterMessage component
-
-- [ ] **Test**: Send message with file → verify chart renders, code shows, logs display
-
 ### 1.5 Demo Data & Testing
 
-- [ ] **File**: `data/user_upload/test_data.csv` (NEW)
-  - [ ] Create sample CSV with columns: `date,weight_kg,notes`
-  - [ ] 200-300 rows spanning 12 months
-  - [ ] Include some weight variance for interesting charts
+- [x] **File**: `data/user_upload/test_data.csv` (NEW)
+  - [x] Create sample CSV with columns: `date,weight_kg,notes`
+  - [x] 500-600 rows spanning 12 months
+  - [x] Include some weight variance for interesting charts
 
 
 ---
