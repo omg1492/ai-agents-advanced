@@ -296,6 +296,30 @@ uv run pytest tests/test_inmemory.py -v
 uv run pytest tests/test_sanitizer.py -v
 ```
 
+### Remote Server Integration Test
+
+Test against a deployed MCP server (not included in default pytest suite):
+
+```bash
+# Test remote deployment
+uv run python tests/test_remote_server.py \
+  --url https://your-server.example.com/mcp \
+  --api-key your-api-key
+
+# Example with actual deployment
+uv run python tests/test_remote_server.py \
+  --url https://ca-mcp-viz-gen.grayisland-3e7e5fd0.swedencentral.azurecontainerapps.io/mcp \
+  --api-key advancedaiapps2025
+```
+
+This test:
+- Validates health endpoint availability
+- Connects via HTTP transport with bearer authentication
+- Tests infographic generation without data
+- Tests generation with structured data
+- Verifies error handling for invalid inputs
+- Confirms all data values appear in generated HTML
+
 ### Test Coverage
 
 - **Integration Tests** (`test_inmemory.py`): 2 tests using real LLM API calls
