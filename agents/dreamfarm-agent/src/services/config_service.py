@@ -88,6 +88,20 @@ class TavilyConfig:
     api_key: str | None
     mcp_url: str = "https://mcp.tavily.com/mcp/"
 
+
+@dataclass
+class VisualizationMCPConfig:
+    """Configuration for the Visualization Generator MCP server.
+
+    The DreamFarm Agent connects to a remote MCP server that generates
+    custom HTML visualizations using reasoning models. This enables
+    dynamic UI generation for dashboards, cards, and interactive widgets.
+    """
+    enabled: bool
+    mcp_url: str | None
+    mcp_api_key: str | None
+
+
 @dataclass
 class StockToolConfig:
     """Configuration for local Stock API custom tool.
@@ -130,6 +144,7 @@ class AppConfig:
     semantic_cache: SemanticCacheConfig | None
     farmer_tools: FarmerToolsConfig | None
     tavily: TavilyConfig | None
+    visualization_mcp: VisualizationMCPConfig | None
     stock_tool: StockToolConfig | None
     auth: AuthConfig | None
     agentic_search: Optional["AgenticSearchConfig"]  # forward ref
@@ -292,6 +307,24 @@ class ConfigService:
             else None
         )
 
+        # Visualization MCP configuration (custom HTML generation)
+        viz_mcp_url = os.getenv("VISUALIZATION_MCP_URL")
+        viz_mcp_api_key = os.getenv("VISUALIZATION_MCP_API_KEY")
+        viz_mcp_enabled = (
+            os.getenv("VISUALIZATION_MCP_ENABLED", "false").lower() in ["true", "1", "yes", "on"]
+            and bool(viz_mcp_url)
+            and bool(viz_mcp_api_key)
+        )
+        viz_mcp_config = (
+            VisualizationMCPConfig(
+                enabled=viz_mcp_enabled,
+                mcp_url=viz_mcp_url,
+                mcp_api_key=viz_mcp_api_key,
+            )
+            if (viz_mcp_url or viz_mcp_api_key)
+            else None
+        )
+
         # Local Stock Tool configuration (custom function tool)
         stock_tool_url = os.getenv("STOCK_API_URL") or os.getenv("STOCK_TOOL_URL")
         stock_tool_enabled = (
@@ -363,6 +396,7 @@ class ConfigService:
             semantic_cache=semantic_cache,
             farmer_tools=farmer_tools_config,
             tavily=tavily_config,
+            visualization_mcp=viz_mcp_config,
             stock_tool=stock_tool_config,
             auth=auth_config,
             agentic_search=agentic_cfg,

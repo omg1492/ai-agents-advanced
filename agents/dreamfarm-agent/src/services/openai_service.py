@@ -70,6 +70,8 @@ class OpenAIService:
         self._farmer_tools = getattr(self._app_config, "farmer_tools", None)
         # Remote MCP server (Tavily Search)
         self._tavily = getattr(self._app_config, "tavily", None)
+        # Remote MCP server (Visualization Generator)
+        self._visualization_mcp = getattr(self._app_config, "visualization_mcp", None)
         # Local stock custom tool
         self._stock_service: StockService | None = stock_service
         if self._stock_service is None:
@@ -105,11 +107,12 @@ class OpenAIService:
         except Exception as ge:  # pragma: no cover
             logger.warning(f"Graph search init failed: {ge}")
         logger.info(
-            "Initialized OpenAI service base_url=%s model=%s stock_tool=%s tavily=%s agentic=%s graph=%s memory_search=%s",
+            "Initialized OpenAI service base_url=%s model=%s stock_tool=%s tavily=%s viz_mcp=%s agentic=%s graph=%s memory_search=%s",
             getattr(self.client, "base_url", None),
             self.model_name,
             bool(self._stock_service and self._stock_service.enabled),
             bool(self._tavily and self._tavily.enabled),
+            bool(self._visualization_mcp and self._visualization_mcp.enabled),
             bool(self._agentic_search and self._agentic_search.enabled),
             bool(self._graph_search and self._graph_search.enabled),
             bool(self._memory_search and self._memory_search.enabled),
@@ -122,6 +125,7 @@ class OpenAIService:
         - Code Interpreter (built-in Azure OpenAI tool)
         - Remote MCP Farmer Tools server
         - Remote MCP Tavily Search server
+        - Remote MCP Visualization Generator server
         - Local function tool ``get_stock`` for the stock custom tool
         
         Args:
@@ -195,6 +199,33 @@ class OpenAIService:
                         "server_label": "tavily",
                         "server_url": tavily_url,
                         "require_approval": "never",
+                    }
+                )
+
+        # Remote MCP tool - Visualization Generator
+        if self._visualization_mcp and getattr(self._visualization_mcp, "enabled", False):
+            if self._visualization_mcp.mcp_url and self._visualization_mcp.mcp_api_key:
+                try:
+                    masked = (
+                        self._visualization_mcp.mcp_api_key[:4] + "***" if self._visualization_mcp.mcp_api_key else ""
+                    )
+                    logger.info(
+                        "Configured MCP tool: label=%s url=%s auth=%s",
+                        "visualization",
+                        self._visualization_mcp.mcp_url,
+                        f"Bearer {masked}",
+                    )
+                except Exception:
+                    pass
+                tools.append(
+                    {
+                        "type": "mcp",
+                        "server_label": "visualization",
+                        "server_url": self._visualization_mcp.mcp_url,
+                        "require_approval": "never",
+                        "headers": {
+                            "Authorization": f"Bearer {self._visualization_mcp.mcp_api_key}",
+                        },
                     }
                 )
 

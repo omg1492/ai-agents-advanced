@@ -1,3 +1,42 @@
+## 2025-01-08 Visualization MCP Backend Integration (Phase 1)
+
+Successfully integrated visualization MCP tool for custom HTML UI generation via reasoning model, enabling ad-hoc dashboard cards, sparklines, and interactive visualizations.
+
+**Backend Changes:**
+- Added `VisualizationMCPConfig` dataclass to `config_service.py` with `enabled`, `mcp_url`, `mcp_api_key` fields
+- Modified `OpenAIService.get_tools()` to register visualization MCP tool when `VISUALIZATION_MCP_ENABLED=true`
+- Tool definition: `{"type": "mcp", "server_label": "visualization", "server_url": "...", "headers": {"Authorization": "Bearer ..."}, "require_approval": "never"}`
+- Implemented artifact storage system in `main.py`:
+  - In-memory registry `_html_artifact_registry` with 1-hour TTL
+  - `_register_html_artifact()` for storage with metadata (html, created_at, thread_id)
+  - `_cleanup_html_artifacts()` for automatic expiry
+  - `GET /artifacts/{artifact_id}` endpoint returning `HTMLResponse` with inline display
+- Created comprehensive test suite (`test_visualization_mcp.py`) with 6 tests:
+  - 3 unit tests: config loading, tool registration, artifact lifecycle
+  - 3 integration tests: MCP server health, OpenAI Responses API with MCP tool, artifact API endpoint
+
+**Test Results (all passing):**
+- Unit tests (3/3): Configuration loading, tool registration in OpenAI service, artifact storage/cleanup/expiry
+- Integration tests (3/3): 
+  - `test_mcp_server_health` - verified MCP server connectivity via health endpoint
+  - `test_visualization_via_openai_responses_api` - **critical end-to-end test**: OpenAI Responses API → MCP tool call → HTML generation → validation
+  - `test_artifact_api_endpoint` - artifact retrieval with auth and content-type headers
+
+**Key Technical Decisions:**
+- **Artifact Pattern**: Similar to code_interpreter files, but for HTML content; enables sandboxed iframe display
+- **Testing Philosophy**: Integration tests validate real OpenAI Responses API flow (not direct MCP protocol calls) because that's the actual production path
+- **Environment Loading**: Added `dotenv.load_dotenv()` at test module import to ensure `.env` variables available in test process
+- **Security**: Artifact endpoint inherits auth from FastAPI dependency; future enhancements will add user scope validation and per-user isolation
+
+**Configuration:**
+- `VISUALIZATION_MCP_ENABLED=true|false` (default: false)
+- `VISUALIZATION_MCP_URL=https://ca-mcp-viz-gen.grayisland-3e7e5fd0.swedencentral.azurecontainerapps.io/mcp`
+- `VISUALIZATION_MCP_API_KEY=advancedaiapps2025`
+
+**Integration:** Works seamlessly with other tools (memory search, code interpreter). MCP server generates and sanitizes HTML (removes dangerous patterns: `<iframe>`, `<object>`, `javascript:`, adds CSP headers).
+
+**Next Steps:** Phase 2 - MCP response handling in streaming logic to detect HTML artifacts and emit DF_META events; Phase 3 - Frontend iframe component with sandboxing.
+
 ## 2025-10-07 Code Interpreter File Tokens & Fallback (Phase 1.5)
 
 Rozšířili jsme zpracování souborů z code_interpreteru tak, aby fungovalo i v případech, kdy Azure nevrátí `container_id`, což dříve vedlo k 404 při stahování grafů. Klíčové změny:

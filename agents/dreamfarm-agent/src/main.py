@@ -87,6 +87,9 @@ _semantic_cache_bootstrap: dict[str, dict] = {}  # thread_id -> {user:str, assis
 # Temp cache for code interpreter generated files: file_id -> {container_id, filename, created_at}
 _generated_file_registry: dict[str, dict[str, object]] = {}
 _GENERATED_FILE_TTL_SECONDS = 60 * 60  # 1 hour TTL for container/file mappings
+# Artifact registry for custom HTML visualizations: artifact_id -> {html, created_at, thread_id}
+_html_artifact_registry: dict[str, dict[str, object]] = {}
+_HTML_ARTIFACT_TTL_SECONDS = 60 * 60  # 1 hour TTL for HTML artifacts
 
 
 def _register_generated_file(file_id: str, container_id: str | None, filename: str | None) -> str | None:
@@ -117,6 +120,34 @@ def _cleanup_generated_file_registry() -> None:
                  if isinstance(meta.get("created_at"), datetime) and meta["created_at"] < cutoff]
     for fid in stale_ids:
         _generated_file_registry.pop(fid, None)
+
+
+def _register_html_artifact(artifact_id: str, html: str, thread_id: str) -> None:
+    """Store HTML visualization artifact for later retrieval.
+    
+    Args:
+        artifact_id: Unique identifier for the artifact
+        html: Sanitized HTML content
+        thread_id: Thread ID this artifact belongs to
+    """
+    _cleanup_html_artifacts()
+    _html_artifact_registry[artifact_id] = {
+        "html": html,
+        "created_at": datetime.now(timezone.utc),
+        "thread_id": thread_id,
+    }
+    logger.info(f"Registered HTML artifact: id={artifact_id} size={len(html)} thread={thread_id}")
+
+
+def _cleanup_html_artifacts() -> None:
+    """Remove expired HTML artifact entries."""
+    if not _html_artifact_registry:
+        return
+    cutoff = datetime.now(timezone.utc) - timedelta(seconds=_HTML_ARTIFACT_TTL_SECONDS)
+    stale_ids = [aid for aid, meta in _html_artifact_registry.items()
+                 if isinstance(meta.get("created_at"), datetime) and meta["created_at"] < cutoff]
+    for aid in stale_ids:
+        _html_artifact_registry.pop(aid, None)
 
 
 @asynccontextmanager
@@ -490,6 +521,32 @@ async def download_generated_file(
     }
     media_type = content_type or "application/octet-stream"
     return StreamingResponse(io.BytesIO(content_bytes), media_type=media_type, headers=headers)
+
+
+@app.get("/artifacts/{artifact_id}")
+async def get_html_artifact(
+    artifact_id: str,
+    request: Request,
+    user_ctx: tuple[str, bool, dict] = Depends(_require_user)
+):
+    """Retrieve a stored HTML visualization artifact.
+    
+    Returns sanitized HTML content for rendering in a sandboxed iframe.
+    Artifacts are user-scoped by thread_id and expire after 1 hour.
+    """
+    _cleanup_html_artifacts()
+    
+    artifact = _html_artifact_registry.get(artifact_id)
+    if not artifact:
+        raise HTTPException(status_code=404, detail="Artifact not found or expired")
+    
+    html = artifact.get("html")
+    if not html or not isinstance(html, str):
+        raise HTTPException(status_code=500, detail="Invalid artifact content")
+    
+    # Return HTML with text/html content type for iframe rendering
+    from fastapi.responses import HTMLResponse
+    return HTMLResponse(content=html, status_code=200)
 
 
 @app.post("/chat", response_model=ChatResponse)

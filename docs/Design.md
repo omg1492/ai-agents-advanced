@@ -178,11 +178,14 @@ Deployment (local dev): Docker Compose runs: frontend, agent, PostgreSQL(+extens
 - Includes voice capture UI (WebSocket) via singleton `voiceSessionManager` (Strict Mode safe); memory search visualization (planned)
 
 ### 4.2. Agent Backend (FastAPI)
-- Endpoints: chat, threads, streaming, tools integration, memory, voice realtime
+- Endpoints: chat, threads, streaming, tools integration, memory, voice realtime, artifacts
 - Orchestrates: RAG, agentic tool calls, semantic cache, memory injection
 - Emits structured DF_META lines for: tool calls, reasoning, cache hits, graph usage
 - Feature flags via environment variables
-- Code-interpreter artefacts are proxied via `/files/{file_id}/content`, which validates either the user's bearer token or a short-lived download token minted when the file metadata is registered (used by the frontend for inline `<img>` rendering without exposing long-lived credentials). When Azure omits a `container_id`, the backend falls back to the generic `/files/{file_id}/content` endpoint, so generated charts remain accessible even if container metadata is unavailable.
+- **Artifact System**: Stores generated content (code-interpreter images, custom HTML visualizations) with UUIDs; serves via `/artifacts/{id}` with token validation
+  - Code-interpreter artifacts: proxied via `/files/{file_id}/content` with bearer or download token validation
+  - Custom visualization artifacts: HTML from MCP visualization generator tool, stored in-memory, served via `/artifacts/{id}` with bearer token validation
+  - Frontend renders HTML artifacts in sandboxed iframes (no access to parent window/conversation/storage)
 - Voice: single `/voice/{thread_id}` WebSocket proxying bidirectional PCM16 audio + transcripts to OpenAI/Azure Realtime (no separate STT/TTS microservices)
 
 ### 4.3. Data Layer (PostgreSQL + Extensions)
@@ -193,7 +196,7 @@ Deployment (local dev): Docker Compose runs: frontend, agent, PostgreSQL(+extens
 
 ### 4.4. Tool Ecosystem
 - Internal REST (stock API)
-- MCP servers (public farmer tools, web search / Tavily)
+- MCP servers (public farmer tools, web search / Tavily, custom visualization generator)
 - Internal function tools (semantic_search, keyword_search, graph_bfs_taxonomy_search, graph_dfs_similarity_search, memory tools)
 - Controlled registration based on feature flags
 

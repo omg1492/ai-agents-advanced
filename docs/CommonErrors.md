@@ -8,6 +8,7 @@ Purpose: Fast lookup of recurring pitfalls. Each category lists: Symptom → Cau
 | Issue | Symptom | Cause | Fix | Prevent |
 |-------|---------|-------|-----|---------|
 | Missing env vars in tests | `KeyError: 'AZURE_OPENAI_EMBEDDING_API_KEY'` | `.env` not loaded in integration test process | `from dotenv import load_dotenv; load_dotenv()` at test entry | Add `conftest.py` fixture to load once |
+| **Integration test DNS failure** | `httpx.ConnectError: [Errno 11001] getaddrinfo failed` despite server being accessible | `.env` not loaded when running multiple test types together (unit + integration); pytest parallelism causes env loading race | Add `from dotenv import load_dotenv; load_dotenv(Path(__file__).parent.parent / ".env")` at top of integration test module | Always load `.env` explicitly in integration test modules; run integration tests separately with `-m integration` |
 | Patch / indentation regressions | `IndentationError` or silent nested functions | Partial diffs shifted left margin | Re‑align functions; run `python -m py_compile target.py` | After large patch, import module in a trivial test |
 
 Example (test bootstrap):
@@ -15,6 +16,22 @@ Example (test bootstrap):
 # tests/conftest.py
 from dotenv import load_dotenv
 load_dotenv()
+```
+
+**Integration test environment loading pattern:**
+```python
+# tests/test_integration_feature.py
+import pytest
+from pathlib import Path
+from dotenv import load_dotenv
+
+# Load .env file from project root for integration tests
+env_path = Path(__file__).parent.parent / ".env"
+if env_path.exists():
+    load_dotenv(env_path)
+
+# Now safe to import services that read environment
+from src.services.config_service import ConfigService
 ```
 
 ---

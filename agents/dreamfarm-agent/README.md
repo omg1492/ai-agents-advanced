@@ -201,6 +201,24 @@ uv run pytest tests/test_rag_integration.py  # Integration tests with real servi
    uv run python tests/test_api_manual.py
    ```
 
+### Running Visualization MCP Tests
+
+The visualization MCP integration tests verify:
+- MCP server connectivity
+- OpenAI Responses API with MCP tools
+- HTML artifact storage and retrieval
+
+```powershell
+# Unit tests only (default):
+uv run pytest tests/test_visualization_mcp.py
+
+# Integration tests (requires MCP server + OpenAI API):
+uv run pytest tests/test_visualization_mcp.py -m integration
+
+# All tests:
+uv run pytest tests/test_visualization_mcp.py -m "unit or integration"
+```
+
 **See `tests/README.md` for detailed testing strategy and best practices.**
 
 ### Running Real-API Integration Tests (Optional)
