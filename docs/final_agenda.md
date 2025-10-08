@@ -138,21 +138,27 @@ Lekce rozšiřuje asistenta o Real Voice Chat, který umožní zákazníkovi ovl
 - Přidat hlasový interface  
 - Implementovat paměť
 
-## 6. lekce: Code Interpreter a Agentic UI
+## 6. lekce: Code Interpreter a Agentic UI (MCP Vizualizace)
 
-AI analyzuje nutriční a zdravotní data uživatele, vizualizuje je v přehledných grafech a navrhuje zdravější alternativy. Interaktivní infografiky zvyšují angažovanost a motivují ke koupi doporučených produktů.
+AI analyzuje nutriční a zdravotní data uživatele, vizualizuje je v přehledných grafech a navrhuje zdravější alternativy. Kromě toho dokáže vytvářet interaktivní HTML infografiky pomocí MCP Visualization serveru – moderní kartičky s gradienty, animacemi a responzivním designem zobrazované v sandboxovaných iframe. Interaktivní infografiky zvyšují angažovanost a motivují ke koupi doporučených produktů.
 
 - Grafy a výpočty s využitím Python a Code Interpreter sandbox  
-- Ad-hoc generované UI s HTML/CSS nebo React v sandboxu
+- Ad-hoc generované HTML infografiky přes MCP Visualization server
+- Bezpečné zobrazení pomocí sandboxovaných iframe (allow-same-origin only)
+- In-memory artifact storage s 1hodinovou expirací
 
 **Praktické cvičení:** 
 
-- Základní ad-hoc AI vizualizace pro uživatele
+- Code Interpreter: Analýza CSV dat a vytvoření grafů
+- MCP Visualization: Vytvoření interaktivních HTML kartiček a infografik
+- Integrace obou přístupů pro komplexní vizualizace
 
 **Výstupy z lekce:** (Umím…)
 
 - Využít code interpreter koncept pro zpracování dat, výpočty nebo tvorbu grafů a diagramů  
-- Využít kódování HTML/CSS nebo React a bezpečné zobrazení výstupů uživateli
+- Využít MCP server pro generování interaktivních HTML vizualizací
+- Bezpečně zobrazit dynamický obsah v sandboxovaných iframe
+- Spravovat lifecycle artifacts (storage, expiry, cleanup)
 
 ## 7. lekce: Orchestrace AI workflow
 

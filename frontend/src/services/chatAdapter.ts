@@ -30,6 +30,8 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
   private pendingAttachments: string[] = [];
   // Track code interpreter generated files (filename -> {fileId, token})
   private generatedFiles: Map<string, { fileId: string; token?: string }> = new Map();
+  // Track visualization artifacts (artifact_id -> metadata)
+  private visualizationArtifacts: Map<string, { artifactId: string; createdAt: string }> = new Map();
 
   /**
    * Add file attachment for next message
@@ -125,6 +127,14 @@ export class DreamFarmChatAdapter implements ChatModelAdapter {
                   fullText = replaced;
                   yield { content: [{ type: 'text' as const, text: fullText }] };
                 }
+              }
+
+              // Handle visualization.artifact_created event
+              if (meta.event_type === 'visualization.artifact_created' && meta.artifact_id) {
+                this.visualizationArtifacts.set(meta.artifact_id, {
+                  artifactId: meta.artifact_id,
+                  createdAt: meta.timestamp || new Date().toISOString(),
+                });
               }
               
               // Broadcast meta event to the app; UI can render separately

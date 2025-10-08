@@ -18,6 +18,7 @@ from src.services.config_service import (
     SemanticCacheConfig,
     MemorySearchConfig,
     CodeInterpreterConfig,
+    VisualizationMCPConfig,
 )
 
 
@@ -39,6 +40,7 @@ def build_config():
         agentic_search=None,
         graph_search=None,
         memory_search=MemorySearchConfig(enabled=True, max_results=5),
+        visualization_mcp=None,
     )
 
 

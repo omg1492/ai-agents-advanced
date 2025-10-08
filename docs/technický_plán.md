@@ -133,22 +133,30 @@ Lekce rozšiřuje asistenta o Real Voice Chat, který umožní zákazníkovi ovl
 - Python  
 - OpenAI API
 
-### Lekce 06 – Code Interpreter & Agentic UI
+### Lekce 06 – Code Interpreter & Agentic UI (MCP Vizualizace)
 
 #### Popis vylepšení a business přínos
 AI analyzuje nutriční a zdravotní data uživatele, vizualizuje je v přehledných grafech a navrhuje zdravější alternativy.  
+Kromě toho dokáže vytvářet interaktivní HTML infografiky a kartičky s moderním designem (gradienty, animace, responzivní layout).
 Interaktivní infografiky zvyšují angažovanost a motivují ke koupi doporučených produktů.
 
 #### Technické aspekty plné verze
-- Python sandbox + automaticky generované UI (React card)
+- Python sandbox (Code Interpreter) pro analýzu dat a grafy
+- MCP Visualization server pro generování HTML infografik
+- Sandboxované iframe zobrazení artifacts ve frontendu
+- In-memory artifact registry s 1hodinovou expirací
 
 #### Technické kroky – kódování naživo
 - Základní sandbox + první vizualizace
+- Napojení MCP visualization serveru
+- Frontend komponenta pro zobrazení HTML artifacts
 
 #### Použité technologie a nástroje
 - Python sandbox (Code Interpreter)  
 - Matplotlib / Plotly  
+- MCP Visualization Server (FastMCP)
 - React UI (assistant-ui)
+- Sandboxované iframe (security: allow-same-origin only)
 
 ### Lekce 07 – Orchestrace AI workflow
 

@@ -1,8 +1,8 @@
-## 2025-01-08 Visualization MCP Backend Integration (Phase 1)
+## 2025-01-08 Visualization MCP Complete Integration (Phase 1-3)
 
-Successfully integrated visualization MCP tool for custom HTML UI generation via reasoning model, enabling ad-hoc dashboard cards, sparklines, and interactive visualizations.
+Successfully implemented end-to-end visualization MCP integration from backend artifact detection to frontend sandboxed iframe display, enabling interactive HTML infographics in chat.
 
-**Backend Changes:**
+**Phase 1 - Backend Integration:**
 - Added `VisualizationMCPConfig` dataclass to `config_service.py` with `enabled`, `mcp_url`, `mcp_api_key` fields
 - Modified `OpenAIService.get_tools()` to register visualization MCP tool when `VISUALIZATION_MCP_ENABLED=true`
 - Tool definition: `{"type": "mcp", "server_label": "visualization", "server_url": "...", "headers": {"Authorization": "Bearer ..."}, "require_approval": "never"}`
@@ -10,32 +10,52 @@ Successfully integrated visualization MCP tool for custom HTML UI generation via
   - In-memory registry `_html_artifact_registry` with 1-hour TTL
   - `_register_html_artifact()` for storage with metadata (html, created_at, thread_id)
   - `_cleanup_html_artifacts()` for automatic expiry
-  - `GET /artifacts/{artifact_id}` endpoint returning `HTMLResponse` with inline display
-- Created comprehensive test suite (`test_visualization_mcp.py`) with 6 tests:
-  - 3 unit tests: config loading, tool registration, artifact lifecycle
-  - 3 integration tests: MCP server health, OpenAI Responses API with MCP tool, artifact API endpoint
+  - `GET /artifacts/{artifact_id}` endpoint made public (no auth required) since browsers cannot pass auth headers to iframe src
+- Created comprehensive test suite (`test_visualization_mcp.py`) with 6 tests (all passing)
 
-**Test Results (all passing):**
-- Unit tests (3/3): Configuration loading, tool registration in OpenAI service, artifact storage/cleanup/expiry
-- Integration tests (3/3): 
-  - `test_mcp_server_health` - verified MCP server connectivity via health endpoint
-  - `test_visualization_via_openai_responses_api` - **critical end-to-end test**: OpenAI Responses API → MCP tool call → HTML generation → validation
-  - `test_artifact_api_endpoint` - artifact retrieval with auth and content-type headers
+**Phase 2 - MCP Response Detection & Streaming:**
+- Added MCP tool call detection in final response processing (after streaming completes)
+- Iterates through `response.output` items, identifies `item.type == 'mcp_call'` with `name == 'generate_infographic'`
+- Parses MCP output_content (handles both string JSON and list formats)
+- Extracts HTML from `{type: "custom_ui", html: "..."}` structure
+- Generates UUID for artifact, registers via `_register_html_artifact()`
+- Emits `DF_META` event: `{"event_type": "visualization.artifact_created", "artifact_id": "...", "timestamp": "..."}`
+- Inserts markdown link into response text: `[View Visualization](/artifacts/{uuid})`
+- Added comprehensive DEBUG logging (10+ statements) for troubleshooting MCP output parsing
+
+**Phase 3 - Frontend Display:**
+- Created `frontend/src/components/visualization-artifact.tsx`: Sandboxed iframe component with loading/error states
+- Security: `sandbox="allow-same-origin"` only (no scripts, forms, or popups allowed)
+- Modified `frontend/src/services/chatAdapter.ts`: Added `visualizationArtifacts` Map to track artifact metadata from DF_META events
+- Modified `frontend/src/components/markdown-text.tsx`: Custom link renderer detects `/artifacts/{id}` pattern, renders VisualizationArtifact component
+- **Critical Fix**: Passed `dreamFarmAPI.getBaseUrl()` as `apiUrl` prop to ensure iframe requests correct backend port (8001 vs 3000)
+
+**Test Results:**
+- Unit tests (3/3): Configuration, tool registration, artifact lifecycle
+- Integration tests (3/3): MCP server health, OpenAI Responses API flow, artifact retrieval
+- Manual testing: "Create a beautiful card showing 'Welcome to DreamFarm' with gradient" → successful inline display with hover animations
 
 **Key Technical Decisions:**
-- **Artifact Pattern**: Similar to code_interpreter files, but for HTML content; enables sandboxed iframe display
-- **Testing Philosophy**: Integration tests validate real OpenAI Responses API flow (not direct MCP protocol calls) because that's the actual production path
-- **Environment Loading**: Added `dotenv.load_dotenv()` at test module import to ensure `.env` variables available in test process
-- **Security**: Artifact endpoint inherits auth from FastAPI dependency; future enhancements will add user scope validation and per-user isolation
+- **Public Artifact Endpoint**: Removed auth requirement because browsers don't pass authorization headers to iframe `src` attribute; security via UUID (hard-to-guess) + 1-hour TTL
+- **URL Construction**: Frontend must explicitly pass backend URL to avoid relative URL resolution using frontend origin
+- **Detection Timing**: MCP artifact detection happens post-streaming in final response processing (not during event streaming) for simpler state management
+- **Sandbox Security**: Strict iframe sandbox only allows same-origin resources (CSS, images); no JavaScript execution
+
+**Bug Fixes:**
+1. Iframe loading frontend index.html (wrong port): Fixed by passing explicit `apiUrl={dreamFarmAPI.getBaseUrl()}` prop
+2. 401 Unauthorized on artifact endpoint: Fixed by removing `Depends(_require_user)` auth requirement
 
 **Configuration:**
 - `VISUALIZATION_MCP_ENABLED=true|false` (default: false)
 - `VISUALIZATION_MCP_URL=https://ca-mcp-viz-gen.grayisland-3e7e5fd0.swedencentral.azurecontainerapps.io/mcp`
 - `VISUALIZATION_MCP_API_KEY=advancedaiapps2025`
+- `LOG_LEVEL=DEBUG` for detailed MCP output parsing logs
 
-**Integration:** Works seamlessly with other tools (memory search, code interpreter). MCP server generates and sanitizes HTML (removes dangerous patterns: `<iframe>`, `<object>`, `javascript:`, adds CSP headers).
+**Integration:** Works seamlessly with other tools (memory search, code interpreter, function calling). MCP server generates modern HTML with gradients, animations, responsive design, and CSP headers.
 
-**Next Steps:** Phase 2 - MCP response handling in streaming logic to detect HTML artifacts and emit DF_META events; Phase 3 - Frontend iframe component with sandboxing.
+**Documentation Updated:**
+- `lessons/L06_adhoc_coding/README.md`: Added visualization MCP demo scenarios and technical flow explanation
+- Updated to reflect dual capability: Code Interpreter (data analysis) + MCP Visualization (design elements)
 
 ## 2025-10-07 Code Interpreter File Tokens & Fallback (Phase 1.5)
 

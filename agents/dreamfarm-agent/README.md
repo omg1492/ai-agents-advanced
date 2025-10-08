@@ -207,6 +207,7 @@ The visualization MCP integration tests verify:
 - MCP server connectivity
 - OpenAI Responses API with MCP tools
 - HTML artifact storage and retrieval
+- Frontend iframe rendering (manual testing)
 
 ```powershell
 # Unit tests only (default):
@@ -218,6 +219,12 @@ uv run pytest tests/test_visualization_mcp.py -m integration
 # All tests:
 uv run pytest tests/test_visualization_mcp.py -m "unit or integration"
 ```
+
+**Manual Frontend Testing:**
+1. Start backend: `uv run dreamfarm-agent`
+2. Start frontend: `cd ../../frontend && npm run dev`
+3. Ask the agent: "Create a beautiful card showing 'Hello World' with a gradient background"
+4. Verify visualization appears inline in the chat (sandboxed iframe)
 
 **See `tests/README.md` for detailed testing strategy and best practices.**
 

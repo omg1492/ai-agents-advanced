@@ -85,6 +85,7 @@ async def test_memory_write_profile_single_patch(monkeypatch):
         agentic_search=None,
         graph_search=None,
         memory_search=None,
+        visualization_mcp=None,
     )
     ups = UserProfileService(cfg)
     engine = DummyUserProfileEngine()
@@ -146,6 +147,7 @@ async def test_memory_write_profile_patch_diagnostics(monkeypatch):
         agentic_search=None,
         graph_search=None,
         memory_search=None,
+        visualization_mcp=None,
     )
     ups = UserProfileService(cfg)
     engine = DummyUserProfileEngine()
@@ -201,6 +203,7 @@ async def test_memory_write_profile_tool_not_present_when_disabled(monkeypatch):
         agentic_search=None,
         graph_search=None,
         memory_search=None,
+        visualization_mcp=None,
     )
     svc = OpenAIService(cfg.openai, app_config=cfg)
     tools = svc.get_tools() or []

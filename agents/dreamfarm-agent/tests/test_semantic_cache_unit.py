@@ -29,6 +29,7 @@ def build_config():
         agentic_search=None,
         graph_search=None,
         memory_search=None,
+        visualization_mcp=None,
     )
 
 

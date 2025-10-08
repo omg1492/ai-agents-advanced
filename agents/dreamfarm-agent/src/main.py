@@ -2,6 +2,7 @@
 
 import os
 import logging
+import uuid
 from datetime import datetime, timezone, timedelta
 import io
 import json
@@ -526,13 +527,15 @@ async def download_generated_file(
 @app.get("/artifacts/{artifact_id}")
 async def get_html_artifact(
     artifact_id: str,
-    request: Request,
-    user_ctx: tuple[str, bool, dict] = Depends(_require_user)
+    request: Request
 ):
     """Retrieve a stored HTML visualization artifact.
     
     Returns sanitized HTML content for rendering in a sandboxed iframe.
-    Artifacts are user-scoped by thread_id and expire after 1 hour.
+    Public endpoint (no auth required) since:
+    - Artifacts are scoped by unique UUID (hard to guess)
+    - Artifacts expire after 1 hour
+    - Browsers cannot pass auth headers to iframe src
     """
     _cleanup_html_artifacts()
     
@@ -1070,10 +1073,6 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                             
                         et = getattr(event, "type", "")
                         
-                        # Debug: log ALL event types to understand flow
-                        if et.startswith("response.code_interpreter") or et == "response.output_text.delta":
-                            logger.debug(f"Event: {et}")
-                        
                         # Stream text deltas directly to client
                         if et == "response.output_text.delta":
                             delta = getattr(event, "delta", "")
@@ -1129,9 +1128,8 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                             yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
                         
                         elif et == "response.code_interpreter_call_code.delta":
-                            # Code being streamed - optionally capture for logging
-                            delta = getattr(event, "delta", "")
-                            logger.debug(f"Code interpreter code delta: {delta}")
+                            # Code being streamed - silently captured
+                            pass
                         
                         elif et == "response.code_interpreter_call_code.done":
                             # Code finalized
@@ -1443,6 +1441,8 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
 
                 if final_response is not None:
                     output_files = []
+                    visualization_artifacts = []
+                    
                     if hasattr(final_response, 'output'):
                         for item in final_response.output:
                             # Look for message items with content
@@ -1470,6 +1470,55 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                                                     })
                                                 else:
                                                     logger.warning(f"Annotation missing file_id or filename: {annotation}")
+                            
+                            # Look for MCP tool calls (visualization artifacts)
+                            elif item.type == 'mcp_call':
+                                tool_name = getattr(item, 'name', None)
+                                logger.debug(f"Found MCP tool call: {tool_name}")
+                                if tool_name == 'generate_infographic':
+                                    # Check if tool has output
+                                    output_content = getattr(item, 'output', None)
+                                    logger.debug(f"MCP output_content type: {type(output_content)}, value: {output_content}")
+                                    if output_content:
+                                        try:
+                                            # Parse output (should be JSON with html field)
+                                            if isinstance(output_content, str):
+                                                logger.debug(f"Parsing output as string (length: {len(output_content)})")
+                                                output_data = json.loads(output_content)
+                                            elif isinstance(output_content, list) and len(output_content) > 0:
+                                                logger.debug(f"Parsing output as list (length: {len(output_content)})")
+                                                # Output may be array of content items
+                                                text_item = next((c for c in output_content if getattr(c, 'type', None) == 'text'), None)
+                                                if text_item:
+                                                    output_data = json.loads(getattr(text_item, 'text', '{}'))
+                                                else:
+                                                    output_data = {}
+                                            else:
+                                                logger.debug(f"Output format not recognized: {type(output_content)}")
+                                                output_data = {}
+                                            
+                                            logger.debug(f"Parsed output_data keys: {output_data.keys() if isinstance(output_data, dict) else 'not a dict'}")
+                                            
+                                            if output_data.get('type') == 'custom_ui' and output_data.get('html'):
+                                                html_content = output_data['html']
+                                                artifact_id = str(uuid.uuid4())
+                                                
+                                                # Register HTML artifact
+                                                _register_html_artifact(artifact_id, html_content, thread_id)
+                                                logger.info(f"✓ Registered visualization artifact: {artifact_id} ({len(html_content)} chars)")
+                                                logger.debug(f"HTML preview (first 200 chars): {html_content[:200]}")
+                                                
+                                                visualization_artifacts.append({
+                                                    "artifact_id": artifact_id,
+                                                    "tool_name": tool_name,
+                                                    "html_length": len(html_content),
+                                                })
+                                            else:
+                                                logger.warning(f"MCP output missing 'type:custom_ui' or 'html' field. Keys: {output_data.keys() if isinstance(output_data, dict) else type(output_data)}")
+                                        except Exception as viz_err:  # noqa: BLE001
+                                            logger.exception(f"Failed to parse MCP tool output: {viz_err}")
+                                    else:
+                                        logger.warning(f"MCP tool {tool_name} has no output content")
 
                     if output_files:
                         files_meta = {
@@ -1482,6 +1531,23 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                         yield "\nDF_META:" + json.dumps(files_meta, ensure_ascii=False) + "\n"
                     else:
                         logger.info("No file annotations found in response")
+                    
+                    # Emit visualization artifact events
+                    for viz_artifact in visualization_artifacts:
+                        artifact_meta = {
+                            "kind": "tool_event",
+                            "event_type": "visualization.artifact_created",
+                            "tool_name": viz_artifact["tool_name"],
+                            "artifact_id": viz_artifact["artifact_id"],
+                            "timestamp": datetime.now(timezone.utc).isoformat(),
+                        }
+                        logger.info(f"Sending visualization artifact to frontend: {artifact_meta}")
+                        yield "\nDF_META:" + json.dumps(artifact_meta, ensure_ascii=False) + "\n"
+                        
+                        # Insert artifact link in response text for rendering
+                        artifact_link = f"\n\n[View Visualization](/artifacts/{viz_artifact['artifact_id']})\n\n"
+                        yield artifact_link
+                        
                 elif response_id_local:
                     logger.warning(f"Final response not available even after retrieval attempt (response_id={response_id_local})")
                 else:

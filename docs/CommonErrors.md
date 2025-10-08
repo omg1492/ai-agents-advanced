@@ -122,6 +122,44 @@ Reasoning stream rule of thumb: Always record EVERY item the model streams (reas
 
 ---
 
+## 3a. MCP Visualization Artifacts
+| Issue | Symptom | Cause | Fix | Prevent |
+|-------|---------|-------|-----|---------|
+| **Iframe shows frontend index.html** | Visualization box displays wrong content; browser requests `http://localhost:3000/artifacts/{id}` instead of backend | Frontend component uses relative URL (apiUrl="") which resolves to current origin | Pass explicit backend URL: `<VisualizationArtifact apiUrl={dreamFarmAPI.getBaseUrl()} />` | Always use absolute URLs for cross-origin iframe sources |
+| **401 Unauthorized on artifact endpoint** | Browser console shows `GET /artifacts/{id}` → 401; visualization box shows auth error | Artifact endpoint requires authentication but iframes cannot pass Authorization headers via `src` attribute | Remove auth requirement from endpoint: delete `user_ctx: tuple = Depends(_require_user)` parameter | Use public endpoints for iframe-loaded content; rely on UUID security + TTL |
+| **MCP output not detected** | No artifact created despite MCP tool call in logs | Output parsing fails (wrong JSON structure or missing html field) | Add DEBUG logging: log `type(output_content)`, parsed keys, HTML preview (first 200 chars) | Enable `LOG_LEVEL=DEBUG` to trace MCP output structure |
+
+Visualization artifact pattern:
+```python
+# Backend: Public endpoint (no auth)
+@app.get("/artifacts/{artifact_id}")
+async def get_html_artifact(artifact_id: str, request: Request):
+    artifact = _html_artifact_registry.get(artifact_id)
+    if not artifact: raise HTTPException(404)
+    return HTMLResponse(content=artifact["html"])
+
+# Frontend: Explicit backend URL
+const backendUrl = dreamFarmAPI.getBaseUrl();
+return <VisualizationArtifact artifactId={id} apiUrl={backendUrl} />;
+```
+
+**Why Artifacts Must Be Public:**
+- Browsers don't include authorization headers when loading iframe `src` attribute
+- Security via UUID (128-bit random, hard to guess: 2^128 = 3.4×10^38 possibilities)
+- Short TTL (1 hour) limits exposure window
+- Content is user-generated HTML visualizations (no sensitive data)
+
+**Discovery Process for Iframe Loading Issue:**
+1. User tested: "Create a beautiful card..." → empty box displayed
+2. Browser network tab showed: `http://localhost:3000/artifacts/{id}` (wrong port)
+3. Response contained frontend index.html instead of artifact HTML
+4. Root cause: VisualizationArtifact component had `apiUrl=""` default
+5. Empty string causes relative URL → resolves to current origin (frontend:3000)
+6. Fix: Pass explicit `apiUrl={dreamFarmAPI.getBaseUrl()}` → correct port (backend:8001)
+7. **Key lesson**: Always pass explicit URLs for cross-origin iframe content
+
+---
+
 ## 4. Data Imports & Embeddings
 | Issue | Symptom | Cause | Fix | Prevent |
 |-------|---------|-------|-----|---------|

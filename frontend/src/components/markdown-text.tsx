@@ -13,6 +13,8 @@ import { type FC, memo, useState } from "react";
 import { CheckIcon, CopyIcon } from "lucide-react";
 
 import { TooltipIconButton } from "@/components/tooltip-icon-button";
+import { VisualizationArtifact } from "@/components/visualization-artifact";
+import { dreamFarmAPI } from "@/services/api";
 import { cn } from "@/lib/utils";
 
 const MarkdownTextImpl = () => {
@@ -86,9 +88,20 @@ const defaultComponents = memoizeMarkdownComponents({
   p: ({ className, ...props }) => (
     <p className={cn("mb-5 mt-5 leading-7 first:mt-0 last:mb-0", className)} {...props} />
   ),
-  a: ({ className, ...props }) => (
-    <a className={cn("text-primary font-medium underline underline-offset-4", className)} {...props} />
-  ),
+  a: ({ className, ...props }) => {
+    // Check if this is a visualization artifact link
+    const href = props.href || '';
+    if (href.startsWith('/artifacts/')) {
+      const artifactId = href.split('/artifacts/')[1];
+      if (artifactId) {
+        // Pass backend URL to visualization artifact
+        const backendUrl = dreamFarmAPI.getBaseUrl();
+        return <VisualizationArtifact artifactId={artifactId} apiUrl={backendUrl} />;
+      }
+    }
+    // Regular link
+    return <a className={cn("text-primary font-medium underline underline-offset-4", className)} {...props} />;
+  },
   blockquote: ({ className, ...props }) => (
     <blockquote className={cn("border-l-2 pl-6 italic", className)} {...props} />
   ),
