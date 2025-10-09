@@ -59,31 +59,31 @@ This document describes the **overall architecture** of the Dream Farm AI platfo
     - [22.1. Hybrid RAG (Semantic + Keyword with RRF)](#221-hybrid-rag-semantic--keyword-with-rrf)
     - [22.2. Agentic Tool-Based Retrieval (Function Calling)](#222-agentic-tool-based-retrieval-function-calling)
     - [22.3. VIP Fencing](#223-vip-fencing)
-    - [22.4. Full-Text Search (FTS) Enhancement (Lesson 1 Hybrid Add-On)](#224-full-text-search-fts-enhancement-lesson-1-hybrid-add-on)
+    - [22.4. Full-Text Search (FTS) Enhancement](#224-full-text-search-fts-enhancement)
   - [23. Semantic Caching (First-Turn Accelerator)](#23-semantic-caching-first-turn-accelerator)
   - [24. Database and Knowledge Graph Schema (production-ready)](#24-database-and-knowledge-graph-schema-production-ready)
     - [24.1. Products (relational, hybrid search)](#241-products-relational-hybrid-search)
     - [24.2. Stock (relational)](#242-stock-relational)
     - [24.3. Knowledge graph (Apache AGE)](#243-knowledge-graph-apache-age)
-    - [24.4. Detailed Taxonomy \& Cuisine Enrichment Specification (Lesson 4)](#244-detailed-taxonomy--cuisine-enrichment-specification-lesson-4)
+    - [24.4. Detailed Taxonomy \& Cuisine Enrichment Specification](#244-detailed-taxonomy--cuisine-enrichment-specification)
     - [24.5. RAG Configuration](#245-rag-configuration)
   - [25. Thread/Session Management Strategy](#25-threadsession-management-strategy)
     - [25.1. Session Lifecycle](#251-session-lifecycle)
-    - [25.2. Data Storage (Lesson 1)](#252-data-storage-lesson-1)
+    - [25.2. Data Storage](#252-data-storage)
     - [25.3. Benefits of Hybrid Session API](#253-benefits-of-hybrid-session-api)
     - [25.4. API Endpoints](#254-api-endpoints)
     - [25.5. Data Models](#255-data-models)
   - [26. Project Structure](#26-project-structure)
   - [27. Service Responsibilities](#27-service-responsibilities)
     - [27.1. DreamFarm Agent (Port 8001)](#271-dreamfarm-agent-port-8001)
-    - [27.2. Future Agents (Later Lessons)](#272-future-agents-later-lessons)
-    - [27.3. Infrastructure (Later Lessons)](#273-infrastructure-later-lessons)
+    - [27.2. Future Agents](#272-future-agents)
+    - [27.3. Infrastructure](#273-infrastructure)
   - [28. Tool Integration Strategy \& Function Interfaces](#28-tool-integration-strategy--function-interfaces)
     - [28.1. MCP vs REST API Decision](#281-mcp-vs-rest-api-decision)
     - [28.2. Benefits of MCP-First Approach](#282-benefits-of-mcp-first-approach)
     - [28.3. AI Tools Overview](#283-ai-tools-overview)
     - [28.4. Internal Function-Call Interfaces (Agentic Retrieval)](#284-internal-function-call-interfaces-agentic-retrieval)
-    - [28.5. Graph Traversal Retrieval (Planned – Lesson 4 Final Task)](#285-graph-traversal-retrieval-planned--lesson-4-final-task)
+    - [28.5. Graph Traversal Retrieval](#285-graph-traversal-retrieval)
     - [28.6. Breadth-First Taxonomy Search (Updated Design: Semantic Concept Matching First)](#286-breadth-first-taxonomy-search-updated-design-semantic-concept-matching-first)
     - [28.7. Summary of Graph Tools After Update](#287-summary-of-graph-tools-after-update)
     - [28.8. Cypher Query Patterns (conceptual):](#288-cypher-query-patterns-conceptual)
@@ -94,37 +94,19 @@ This document describes the **overall architecture** of the Dream Farm AI platfo
   - [31. Security Considerations](#31-security-considerations)
     - [31.1. Authentication \& Authorization](#311-authentication--authorization)
   - [32. Future Enhancements](#32-future-enhancements)
-  - [33. Lesson 5 – Memory \& Real Voice Chat Architecture](#33-lesson-5--memory--real-voice-chat-architecture)
-    - [33.1. Memory Overview](#331-memory-overview)
-    - [33.2. Database Schemas (Memory Tables)](#332-database-schemas-memory-tables)
-    - [33.3. Tool Interfaces](#333-tool-interfaces)
-    - [33.4. System Prompt Injection (Profile)](#334-system-prompt-injection-profile)
-    - [33.5. Summarization \& Batch Pipeline](#335-summarization--batch-pipeline)
-    - [33.6. Retention \& Purging](#336-retention--purging)
-    - [33.7. Security \& Fencing](#337-security--fencing)
-    - [33.8. Privacy Considerations](#338-privacy-considerations)
-    - [33.9. Voice Chat Architecture](#339-voice-chat-architecture)
-    - [33.10. Environment Variables (New)](#3310-environment-variables-new)
-    - [33.11. Services \& Components Additions](#3311-services--components-additions)
-    - [33.12. API Additions](#3312-api-additions)
-    - [33.13. Sequence – User Turn with Memory \& Voice (Text Mode)](#3313-sequence--user-turn-with-memory--voice-text-mode)
-    - [33.14. Failure Handling \& Edge Cases](#3314-failure-handling--edge-cases)
-    - [33.15. Testing Strategy (Outline)](#3315-testing-strategy-outline)
-    - [33.16. Implementation Order Justification](#3316-implementation-order-justification)
-    - [33.17. Non-Goals (Lesson 5 Scope)](#3317-non-goals-lesson-5-scope)
-  - [34. Code Execution \& Dynamic UI Generation](#34-code-execution--dynamic-ui-generation)
-    - [34.1. Overview \& Capabilities](#341-overview--capabilities)
-    - [34.2. Architecture Components](#342-architecture-components)
-    - [34.3. Security Model](#343-security-model)
-    - [34.4. Data Models \& Message Types](#344-data-models--message-types)
-    - [34.5. Tool Definitions](#345-tool-definitions)
-    - [34.6. Implementation Files](#346-implementation-files)
-    - [34.7. Environment Configuration](#347-environment-configuration)
-    - [34.8. Frontend Integration](#348-frontend-integration)
-    - [34.9. Reference Implementation: Weight Tracking Analysis](#349-reference-implementation-weight-tracking-analysis)
-    - [34.10. Testing Strategy](#3410-testing-strategy)
-    - [34.11. Monitoring \& Observability](#3411-monitoring--observability)
-    - [34.12. Known Limitations \& Future Work](#3412-known-limitations--future-work)
+  - [33. Code Execution \& Dynamic UI Generation](#33-code-execution--dynamic-ui-generation)
+    - [33.1. Overview \& Capabilities](#331-overview--capabilities)
+    - [33.2. Architecture Components](#332-architecture-components)
+    - [33.3. Security Model](#333-security-model)
+    - [33.4. Data Models \& Message Types](#334-data-models--message-types)
+    - [33.5. Tool Definitions](#335-tool-definitions)
+    - [33.6. Implementation Files](#336-implementation-files)
+    - [33.7. Environment Configuration](#337-environment-configuration)
+    - [33.8. Frontend Integration](#338-frontend-integration)
+    - [33.9. Reference Implementation: Weight Tracking Analysis](#339-reference-implementation-weight-tracking-analysis)
+    - [33.10. Testing Strategy](#3310-testing-strategy)
+    - [33.11. Monitoring \& Observability](#3311-monitoring--observability)
+    - [33.12. Known Limitations \& Future Work](#3312-known-limitations--future-work)
 
 
 ---
@@ -223,13 +205,13 @@ Unified environment variables (selected, grouped):
 |----------|-----|---------|
 | Core LLM | OPENAI_API_KEY, OPENAI_MODEL, OPENAI_BASE_URL, OPENAI_API_VERSION | Provider config |
 | RAG | ENABLE_RAG, RAG_SIMILARITY_THRESHOLD, RAG_MAX_RESULTS | Baseline semantic retrieval |
-| Agentic Search | ENABLE_AGENTIC_SEARCH, AGENTIC_MAX_RESULTS | Function/tool search mode |
-| Graph | ENABLE_GRAPH_SEARCH, GRAPH_BFS_* vars | Graph BFS/DFS controls |
+| Agentic Search | AGENTIC_SEARCH_ENABLED, AGENTIC_SEARCH_MAX_RESULTS | Function/tool search mode |
+| Graph | GRAPH_SEARCH_ENABLED, AGE_GRAPH_NAME, GRAPH_DFS_MAX_RESULTS | Graph BFS/DFS controls |
 | Embeddings | OPENAI_EMBEDDING_MODEL | Standard embedding model |
 | Semantic Cache | SEMANTIC_CACHE_ENABLED, SEMANTIC_CACHE_SIMILARITY_THRESHOLD | First-turn cache |
-| Auth | REQUIRE_AUTH, KEYCLOAK_ISSUER, KEYCLOAK_AUDIENCE | JWT validation |
+| Auth | AUTH_ENABLED, KEYCLOAK_URL, KEYCLOAK_REALM, KEYCLOAK_AUDIENCE | JWT validation |
 | VIP | (implicit via user claims) | Product filtering |
-| Memory | MEMORY_ENABLED, MEMORY_CONVERSATION_RETENTION_DAYS, USER_PROFILE_MAX_TOKENS, MEMORY_AUDIT_ENABLED, MEMORY_SUMMARY_* | Conversation storage & summarization |
+| Memory | CONVERSATION_STORE_ENABLED, MEMORY_SEARCH_ENABLED, USER_PROFILE_ENABLED, MEMORY_CONVERSATION_RETENTION_DAYS, USER_PROFILE_MAX_TOKENS, MEMORY_AUDIT_ENABLED | Conversation storage & summarization |
 | Voice | VOICE_ENABLED, VOICE_MODEL | Realtime voice (enable + model); latency-lean tool set (memory_search + optional lightweight product search) |
 | Taxonomy | TAXONOMY_* | Category/cuisine generation & classification |
 
@@ -455,21 +437,23 @@ Indexes: HNSW for vectors, GIN for FTS, btree for lookup & retention scans.
 ## 14. API Surface (Representative)
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
-| /chat | POST | Single-turn continuity chat (previous_response_id optional) |
+| /health | GET | Liveness/readiness check |
+| /chat | POST | Single-turn chat (previous_response_id optional) |
 | /threads | POST | Create conversation thread |
-| /threads | GET | List recent threads (default limit 10) |
+| /threads | GET | List recent threads |
 | /threads/{id} | GET | Get thread metadata (title, counts, timestamps) |
 | /threads/{id}/title | PUT | Rename thread (update title) |
-| /threads/{id} | DELETE | Delete thread (transcript + in-memory cache) |
-| /threads/{id}/messages | POST | Append message + get assistant response |
-| /threads/{id}/messages/stream | POST | Streaming assistant response |
-| /threads/{id}/messages | GET | Paged history (text mode) |
-| /memory/search | POST | (Optional) Expose memory_search tool via REST |
-| /memory/profile | PATCH | Update user profile (write-only) |
-| /voice/stream | WS | Bidirectional audio/text (voice mode) |
-| /health | GET | Liveness/readiness |
+| /threads/{id} | DELETE | Delete thread and history |
+| /threads/{id}/messages | POST | Send message + get assistant response (non-streaming) |
+| /threads/{id}/messages/stream | POST | Send message + get streaming assistant response |
+| /threads/{id}/messages | GET | Get paginated message history |
+| /files/upload | POST | Upload file for code interpreter (returns file_id) |
+| /files/{file_id}/content | GET | Download generated file content |
+| /artifacts/{artifact_id} | GET | Retrieve custom HTML visualization artifact |
+| /voice/{thread_id} | WS | Bidirectional voice interaction (WebSocket) |
+| /debug/user-profile/{user_id} | GET | Debug endpoint for user profile inspection |
 
-All protected (when auth enabled) except /health.
+All endpoints protected (when AUTH_ENABLED=true) except /health.
 
 ---
 
@@ -584,20 +568,44 @@ Incremental feature development notes and decision rationale maintained in `Impl
 - **Framework**: FastAPI
 - **Environment Management**: uv (for virtual environments and packages)
 - **Configuration**: python-dotenv for environment variables
-- **AI Service**: Azure OpenAI Service or OpenAI API
+- **AI Service**: Azure OpenAI Service or OpenAI API (unified client)
 - **Data Validation**: Pydantic models
 - **Testing**: pytest
+- **Template Engine**: Jinja2 (for prompt templates)
+
+**Database & Storage:**
+- **Database**: PostgreSQL 16+
+- **Vector Search**: pgvector extension
+- **Full-Text Search**: PostgreSQL native FTS with unaccent
+- **Graph Database**: Apache AGE (for knowledge graph)
+- **Embeddings**: OpenAI text-embedding-3-large (2000 dimensions)
 
 **Frontend:**
-- **Framework**: React
-- **UI Library**: assistant-ui (for chat interface)
-- **Build Tool**: Vite (recommended for React projects)
+- **Framework**: React 18
+- **UI Library**: assistant-ui (chat interface)
+- **Component Library**: shadcn/ui + Tailwind CSS
+- **Build Tool**: Vite
 - **Runtime Configuration**: JavaScript file for environment-specific settings
+- **TypeScript**: For type safety
+
+**Authentication:**
+- **Identity Provider**: Keycloak (OIDC/OAuth2)
+- **Token Type**: JWT with RS256
+- **Frontend Flow**: Authorization Code + PKCE
+- **Backend Validation**: JWT verification via JWKS
+
+**Tools & Integration:**
+- **MCP Protocol**: For external tool integration
+- **Farmer Tools**: Utility MCP server (time, weather, seasonal tips)
+- **Stock API**: REST API for inventory queries
+- **Tavily**: Remote MCP for web search
+- **Visualization Generator**: MCP for custom HTML generation
 
 **Development Tools:**
-- **Package Management**: pyproject.toml (no requirements.txt)
-- **Code Quality**: Follow project coding standards
-- **Documentation**: Docstrings for all public methods and classes
+- **Package Management**: pyproject.toml (uv-managed, no requirements.txt)
+- **Code Quality**: Python logging, docstrings for all public APIs
+- **Deployment**: Docker, docker-compose for local development
+- **Infrastructure as Code**: Terraform (Azure deployment)
 
 ---
 
@@ -622,29 +630,73 @@ CORS_ORIGINS=http://localhost:3000
 # OPENAI_API_VERSION=preview
 # OPENAI_MODEL=your-azure-deployment-name
 
+# Logging & Performance
+LOG_LEVEL=INFO
+REASONING_EFFORT=low
+
+# Memory Features (granular flags)
+CONVERSATION_STORE_ENABLED=true
+MEMORY_SEARCH_ENABLED=true
+USER_PROFILE_ENABLED=true
+
+# Voice / Realtime API
+VOICE_ENABLED=false
+
+# Code Interpreter Feature
+ENABLE_CODE_INTERPRETER=false
+CODE_INTERPRETER_CONTAINER_TYPE=auto
+
 # RAG Configuration
 ENABLE_RAG=true
-RAG_SIMILARITY_THRESHOLD=0.7
+RAG_SIMILARITY_THRESHOLD=0.3
 RAG_MAX_RESULTS=3
+
+# Semantic Cache (First-Turn Accelerator)
+SEMANTIC_CACHE_ENABLED=true
+SEMANTIC_CACHE_SIMILARITY_THRESHOLD=0.8
 
 # PostgreSQL Configuration
 PGHOST=localhost
 PGPORT=5432
 PGDATABASE=aidb
 PGUSER=admin
-PGPASSWORD=Admin12345678
+PGPASSWORD=your-password
 
 # Embeddings (use same unified scheme)
 OPENAI_EMBEDDING_MODEL=text-embedding-3-large
 
-# Authentication / Authorization
-REQUIRE_AUTH=false
-KEYCLOAK_ISSUER=https://keycloak.local/realms/dreamfarm
-KEYCLOAK_AUDIENCE=dreamfarm-frontend
+# Remote MCP Tools (Farmer Tools)
+FARMER_TOOLS_ENABLED=true
+FARMER_TOOLS_MCP_URL=https://farmer-tools.example.org/mcp
+FARMER_TOOLS_MCP_API_KEY=your-key
 
-# Agentic Search (function/tool based retrieval)
-ENABLE_AGENTIC_SEARCH=false
-AGENTIC_MAX_RESULTS=5
+# Remote MCP Tools (Tavily Search)
+TAVILY_ENABLED=true
+TAVILY_API_KEY=your-key
+
+# Remote MCP Tools (Visualization Generator)
+VISUALIZATION_MCP_ENABLED=false
+VISUALIZATION_MCP_URL=https://viz-gen.example.org/mcp
+VISUALIZATION_MCP_API_KEY=your-key
+
+# Local Stock Tool
+STOCK_TOOL_ENABLED=true
+STOCK_API_URL=http://localhost:8011
+
+# Authentication (Keycloak)
+AUTH_ENABLED=true
+KEYCLOAK_URL=http://localhost:8080
+KEYCLOAK_REALM=dreamfarm
+KEYCLOAK_AUDIENCE=account
+
+# Agentic Search (tool-based retrieval)
+AGENTIC_SEARCH_ENABLED=true
+AGENTIC_SEARCH_MAX_RESULTS=10
+
+# Graph Search (Apache AGE traversal tools)
+GRAPH_SEARCH_ENABLED=true
+AGE_GRAPH_NAME=dreamfarm
+GRAPH_DFS_MAX_RESULTS=10
 ```
 
 **Frontend (Runtime Configuration):**
@@ -691,11 +743,9 @@ This abstraction allows the same codebase to work with both providers seamlessly
 
 ## 22. Retrieval & Search Architecture
 
-The platform provides two complementary retrieval modes:
+The platform provides multiple complementary retrieval modes:
 1. Hybrid RAG (semantic + keyword fusion) – prompt inlined context blocks (internal fusion logic)
-2. Agentic tool-based iterative search (function calling) – LLM chooses which retrieval tool(s) to call (no backend fusion)
-
-Planned augmentation (Lesson 4 end):
+2. Agentic tool-based iterative search (function calling) – LLM chooses which retrieval tool(s) to call
 3. Graph (Cypher) traversal tools – breadth-first taxonomy expansion and depth-first similarity exploration over Apache AGE graph
 
 VIP fencing (row-level filtering) currently applies only to the agentic tool-based retrieval path; hybrid RAG remains unrestricted (shows full catalog) unless extended later.
@@ -728,10 +778,10 @@ The DreamFarm Agent includes a hybrid RAG system combining semantic + full‑tex
 - Vector similarity + FTS search
 - Reciprocal Rank Fusion (RRF) combiner
 - Result formatting + prompt injection
-- Feature flags: `ENABLE_RAG`, interplay with `ENABLE_AGENTIC_SEARCH`
+- Feature flags: `ENABLE_RAG`, interplay with `AGENTIC_SEARCH_ENABLED`
 
 ### 22.2. Agentic Tool-Based Retrieval (Function Calling)
-Enabled via `ENABLE_AGENTIC_SEARCH=true`. The LLM receives two retrieval tool schemas and decides dynamically which (and how many times) to invoke; the backend does not merge or rerank across tool outputs—each call returns an independent result set the model can reference in subsequent reasoning.
+Enabled via `AGENTIC_SEARCH_ENABLED=true`. The LLM receives two retrieval tool schemas and decides dynamically which (and how many times) to invoke; the backend does not merge or rerank across tool outputs—each call returns an independent result set the model can reference in subsequent reasoning.
 
 Tools (JSON schema arguments):
 - `semantic_search(text: string)` -> returns `{ results: [ { product_id, product_name, producer_name, score, is_vip } ] }` (semantic vector similarity, HyDE capable)
@@ -774,7 +824,7 @@ Notes
 - Additional btree indexes on product_id, producer_name, and product_name for lookups.
 - Full-text search enabled via generated column `fts_combined` + GIN index (unaccent + simple config).
 
-### 22.4. Full-Text Search (FTS) Enhancement (Lesson 1 Hybrid Add-On)
+### 22.4. Full-Text Search (FTS) Enhancement
 Hybrid support: `fts_combined` (trigger-maintained due to unaccent immutability) + GIN index for keyword fallback alongside vector search. Extension: `unaccent`.
 
 ---
@@ -834,7 +884,7 @@ Future Enhancements:
 
 ## 24. Database and Knowledge Graph Schema (production-ready)
 
-This section specifies the target schema for production, extending the Lesson 1 "simple_products" with a richer `products` table for hybrid search, a `stock` table, and a knowledge graph using Apache AGE.
+This section specifies the target schema for production, with a richer `products` table for hybrid search, a `stock` table, and a knowledge graph using Apache AGE.
 
 ### 24.1. Products (relational, hybrid search)
 
@@ -933,7 +983,7 @@ Relational ↔ Graph integration (recommended pattern)
   2) Use those IDs as parameters to a Cypher query for traversals/enrichment (e.g., producers, certifications, similar products) and optionally re‑rank.
   3) Join the `cypher(...)` results with relational tables on the `productId`/`producerId` properties.
 
-### 24.4. Detailed Taxonomy & Cuisine Enrichment Specification (Lesson 4)
+### 24.4. Detailed Taxonomy & Cuisine Enrichment Specification
 
 Goals
 - Introduce two higher‑level concept layers (Category, Cuisine) above raw products to enable semantic grouping, faceted exploration, recommendation pivots, and richer natural‑language answers (e.g., "These cheeses fit Italian Mediterranean salads").
@@ -1071,34 +1121,37 @@ AGE operational notes
 
 ## 25. Thread/Session Management Strategy
 
-For Lesson 1, we implement a simple session API consumed by the frontend while keeping conversation state on the provider via the Responses API:
+The system implements a hybrid session API that combines lightweight thread handles with provider-side conversation state via the Responses API.
 
 ### 25.1. Session Lifecycle
 1. **Create Session**: Frontend calls `POST /threads` to get a session handle (`thread_id`)
 2. **Send Messages**: Frontend sends messages via `POST /threads/{thread_id}/messages`
 3. **Server-side State**: Backend calls OpenAI Responses API with `store=True` and remembers only the last `response_id` per `thread_id` to continue with `previous_response_id` on the next turn
-4. **History (Optional)**: Backend maintains a lightweight in-memory message list for UI display only; content is not used to generate responses
-5. **Persistence**: In-memory for Lesson 1; later lessons may add DB/Redis for durability
+4. **History**: Backend maintains an in-memory message list for UI display; content is not used to generate responses (Responses API maintains actual conversation state)
+5. **Persistence**: Thread metadata and history stored in-memory; conversation state persisted by Responses API; optional database persistence for raw conversations when CONVERSATION_STORE_ENABLED=true
 
-### 25.2. Data Storage (Lesson 1)
+### 25.2. Data Storage
 ```python
-# In-memory storage for simplicity
-threads: Dict[str, Thread] = {}
-messages: Dict[str, List[Message]] = {}  # thread_id -> messages (display only)
-last_response_id: Dict[str, str] = {}    # thread_id -> last response_id for Responses API continuity
+# In-memory storage (main.py)
+_threads: dict[str, ThreadModel] = {}
+_history: dict[str, list[MessageModel]] = {}  # thread_id -> messages (display only)
+_last_response_id: dict[str, str] = {}    # thread_id -> last response_id for continuity
+_semantic_cache_bootstrap: dict[str, dict] = {}  # First-turn cache per thread
+_generated_file_registry: dict[str, dict] = {}  # Code interpreter file metadata
+_html_artifact_registry: dict[str, dict] = {}  # Custom UI artifact storage
 
-# Later lessons will replace with:
-# - PostgreSQL for persistent storage
-# - Redis for session caching
-# - User authentication and authorization
+# Optional database persistence (when CONVERSATION_STORE_ENABLED=true):
+# - PostgreSQL conversations_raw table: Full conversation transcripts
+# - PostgreSQL conversation_summaries table: Semantic search over past conversations
+# - PostgreSQL user_profiles table: User personalization data
 ```
 
 ### 25.3. Benefits of Hybrid Session API
-- **Stateless**: Each request is independent, easier to scale
+- **Stateless HTTP**: Each request is independent, easier to scale
 - **Provider State**: Uses Responses API server-side state via `previous_response_id`
 - **OpenAI Compatible**: Aligns with Responses API conversation model
 - **Frontend Friendly**: Easy for React to manage conversation state
-- **Future Ready**: Can easily add user sessions, persistence, sharing
+- **Optional Persistence**: Memory features can be enabled/disabled independently
 - **Debugging**: Easy to inspect conversation history
 
 ### 25.4. API Endpoints
@@ -1117,7 +1170,6 @@ Uses Responses API with `store=true` and `previous_response_id` for continuity.
   "previous_response_id": "string (optional)"
 }
 ```
-- The stream may include meta lines prefixed with `DF_META:` containing JSON entries that describe tool usage or reasoning summaries. Clients should treat those as telemetry, not as assistant text, and display them separately if desired.
 
 **Response:**
 ```json
@@ -1127,6 +1179,8 @@ Uses Responses API with `store=true` and `previous_response_id` for continuity.
   "timestamp": "string (ISO 8601)"
 }
 ```
+
+**Note**: Stream responses may include meta lines prefixed with `DF_META:` containing JSON telemetry about tool usage or reasoning. Clients should display these separately from assistant text.
 
 #### 25.4.2. POST /threads
 Create a new conversation thread.
@@ -1203,7 +1257,8 @@ Send a message in a conversation thread.
 **Request Body:**
 ```json
 {
-  "message": "string"
+  "message": "string",
+  "attachments": ["file_id1", "file_id2"]  // optional, for code interpreter
 }
 ```
 
@@ -1304,12 +1359,13 @@ class ThreadRenameRequest(BaseModel):
 class Message(BaseModel):
     message_id: str
     thread_id: str
-  role: str  # "user" | "assistant"
+    role: str  # "user" | "assistant"
     content: str
     timestamp: str
 
 class SendMessageRequest(BaseModel):
     message: str
+    attachments: list[str] = []  # file_ids from /files/upload
 
 class SendMessageResponse(BaseModel):
     message_id: str
@@ -1318,13 +1374,7 @@ class SendMessageResponse(BaseModel):
     assistant_response: str
     timestamp: str
 
-class GetMessagesResponse(BaseModel):
-    thread_id: str
-    messages: List[Message]
-    total_count: int
-```
-
-#### 25.5.4. Health (Pydantic)
+#### 25.5.5. Health (Pydantic)
 ```python
 class HealthResponse(BaseModel):
     status: str
@@ -1338,34 +1388,96 @@ class HealthResponse(BaseModel):
 ```
 advanced-ai-applications/
 ├── agents/
+│   ├── AGENTS.md                   # Agent development guidelines
 │   └── dreamfarm-agent/            # Main DreamFarm marketplace agent
 │       ├── src/
 │       │   ├── main.py             # FastAPI app (routes, CORS)
-│       │   ├── models/             # Pydantic models (chat, thread, health)
-│       │   ├── services/           # OpenAI, RAG, config, templates
-│       │   ├── templates/          # Jinja2 prompts
-│       │   └── utils/
-│       ├── tests/
-│       ├── docs/
-│       └── scripts/
+│       │   ├── models/             # Pydantic models
+│       │   │   ├── chat.py         # Chat request/response models
+│       │   │   ├── thread.py       # Thread and message models
+│       │   │   ├── file.py         # File upload models
+│       │   │   └── health.py       # Health check models
+│       │   ├── services/           # Business logic services
+│       │   │   ├── openai_service.py       # OpenAI/Azure OpenAI integration
+│       │   │   ├── rag_service.py          # Retrieval-augmented generation
+│       │   │   ├── config_service.py       # Configuration management
+│       │   │   ├── template_service.py     # Jinja2 prompt templates
+│       │   │   ├── agentic_search.py       # Tool-based search
+│       │   │   ├── semantic_cache_service.py # First-turn cache
+│       │   │   ├── stock_service.py        # Stock API integration
+│       │   │   ├── auth_service.py         # JWT authentication
+│       │   │   ├── conversation_store.py   # Raw conversation persistence
+│       │   │   ├── memory_search_service.py # Memory recall tool
+│       │   │   ├── user_profile_service.py  # User profile management
+│       │   │   ├── graph_search_service.py  # Apache AGE graph tools
+│       │   │   ├── thread_service.py        # Thread management
+│       │   │   └── voice_service.py         # Voice/realtime API
+│       │   ├── templates/          # Jinja2 prompt templates
+│       │   └── utils/              # Helper utilities
+│       ├── tests/                  # pytest test suite
+│       ├── docs/                   # Agent-specific documentation
+│       ├── scripts/                # Utility scripts
+│       ├── pyproject.toml          # uv package configuration
+│       ├── .env.template           # Environment variable template
+│       └── README.md               # Agent setup and usage
 ├── data/
-│   ├── processed/                  # Generated data (e.g., Parquet)
-│   ├── scripts/                    # ETL, embeddings, import
-│   └── source_json/                # Sample source data
+│   ├── AGENTS.md                   # Data folder guidelines
+│   ├── processed/                  # Generated data (Parquet, embeddings)
+│   ├── scripts/                    # ETL, embeddings, import scripts
+│   │   └── sql/                    # SQL schema files
+│   ├── source_json/                # Sample source data
+│   ├── images/                     # Image assets
+│   ├── videos/                     # Video assets
+│   ├── PDFs/                       # PDF documents
+│   └── user_upload/                # User-uploaded files (code interpreter)
 ├── deploy/
-│   ├── azure/
-│   ├── kubernetes/
+│   ├── AGENTS.md                   # Deployment guidelines
+│   ├── azure/                      # Azure deployment (Terraform)
+│   │   ├── mcp_tools/              # MCP tool infrastructure
+│   │   └── README.md
+│   ├── kubernetes/                 # Kubernetes manifests
 │   └── local/                      # docker-compose and local setup
 ├── frontend/
 │   ├── public/                     # Runtime config (config.js), assets
-│   ├── src/                        # React app (components, services)
-│   └── scripts/
-├── docs/                           # Design and project docs (contents not listed)
-├── lessons/                        # Instructions for individual lessons
-├── scripts/                        # Miscellaneous scripts such as cherry pick script
-├── postgresql/                     # PostgreSQL database Dockerfile for creating image with extensions binaries
-├── tools/                          # AI tools such as MCP servers and APIs
-└── (root files not listed)
+│   ├── src/                        # React app source
+│   │   ├── components/             # UI components
+│   │   │   ├── thread.tsx          # Chat thread component
+│   │   │   ├── thread-list.tsx     # Thread list sidebar
+│   │   │   ├── markdown-text.tsx   # Markdown renderer
+│   │   │   ├── file-upload-button.tsx # File upload
+│   │   │   ├── voice-button.tsx    # Voice interaction
+│   │   │   ├── visualization-artifact.tsx # HTML artifact renderer
+│   │   │   └── ui/                 # shadcn/ui components
+│   │   └── services/               # API clients and adapters
+│   │       ├── api.ts              # DreamFarm Agent API client
+│   │       ├── auth.ts             # Authentication service
+│   │       └── chatAdapter.ts      # assistant-ui adapter
+│   ├── scripts/                    # Build and deployment scripts
+│   ├── package.json                # npm dependencies
+│   └── README.md                   # Frontend setup and usage
+├── docs/                           # Project-wide documentation
+│   ├── Design.md                   # Architecture and design (this file)
+│   ├── ImplementationLog.md        # Implementation history and decisions
+│   └── CommonErrors.md             # Troubleshooting guide
+├── identity/                       # Keycloak setup and provisioning
+├── lessons/                        # Educational lesson materials
+│   ├── AGENTS.md
+│   ├── L00_prep/
+│   ├── L01_chat_with_simple_rag/
+│   ├── L02_tools/
+│   ├── L03_kb/
+│   ├── L04_agentic_search/
+│   ├── L05_memory_and_voice/
+│   ├── L06_adhoc_coding/
+│   └── L07_orchestration/
+├── postgresql/                     # PostgreSQL Dockerfile with extensions
+├── scripts/                        # Miscellaneous utility scripts
+├── tools/                          # AI tools (MCP servers and APIs)
+│   ├── api_stock/                  # Stock REST API
+│   ├── mcp_public_farmer_tools/    # Farmer utility MCP server
+│   └── mcp_visualization_generator/ # HTML visualization MCP server
+├── AGENTS.md                       # Root agent development guidelines
+└── README.md                       # Project overview
 ```
 
 ---
@@ -1377,17 +1489,17 @@ advanced-ai-applications/
 - **LLM Integration**: Azure OpenAI Service or OpenAI API communication
 - **Session API**: Lightweight `/threads` endpoints for session handles; Responses API maintains conversation state
 - **Business Logic**: Dream Farm marketplace domain logic
-- **MCP Integration**: Tool calling and coordination (Lesson 2+)
+- **MCP Integration**: Tool calling and coordination with remote MCP servers
 - **CORS Handling**: Frontend communication
 - **API Endpoints**: All REST endpoints for the Dream Farm application
-- **Agent Orchestration**: Coordinate with other agents (Lesson 8+)
+- **Agent Orchestration**: Can coordinate with other agents in multi-agent scenarios
 
-### 27.2. Future Agents (Later Lessons)
-- **Chef Agent** (Lesson 8): Specialized agent for cooking/catering services
+### 27.2. Future Agents
+- **Chef Agent**: Specialized agent for cooking/catering services
 - **Other Domain Agents**: Additional specialized agents as business grows
 
-### 27.3. Infrastructure (Later Lessons)
-- **nginx/Envoy** (Lesson 10): For production load balancing, SSL, static files
+### 27.3. Infrastructure
+- **nginx/Envoy**: For production load balancing, SSL, static files
 - **Authentication**: Can be added as middleware to agents or separate service
 
 ---
@@ -1397,12 +1509,12 @@ advanced-ai-applications/
 ### 28.1. MCP vs REST API Decision
 
 **Use MCP Protocol for:**
-- RAG/knowledge base queries (Lesson 3+)
-- Web search integration (Lesson 2)
-- External API integrations (Lesson 2)
+- RAG/knowledge base queries
+- Web search integration
+- External API integrations
 - Data processing tools
-- Knowledge graph queries (Lesson 4)
-- Multi-agent communication (Lesson 8)
+- Knowledge graph queries
+- Multi-agent communication
 
 **Use Direct Integration for:**
 - Database connections (PostgreSQL with pgvector)
@@ -1429,7 +1541,7 @@ Tools live under `tools/` (standalone services / MCP servers) or as internal fun
 
 - mcp_public_farmer_tools (MCP, Python)
   - Purpose: simple utility/tooling for the assistant without external dependencies.
-  - Implementation: Python using the MCP server library; exposed over stdio for local development and pluggable into the agent (Lesson 2+).
+  - Implementation: Python using the MCP server library; exposed over stdio for local development and pluggable into the agent.
   - Tools
     - get_current_time() -> string current time in ISO 8601
     - get_seasonal_tips() -> list of up to 10 typical seasonal products for the current period (mocked, e.g., strawberries in summer)
@@ -1454,7 +1566,7 @@ No backend fusion: model may call tools multiple times and integrate / compare r
 
 Telemetry: Each invocation emits `DF_META` line (`search_tool_call`) with counts pre/post VIP filter.
 
-### 28.5. Graph Traversal Retrieval (Planned – Lesson 4 Final Task)
+### 28.5. Graph Traversal Retrieval
 
 Objective: Expose the knowledge graph (Apache AGE) as an additional retrieval surface complementary to vector/FTS tools, enabling the LLM to:
 - Start from abstract user intent → hypothesize likely higher‑level concepts (categories, cuisines, allergens, certifications) → fan out to candidate products (breadth-first taxonomy expansion).
@@ -1709,11 +1821,11 @@ Testing Strategy:
 - Integration tests (flagged): require running AGE-enabled PostgreSQL; will skip if `ENABLE_GRAPH_SEARCH` false or AGE absent.
 - Performance smoke: assert BFS/DFS tool calls complete under threshold on sample dataset.
 
-Documentation: This section formalizes design prior to implementation; code will adhere to schemas & flags above.
+**Tavily Remote MCP (Web Search):**
   - Purpose: real-time internet search and extraction to augment answers beyond local data.
   - Integration: connect to Tavily’s remote MCP server as an MCP tool in the LLM call. Server URL: `https://mcp.tavily.com/mcp/?tavilyApiKey=<your-api-key>` (requires a Tavily API key).
   - Capabilities: search, extract, map, crawl (we primarily use `tavily-search` and `tavily-extract`).
-  - Notes: used only when web context is needed; disabled by default in early lessons to keep flows deterministic.
+  - Notes: used only when web context is needed; disabled by default to keep flows deterministic in controlled environments.
 
 ---
 
@@ -1762,7 +1874,7 @@ This pattern enables:
 
 ## 30. Development Workflow
 
-1. **DreamFarm Agent Setup** (Start here for Lesson 1):
+1. **DreamFarm Agent Setup**:
    - Use `uv` to create virtual environment and install dependencies
    - Configure `.env` file with Azure OpenAI or OpenAI credentials and CORS origins
    - Run with `uv run python -m uvicorn src.main:app --reload --port 8001`
@@ -1772,17 +1884,17 @@ This pattern enables:
    - For local development: configure `public/config.js` with DreamFarm Agent URL (port 8001)
    - Run with development server on port 3000
 
-3. **MCP Tools Setup** (Lesson 2+):
+3. **MCP Tools Setup**:
    - Each MCP server runs as separate process/container
    - DreamFarm Agent connects to MCP servers via MCP protocol
    - Tools can be developed and deployed independently
 
-4. **Multi-Agent Setup** (Lesson 8+):
+4. **Multi-Agent Setup**:
    - Chef Agent runs as separate service
    - DreamFarm Agent orchestrates communication between agents
    - Each agent can have its own MCP tools
 
-5. **Production Deployment** (Lesson 10):
+5. **Production Deployment**:
    - Optional: Add nginx/Envoy for load balancing and SSL
    - Deploy to Kubernetes with proper service discovery
    - Use infrastructure as code (Terraform)
@@ -1795,7 +1907,7 @@ This pattern enables:
 - No hardcoded credentials in source code
 - CORS configuration for frontend-backend communication
 - Input validation using Pydantic models
-- JWT verification (Keycloak) when `REQUIRE_AUTH=true`
+- JWT verification (Keycloak) when `AUTH_ENABLED=true`
 - Role / VIP enforcement at data access layer (defense-in-depth; currently only applied to agentic tool queries)
 
 ### 31.1. Authentication & Authorization
@@ -1805,330 +1917,21 @@ Keycloak provides OIDC tokens with roles; backend middleware validates JWT (issu
 
 ## 32. Future Enhancements
 
-This basic architecture will be extended with:
-- RAG (Retrieval-Augmented Generation) with PostgreSQL and pgvector
-- MCP (Model Context Protocol) for external tools
-- Multimodal capabilities (voice, images, documents)
-- Knowledge graphs and advanced search
-- Multi-agent systems
-- Security and evaluation frameworks
-- Kubernetes deployment and observability
+Potential areas for future expansion:
+- **Advanced Graph Analytics**: More sophisticated graph traversal algorithms, centrality measures, community detection
+- **Multi-Agent Orchestration**: Specialized agents for different domains (Chef Agent for recipes, Nutritionist Agent, etc.)
+- **Advanced Observability**: Distributed tracing, performance analytics, cost attribution
+- **Persistent Code Execution**: Long-running analysis containers, notebook-style interactions
+- **Collaborative Features**: Shared threads, team workspaces, collaborative analysis
+- **Enhanced Security**: Advanced PII detection, audit logging, compliance reporting
+- **Production Deployment**: Kubernetes orchestration, auto-scaling, blue-green deployments
+- **Evaluation Framework**: Automated quality metrics, A/B testing, retrieval relevance scoring
 
 ---
 
-## 33. Lesson 5 – Memory & Real Voice Chat Architecture
+## 33. Code Execution & Dynamic UI Generation
 
-Lesson 5 introduces two major capability families: (1) Long‑term & contextual memory (conversation retention, semantic recall, user profile personalization) and (2) Real Voice Chat (hands‑free interaction). Both are designed with strict user isolation (row‑level fencing) and modular feature flags to remain optional in lower environments.
-
-### 33.1. Memory Overview
-
-Memory is divided into three distinct layers, each with clear lifecycle & access semantics:
-
-| Layer | Purpose | Storage | Access by Model | Tool(s) | Retention |
-|-------|---------|---------|-----------------|---------|-----------|
-| Raw Conversation Log | Auditable replay, summarization source | `conversations_raw` (1 row per conversation) | Not injected directly | None (internal only) | 7 days (configurable) |
-| Summarized Conversations | Semantic recall of past topics | `conversation_summaries` | Via `memory_search` tool (fenced by user) | memory_search | Indefinite (configurable) |
-| User Profile | Stable personalization facts (diet, allergens, likes) | `user_profiles` | ALWAYS injected (truncated) in system prompt | memory_write_profile (write‑only) + batch enrichment | Until deletion |
-
-Design Principle: The model never “browses” raw message transcripts; it queries only distilled summaries (privacy & token efficiency). Profile injection is read-only from model perspective; writes require explicit tool invocation or scheduled batch inference.
-
-### 33.2. Database Schemas (Memory Tables)
-
-#### 33.2.1. `conversations_raw`
-Schema for raw conversation transcripts used for summarization and retention.
-
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| id | serial | PK | Surrogate key |
-| thread_id | text | not null, UNIQUE | External conversation / thread handle |
-| user_id | text | not null, indexed | Auth subject (Keycloak `sub`) |
-| title | text | not null | can be changed by user |
-| messages | jsonb | not null | Array of minimal objects `{role, content}` (ordering defines chronology) |
-| summary_status | text | not null default 'pending' | CHECK: pending | processing | done | error |
-| created_at | timestamptz | default now() | Creation time |
-| updated_at | timestamptz | default now() | Updated by trigger |
-| expires_at | timestamptz | default now()+7 days, indexed | Retention cutoff |
-
-Indexes: user_id, expires_at, summary_status. Trigger maintains `updated_at`.
-
-#### 33.2.2. `conversation_summaries`
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| id | UUID | PK | |
-| thread_id | text | FK -> conversations_raw(thread_id) ON DELETE CASCADE | External stable handle |
-| user_id | text | not null, indexed | Redundant for fenced search |
-| summary | text | not null | ≤ ~120 words neutral recap |
-| embedding | vector(2000) | not null | pgvector (summary embedding) |
-| created_at | timestamptz | default now() | |
-| updated_at | timestamptz | default now() | |
-
-Indexes: HNSW on `embedding (cosine)`, `(user_id, created_at DESC)`, UNIQUE(user_id, thread_id) to ensure a single summary per thread.
-
-#### 33.2.3. `user_profiles`
-| Column | Type | Constraints | Notes |
-|--------|------|-------------|-------|
-| user_id | text | PK | |
-| profile | jsonb | not null | Flexible schema (see structure) |
-| updated_at | timestamptz | default now() | Refresh on merge |
-| version | integer | default 1 | For future migrations |
-
-JSON Structure (example):
-```json
-{
-  "dietary_preferences": ["vegetarian"],
-  "allergens": ["peanuts"],
-  "liked_products": ["<uuid>", "<uuid>"] ,
-  "disliked_products": [],
-  "favorite_categories": ["fresh-cheese-d4f2"],
-  "goals": ["reduce sugar"],
-  "notes": "Prefers local dairy options.",
-  "last_enriched_at": "2025-09-12T10:00:00Z"
-}
-```
-
-Merge Semantics: set-union for list fields, overwrite for scalars/notes. Controlled by backend (model cannot read profile raw).
-
-#### 33.2.4. `memory_enrichment_audit` (optional, enabled if `MEMORY_AUDIT_ENABLED=true`)
-| Column | Type | Notes |
-|--------|------|-------|
-| id | UUID | PK |
-| user_id | text | Indexed |
-| conversation_id | UUID | Nullable (null if batch synthetic) | (May be renamed to thread_id in future migration for consistency) |
-| change_set | jsonb | Captures diff / applied patch |
-| created_at | timestamptz | Timestamp |
-
-### 33.3. Tool Interfaces
-
-#### 33.3.1. `memory_search`
-Function-call / tool schema:
-```json
-{
-  "name": "memory_search",
-  "description": "Search your past conversation summaries (only your own) to recall earlier context.",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "query": {"type": "string", "description": "Natural language description of what to recall"},
-      "k": {"type": "integer", "default": 5, "minimum": 1, "maximum": 10}
-    },
-    "required": ["query"]
-  }
-}
-```
-Execution Flow:
-1. Embed `query` with same embedding model as summaries.
-2. Vector similarity restricted by `user_id = current_user` (STRICT FENCING — enforced in SQL, not left to LLM).
-3. Return top `k` results with: `thread_id`, `summary`, `age_days`.
-4. NO raw messages are ever returned.
-
-#### 33.3.2. `memory_write_profile`
-Write-only patch; model supplies structured update, backend merges & persists.
-```json
-{
-  "name": "memory_write_profile",
-  "description": "Add or update stable user preference facts (diet, allergens, likes). The tool cannot read current profile.",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "dietary_preferences_add": {"type": "array", "items": {"type": "string"}},
-      "allergens_add": {"type": "array", "items": {"type": "string"}},
-      "liked_products_add": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-fA-F-]{36}$"}},
-      "disliked_products_add": {"type": "array", "items": {"type": "string", "pattern": "^[0-9a-fA-F-]{36}$"}},
-      "goals_add": {"type": "array", "items": {"type": "string"}},
-      "notes_append": {"type": "string", "description": "Short freeform note to append"}
-    }
-  }
-}
-```
-Backend merges arrays with set semantics (dedupe, case-normalize) and appends note (bounded length, e.g. +500 chars max growth per call). Returns `{ "status": "ok", "applied": { ... } }` (model sees confirmation only).
-
-### 33.4. System Prompt Injection (Profile)
-
-At conversation start (and optionally every N turns if updated) we inject a compact profile block:
-```
-<user_profile>
-dietary_preferences: vegetarian
-allergens: peanuts
-favorite_categories: fresh-cheese-d4f2
-goals: reduce sugar
-notes: Prefers local dairy options.
-</user_profile>
-```
-Truncation Rules:
-- Hard cap: `USER_PROFILE_MAX_TOKENS` (default 250 tokens). If exceeded: drop least recently referenced fields (order: `liked_products`, `disliked_products`, `notes` tail) until under limit.
-- Updated profile within a session triggers updated injection next turn (memoized hashed snapshot to avoid re-sending identical prompt content if not required).
-
-### 33.5. Summarization & Batch Pipeline
-
-Script: `data/scripts/summarize_conversations.py` (planned).
-
-Processing Criteria:
-- Select rows from `conversations_raw` where `summary_status='pending'` AND (`ended_at` < now() - interval '5 minutes' OR inactive for > N minutes) AND age < retention.
-
-LLM Structured Output Schema:
-```json
-{
-  "conversation_title": "Up to 8 words",
-  "summary": "<= 120 words neutral recap (no hallucinated facts)",
-  "profile_updates": {
-    "dietary_preferences_add": [],
-    "allergens_add": [],
-    "liked_products_add": [],
-    "disliked_products_add": [],
-    "goals_add": [],
-    "notes_append": ""
-  }
-}
-```
-
-Pipeline Steps:
-1. Fetch candidate conversations.
-2. For each, call model with compressed conversation (messages clipped if extremely long; keep last 30 turns + earlier system & first user messages).
-3. Validate JSON against schema; on failure mark `summary_status='failed'` (retryable with `--retry-failed`).
-4. Compute embedding for `summary`; insert into `conversation_summaries`.
-5. Update `conversations_raw.title`, `summary_status='done'`.
-6. Apply `profile_updates` via same merge logic as tool; record diff in `memory_enrichment_audit` if enabled.
-
-Idempotency: Script skips if `summary_status='done'` unless `--force` specified.
-
-### 33.6. Retention & Purging
-
-Policy (default): Raw conversations purged after `MEMORY_CONVERSATION_RETENTION_DAYS` (default 7). Summaries retained indefinitely unless `MEMORY_SUMMARY_RETENTION_DAYS` set (optional). Purge script (`data/scripts/purge_memory.py`) executes:
-```sql
-DELETE FROM conversations_raw WHERE expires_at < now();
--- Optional summary purge
-DELETE FROM conversation_summaries WHERE created_at < now() - INTERVAL '<days> days';
-```
-Cascade ensures summaries removed if raw conversation deleted and FK ON DELETE CASCADE chosen. (If summaries should outlive raw logs, FK uses ON DELETE SET NULL; we retain cascade for simpler alignment and privacy.)
-
-### 33.7. Security & Fencing
-
-- All memory search queries constrain by `user_id` at SQL layer (no cross-user exposure).
-- Tool descriptions explicitly state “only your own conversations.”
-- Batch enrich process uses the same user_id seeded; never aggregates across users.
-- Profile injection sanitized (strip control chars, enforce UTF-8, length bounds). No secrets stored.
-- Optional audit table for regulatory traceability of profile mutation.
-
-### 33.8. Privacy Considerations
-
-| Risk | Mitigation |
-|------|------------|
-| Model infers other users’ data | Strict `WHERE user_id = :current_user` on vector search |
-| Over-collection / retention | 7‑day raw log purge + configurable summary retention |
-| Prompt bloat / leakage | Token cap & field prioritization for profile block |
-| Uncontrolled profile drift | Controlled merge semantics + audit diffs |
-| Hallucinated profile updates | Require explicit tool call OR batch schema fields; validation of categories (allowlist for diet/allergens) |
-
-### 33.9. Voice Chat Architecture
-
-Goal: Minimal, robust voice-only conversational mode (no mixing text + voice mid-session) delivering real-time or near-real-time audio responses while preserving a text transcript stored like any other conversation.
-
-#### 33.9.1. Modes
-1. **Text Mode** (existing) – unchanged.
-2. **Voice Mode** – separate session; UI toggles “Start Voice Chat” which establishes a WebSocket (preferred) or HTTP streaming connection.
-
-#### 33.9.2. MVP Flow (Low Complexity – Batch Turn Streaming)
-1. Browser captures microphone chunks (e.g., 16kHz mono PCM) → periodically sends to backend `/voice/stream` WebSocket.
-2. Backend performs incremental Speech-to-Text (STT) using streaming Whisper (or chunked fallback) producing interim transcript segments.
-3. On user pause (VAD silence or push-to-talk release) backend finalizes transcript, appends as user message, runs standard model response pipeline (including RAG/agentic/memory as configured – may be restricted for latency) and obtains text reply.
-4. Text reply synthesized via TTS (OpenAI `gpt-5-voice` style or fallback TTS model) to audio frames streamed back over the same WebSocket.
-5. Raw audio NOT stored; only transcript + assistant text stored in `conversations_raw` (same retention).
-
-#### 33.9.3. Future (Optional) Realtime API Integration
-Abstract service to swap STT + TTS with unified Realtime model (bi-directional low-latency tokens + audio). This requires expanded event loop management; out-of-scope for initial implementation but design leaves upgrade path (WebSocket abstraction preserved).
-
-#### 33.9.4. Latency Optimization Options
-- Disable high-latency tools in voice mode by default (`VOICE_ALLOW_AGENTIC_TOOLS=false`).
-- Memory search allowed (fast, single pgvector call) – gated by `VOICE_ENABLE_MEMORY_SEARCH=true`.
-- If latency target unmet: fallback to semantic cache for first utterance, skip RAG if cache hit.
-
-#### 33.9.5. Voice Session Identification
-- Voice sessions produce the same minimal `{role, content}` objects; any modality metadata (e.g. voice) is tracked outside the persisted messages to keep storage lean.
-- Additional column `mode` (ENUM text) could be added to `conversations_raw` for analytics (values: `text`, `voice`).
-
-### 33.10. Environment Variables (New)
-
-| Variable | Default | Purpose |
-|----------|---------|---------|
-| MEMORY_ENABLED | true | Master feature flag |
-| MEMORY_CONVERSATION_RETENTION_DAYS | 7 | Raw log retention |
-| MEMORY_SUMMARY_RETENTION_DAYS | (unset) | Optional summary purge |
-| MEMORY_SUMMARY_MODEL | (chat model) | Override summarization model |
-| MEMORY_SUMMARY_BATCH_LIMIT | 50 | Summaries per batch run |
-| MEMORY_SUMMARY_MIN_AGE_MINUTES | 5 | Avoid summarizing active convos |
-| USER_PROFILE_MAX_TOKENS | 250 | Prompt budget for profile block |
-| MEMORY_AUDIT_ENABLED | false | Enable audit table writes |
-| VOICE_ENABLED | false | Enable voice endpoints/UI |
-| VOICE_MODEL | gpt-5-voice | TTS/STT integrated model (placeholder) |
-| VOICE_ALLOW_AGENTIC_TOOLS | false | Permit agentic tool calling during voice |
-| VOICE_ENABLE_MEMORY_SEARCH | true | Allow memory_search in voice mode |
-| STT_ENGINE | whisper | STT provider (whisper / external) |
-| TTS_ENGINE | openai | TTS provider |
-| VAD_MIN_SILENCE_MS | 1200 | Silence threshold to finalize utterance |
-
-### 33.11. Services & Components Additions
-
-| Component | Responsibility |
-|-----------|----------------|
-| MemoryRepository | CRUD for conversations, summaries, profiles |
-| MemoryService | High-level orchestration (store turn, fetch profile, search, write) |
-| MemorySummarizer (script + lib) | Batch summarization & enrichment |
-| ProfileInjector | Builds/truncates `<user_profile>` block |
-| VoiceSessionManager | WebSocket orchestration, VAD, buffering, STT segmentation |
-| STTAdapter / TTSAdapter | Pluggable interfaces (OpenAI Whisper / TTS) |
-
-### 33.12. API Additions
-
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/memory/search` | POST | (Optional REST surface) returns same payload as tool (auth required) |
-| `/memory/profile` | PATCH | Apply profile updates (mirror of tool for UI forms) |
-| `/voice/stream` | WS | Bidirectional audio+events (MVP chunked text fallback) |
-| `/voice/health` | GET | STT/TTS readiness check |
-
-### 33.13. Sequence – User Turn with Memory & Voice (Text Mode)
-```
-User Message -> (Check semantic cache if first turn) -> Persist message draft -> Inject profile -> RAG / Tools / Memory tool calls -> Model response -> Persist assistant turn -> (Optionally schedule summarization if conversation ended) -> Return stream
-```
-
-### 33.14. Failure Handling & Edge Cases
-| Case | Handling |
-|------|----------|
-| Summarization failure | Mark failed, retain raw, retry later |
-| Oversized profile | Truncate fields with deterministic order, log WARN once per session |
-| memory_search no hits | Return empty list + encourage user to be more specific |
-| STT partial errors | Skip segment, continue; if fatal send user error event |
-| Tool latency in voice | Abort tool after timeout & proceed with partial answer (log DF_META) |
-
-### 33.15. Testing Strategy (Outline)
-| Layer | Tests |
-|-------|-------|
-| Unit | Profile merge, memory_search SQL fencing, summary schema validation |
-| Integration | End-to-end summarization on fixture conversations, voice transcript round-trip (mock STT/TTS) |
-| Property | Set-union idempotency for profile list fields |
-| Performance | memory_search P95 under threshold (e.g., < 60ms on dev dataset) |
-| Security | Attempt cross-user search -> zero results |
-
-### 33.16. Implementation Order Justification
-1. Schemas & migrations (enables incremental dev)
-2. Persistence layer & profile injection (unblocks conversation storage immediately)
-3. Batch summarizer (creates searchable memory dataset)
-4. memory_search tool (provides retrieval value quickly)
-5. memory_write_profile tool (personalization feedback loop)
-6. Voice streaming endpoint (isolated concerns; can piggyback storage)
-7. Latency tuning & optional constraints
-
-### 33.17. Non-Goals (Lesson 5 Scope)
-- Cross-user collaborative memory (explicitly out-of-scope)
-- Vector search over full raw message content (summary-level only)
-- Real-time token-by-token audio synthesis (initial MVP uses chunked playback)
-- Automated privacy redaction (manual policy; future work could add PII filters)
-
----
-
-## 34. Code Execution & Dynamic UI Generation
-
-### 34.1. Overview & Capabilities
+### 33.1. Overview & Capabilities
 
 **Purpose**: Enable data analysis and dynamic visualization generation by:
 1. Allowing LLM to execute Python code for calculations, chart generation, and file processing
@@ -2145,9 +1948,9 @@ User Message -> (Check semantic cache if first turn) -> Persist message draft ->
 - "Create a dashboard card showing top 3 products by sales" → LLM generates interactive HTML card with animations
 - "Make an infographic comparing organic vs conventional produce prices" → Custom visual generated on-the-fly
 
-### 34.2. Architecture Components
+### 33.2. Architecture Components
 
-#### 34.2.1. Code Interpreter (Built-in Responses API)
+#### 33.2.1. Code Interpreter (Built-in Responses API)
 
 **Technology Choice**: Azure OpenAI Responses API `code_interpreter` tool
 - **Why**: Managed sandboxed Python environment, production-ready, integrated with Responses API
@@ -2165,7 +1968,7 @@ Container Lifecycle:
 
 **Pricing**: Additional charges beyond token costs (per container-hour)
 
-#### 34.2.2. Adhoc UI Generation (Custom MCP Tool)
+#### 33.2.2. Adhoc UI Generation (Custom MCP Tool)
 
 **Flow**:
 ```
@@ -2191,15 +1994,15 @@ Frontend renders in sandboxed iframe
    - Renders in sandboxed iframe with `srcdoc` attribute
    - Applies security constraints
 
-### 34.3. Security Model
+### 33.3. Security Model
 
-#### 34.3.1. Code Interpreter Security
+#### 33.3.1. Code Interpreter Security
 - **Isolation**: Code runs in separate container, no access to agent host
 - **File Scope**: Only accesses uploaded files, generated files stay in container
 - **Network**: Limited/no outbound access (depends on Azure OpenAI configuration)
 - **Timeout**: Execution timeouts prevent runaway processes
 
-#### 34.3.2. Dynamic HTML Security (Defense in Depth)
+#### 33.3.2. Dynamic HTML Security (Defense in Depth)
 
 **Layer 1 - Generation Constraints**:
 ```python
@@ -2255,9 +2058,9 @@ function escapeSrcDoc(html: string): string {
 }
 ```
 
-### 34.4. Data Models & Message Types
+### 33.4. Data Models & Message Types
 
-#### 34.4.1. Code Interpreter Messages
+#### 33.4.1. Code Interpreter Messages
 ```typescript
 // File upload (existing assistant-ui pattern)
 type FileMessage = {
@@ -2282,7 +2085,7 @@ type CodeInterpreterResult = {
 };
 ```
 
-#### 34.4.2. Custom UI Messages
+#### 33.4.2. Custom UI Messages
 ```typescript
 type CustomUIMessage = {
   role: 'assistant';
@@ -2298,9 +2101,9 @@ type CustomUIMessage = {
 };
 ```
 
-### 34.5. Tool Definitions
+### 33.5. Tool Definitions
 
-#### 34.5.1. Code Interpreter Tool (Responses API Built-in)
+#### 33.5.1. Code Interpreter Tool (Responses API Built-in)
 ```python
 # In agent initialization
 tools = [
@@ -2334,7 +2137,7 @@ Use it when user asks for:
 - Proxy downloads from Azure Files API on-demand, serves with inline display headers
 - Frontend markdown rendering auto-displays images via replaced URLs
 
-#### 34.5.2. Generate Infographic Tool (Custom MCP)
+#### 33.5.2. Generate Infographic Tool (Custom MCP)
 ```python
 {
     "name": "generate_infographic",
@@ -2366,11 +2169,11 @@ Use it when user asks for:
 }
 ```
 
-### 34.6. Implementation Files
+### 33.6. Implementation Files
 
 This section is deprecated as the feature was not implemented. The general project structure is described in section 26.
 
-### 34.7. Environment Configuration
+### 33.7. Environment Configuration
 
 ```bash
 # .env additions
@@ -2381,9 +2184,9 @@ HTML_SANITIZER_STRICT=true
 MAX_CUSTOM_UI_SIZE_KB=200
 ```
 
-### 34.8. Frontend Integration
+### 33.8. Frontend Integration
 
-#### 34.8.1. File Upload Component
+#### 33.8.1. File Upload Component
 ```tsx
 <FileUpload
   accept=".csv,.xlsx,.json,.txt,.pdf"
@@ -2401,7 +2204,7 @@ MAX_CUSTOM_UI_SIZE_KB=200
 />
 ```
 
-#### 34.8.2. Custom UI Renderer
+#### 33.8.2. Custom UI Renderer
 ```tsx
 function CustomUIMessage({ html }: { html: string }) {
   const escapedHtml = escapeSrcDoc(html);
@@ -2432,7 +2235,7 @@ function CustomUIMessage({ html }: { html: string }) {
 }
 ```
 
-### 34.9. Reference Implementation: Weight Tracking Analysis
+### 33.9. Reference Implementation: Weight Tracking Analysis
 
 **User Journey Example**
 
@@ -2494,7 +2297,7 @@ function CustomUIMessage({ html }: { html: string }) {
    </div>
    ```
 
-### 34.10. Testing Strategy
+### 33.10. Testing Strategy
 
 | Test Type | Coverage |
 |-----------|----------|
@@ -2505,7 +2308,7 @@ function CustomUIMessage({ html }: { html: string }) {
 | Security | Verify iframe sandbox blocks parent access |
 | E2E | User uploads file → gets analysis → requests dashboard → sees rendered UI |
 
-### 34.11. Monitoring & Observability
+### 33.11. Monitoring & Observability
 
 ```python
 # DF_META events
@@ -2526,7 +2329,7 @@ DF_META {
 }
 ```
 
-### 34.12. Known Limitations & Future Work
+### 33.12. Known Limitations & Future Work
 
 **Current Limitations**:
 - Code interpreter timeout: ~1 minute per execution
