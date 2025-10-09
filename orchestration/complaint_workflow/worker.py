@@ -22,7 +22,9 @@ with workflow.unsafe.imports_passed_through():
         classify_complaint_activity,
         extract_complaint_info_activity,
         fetch_user_profile_activity,
-        decide_complaint_validity_activity
+        decide_complaint_validity_activity,
+        generate_user_message_activity,
+        generate_review_packet_activity
     )
 
 
@@ -58,13 +60,15 @@ async def main() -> None:
             classify_complaint_activity,
             extract_complaint_info_activity,
             fetch_user_profile_activity,
-            decide_complaint_validity_activity
+            decide_complaint_validity_activity,
+            generate_user_message_activity,
+            generate_review_packet_activity
         ],
     )
     
     logger.info(f"Worker started, listening on task queue: {TASK_QUEUE_NAME}")
     logger.info("Registered workflows: ComplaintWorkflow")
-    logger.info("Registered activities: classify_complaint, extract_complaint_info, fetch_user_profile, decide_complaint_validity")
+    logger.info("Registered activities: classify, extract, fetch_profile, decide, generate_message, generate_review")
     
     # Run the worker (blocks until interrupted)
     await worker.run()

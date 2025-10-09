@@ -111,15 +111,30 @@ class DecisionOutput(BaseModel):
 
 
 class UserMessage(BaseModel):
-    """Generated user-facing message."""
-    text: str = Field(description="Message content")
-    tone: str = Field(default="professional", description="Message tone")
+    """Generated user-facing message for VALID or NOT_VALID decisions."""
+    subject: str = Field(description="Email subject line")
+    message: str = Field(description="Full message content to send to user")
+    tone: str = Field(description="Message tone: apologetic, professional, firm, etc.")
 
 
 class ReviewPacket(BaseModel):
-    """Human review packet for escalated complaints."""
-    summary: str = Field(description="Brief case summary")
-    details: dict = Field(default_factory=dict, description="Full context")
+    """Human review packet for escalated complaints (HUMAN_REVIEW)."""
+    summary: str = Field(description="Brief 2-3 sentence case summary")
+    arguments_for_approval: list[str] = Field(
+        description="List of points supporting complaint approval"
+    )
+    arguments_against_approval: list[str] = Field(
+        description="List of points suggesting complaint should be rejected"
+    )
+    recommended_action: str = Field(
+        description="Suggested action for human reviewer with reasoning"
+    )
+    priority: str = Field(
+        description="Priority level: high, medium, low"
+    )
+    customer_context: str = Field(
+        description="Relevant customer history and profile information"
+    )
 
 
 class WorkflowResult(BaseModel):

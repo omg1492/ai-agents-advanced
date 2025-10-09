@@ -34,7 +34,9 @@ with workflow.unsafe.imports_passed_through():
         classify_complaint_activity,
         extract_complaint_info_activity,
         fetch_user_profile_activity,
-        decide_complaint_validity_activity
+        decide_complaint_validity_activity,
+        generate_user_message_activity,
+        generate_review_packet_activity
     )
     from models import ComplaintIn
 
@@ -113,7 +115,7 @@ async def process_complaint(client: Client, complaint: ComplaintIn, name: str):
 async def main():
     """Run demo with all example complaints, managing its own worker."""
     print("\n" + "=" * 80)
-    print("COMPLAINT WORKFLOW DEMO - Steps 1-5 Implementation")
+    print("COMPLAINT WORKFLOW DEMO - Complete Implementation")
     print("=" * 80)
     print()
     print("This demo processes example complaints through:")
@@ -122,6 +124,7 @@ async def main():
     print("  ✓ Step 3: LLM extraction (products, order_id, reason, evidence)")
     print("  ✓ Step 4: Fetch user profile (segment, loyalty, score - mocked)")
     print("  ✓ Step 5: LLM decision (VALID/NOT_VALID/HUMAN_REVIEW with policy)")
+    print("  ✓ Step 6: LLM resolution (user message or review packet)")
     print()
     print("=" * 80)
     print()
@@ -154,7 +157,9 @@ async def main():
             classify_complaint_activity,
             extract_complaint_info_activity,
             fetch_user_profile_activity,
-            decide_complaint_validity_activity
+            decide_complaint_validity_activity,
+            generate_user_message_activity,
+            generate_review_packet_activity
         ]
     )
     

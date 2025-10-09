@@ -12,10 +12,12 @@ from activities import (
     extract_complaint_info_activity,
     fetch_user_profile_activity,
     decide_complaint_validity_activity,
+    generate_user_message_activity,
+    generate_review_packet_activity,
     ACTIVITY_TIMEOUT,
     ACTIVITY_RETRY_POLICY
 )
-from models import ComplaintIn, TerminalStatus, WorkflowResult
+from models import ComplaintIn, TerminalStatus, WorkflowResult, Action
 
 # Task queue constant (shared with worker)
 TASK_QUEUE_NAME = "complaint-workflow-queue"
@@ -125,12 +127,49 @@ class ComplaintWorkflow:
             f"reason={decision.reason[:100]}..."
         )
         
-        # TODO: Phase 5 (resolution - generate user message or review packet)
+        # Phase 5: Generate resolution (user message or review packet)
+        if decision.action == Action.VALID or decision.action == Action.NOT_VALID:
+            # Generate user-facing message
+            user_message_obj = await workflow.execute_activity(
+                generate_user_message_activity,
+                args=[decision, extraction, user_profile],
+                start_to_close_timeout=ACTIVITY_TIMEOUT,
+                retry_policy=ACTIVITY_RETRY_POLICY
+            )
+            
+            workflow.logger.info(
+                f"Generated user message: {workflow_id}, "
+                f"tone={user_message_obj.tone}, subject={user_message_obj.subject}"
+            )
+            
+            workflow.logger.info(f"Completed complaint workflow: {workflow_id}")
+            return WorkflowResult(
+                complaint_id=workflow_id,
+                terminal_status=TerminalStatus.COMPLETED,
+                action=decision.action,
+                reason=decision.reason,
+                user_message=user_message_obj.message
+            )
         
-        workflow.logger.info(f"Completed complaint workflow: {workflow_id}")
-        return WorkflowResult(
-            complaint_id=workflow_id,
-            terminal_status=TerminalStatus.COMPLETED,
-            action=decision.action,
-            reason=decision.reason
-        )
+        else:  # HUMAN_REVIEW
+            # Generate review packet for human evaluator
+            review_packet = await workflow.execute_activity(
+                generate_review_packet_activity,
+                args=[decision, extraction, user_profile],
+                start_to_close_timeout=ACTIVITY_TIMEOUT,
+                retry_policy=ACTIVITY_RETRY_POLICY
+            )
+            
+            workflow.logger.info(
+                f"Generated review packet: {workflow_id}, "
+                f"priority={review_packet.priority}"
+            )
+            
+            workflow.logger.info(f"Completed complaint workflow: {workflow_id}")
+            return WorkflowResult(
+                complaint_id=workflow_id,
+                terminal_status=TerminalStatus.PENDING_REVIEW,
+                action=decision.action,
+                reason=decision.reason,
+                review_packet_id=f"review-{workflow_id}"
+            )

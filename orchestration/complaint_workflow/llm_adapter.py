@@ -7,11 +7,14 @@ Follows agent patterns from Design.md with async client, error handling, and con
 
 import logging
 import os
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 from openai import AsyncOpenAI
 from openai.types.shared_params import Reasoning
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from models import Action
 
 logger = logging.getLogger(__name__)
 
@@ -298,6 +301,174 @@ Analyze the complaint context and make a decision."""
         except Exception as e:
             logger.error(f"Decision error: {e}", exc_info=True)
             raise ValueError(f"Decision failed: {str(e)}") from e
+    
+    async def generate_user_message(
+        self,
+        action: "Action",
+        context: str,
+        response_schema: type[BaseModel]
+    ) -> BaseModel:
+        """
+        Generate user-facing message for VALID or NOT_VALID decisions.
+        
+        Args:
+            action: Decision action (VALID or NOT_VALID)
+            context: Formatted context including decision and complaint details
+            response_schema: Pydantic model for UserMessage
+        
+        Returns:
+            UserMessage with subject, message content, and tone
+        
+        Raises:
+            ValueError: If response parsing fails
+        """
+        if action.value == "VALID":
+            system_prompt = """You are a customer service message generator for a farm-to-table marketplace.
+
+Generate an apologetic, professional message for an APPROVED complaint.
+
+INSTRUCTIONS FOR VALID (APPROVED) COMPLAINTS:
+✓ Start with sincere apology for the issue
+✓ Acknowledge the specific problem (broken items, spoiled produce, etc.)
+✓ Confirm we take full responsibility
+✓ State clear resolution: full refund OR replacement (your choice based on context)
+✓ Mention timeframe (refund in 3-5 business days, replacement shipped within 24 hours)
+✓ Thank customer for bringing this to attention
+✓ Emphasize quality commitment
+✓ For premium customers (gold/platinum), add extra gesture (discount on next order)
+✓ Warm, empathetic tone but remain professional
+
+TONE: Apologetic, empathetic, solution-focused
+SUBJECT: Should be concise and positive (e.g., "We're Taking Care of This")
+MESSAGE: 3-5 paragraphs, warm but professional
+
+Example:
+Subject: We're Sorry - Your Refund is Processed
+Message: Dear Valued Customer, We sincerely apologize for receiving damaged products...
+
+Generate the message now."""
+
+        else:  # NOT_VALID
+            system_prompt = """You are a customer service message generator for a farm-to-table marketplace.
+
+Generate a firm but respectful message for a REJECTED complaint.
+
+INSTRUCTIONS FOR NOT_VALID (REJECTED) COMPLAINTS:
+✗ Be respectful and professional, never dismissive
+✗ Explain the reason for rejection clearly (reference policy)
+✗ If applicable, educate about natural product variation
+✗ Specify what additional information could lead to reconsideration:
+  - Photos showing the actual issue
+  - More specific description of the problem
+  - Order details for verification
+✗ Provide alternative options (exchange guidelines, quality standards)
+✗ Invite them to contact customer service if they have questions
+✗ Keep door open for legitimate future complaints
+
+TONE: Professional, firm, educational (not cold or dismissive)
+SUBJECT: Clear but not harsh (e.g., "Regarding Your Recent Inquiry")
+MESSAGE: 3-4 paragraphs, maintain respect while being clear
+
+Example:
+Subject: Regarding Your Recent Inquiry
+Message: Thank you for contacting us. After reviewing your case, we found that...
+
+Generate the message now."""
+
+        try:
+            response = await self.client.responses.parse(
+                model=self.model,
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": context}
+                ],
+                text_format=response_schema,
+                reasoning=Reasoning(effort=self.reasoning_effort)
+            )
+            
+            if not response.output_parsed:
+                raise ValueError("No parsed output in response")
+            
+            result = response.output_parsed
+            logger.info(f"User message generated: tone={result.tone}")
+            
+            return result
+        
+        except Exception as e:
+            logger.error(f"User message generation error: {e}", exc_info=True)
+            raise ValueError(f"User message generation failed: {str(e)}") from e
+    
+    async def generate_review_packet(
+        self,
+        context: str,
+        response_schema: type[BaseModel]
+    ) -> BaseModel:
+        """
+        Generate structured review packet for human evaluation of escalated complaints.
+        
+        Args:
+            context: Formatted context including decision reason and full complaint details
+            response_schema: Pydantic model for ReviewPacket
+        
+        Returns:
+            ReviewPacket with structured review information
+        
+        Raises:
+            ValueError: If response parsing fails
+        """
+        system_prompt = """You are a case preparation assistant for human reviewers in a complaint handling system.
+
+Generate a structured review packet for HUMAN_REVIEW (escalated) cases.
+
+INSTRUCTIONS:
+1. SUMMARY: Write 2-3 sentences summarizing the core issue and why it's borderline
+2. ARGUMENTS FOR APPROVAL: List 3-5 specific points supporting the customer's claim
+   - Product quality issues mentioned
+   - Customer history (good score, low complaint rate)
+   - Evidence provided
+   - Safety concerns
+   - Premium customer status
+3. ARGUMENTS AGAINST APPROVAL: List 3-5 specific points suggesting rejection
+   - Vague descriptions
+   - Lack of evidence
+   - Suspicious patterns in customer behavior
+   - Subjective preferences vs. defects
+   - Policy boundaries
+4. RECOMMENDED ACTION: Your suggested decision with 2-3 sentence reasoning
+   Options: "Approve with full refund", "Approve with partial refund", "Approve with replacement only", "Reject with explanation", "Request additional information"
+5. PRIORITY: 
+   - high: Food safety, premium customers, time-sensitive
+   - medium: Standard quality issues, moderate value
+   - low: Minor issues, low-value items
+6. CUSTOMER CONTEXT: Relevant background on customer (segment, loyalty, history)
+
+TONE: Objective, balanced, analytical
+FORMAT: Professional internal document for decision-maker
+
+The review packet should enable a human to quickly understand the situation and make an informed decision."""
+
+        try:
+            response = await self.client.responses.parse(
+                model=self.model,
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": context}
+                ],
+                text_format=response_schema,
+                reasoning=Reasoning(effort=self.reasoning_effort)
+            )
+            
+            if not response.output_parsed:
+                raise ValueError("No parsed output in response")
+            
+            result = response.output_parsed
+            logger.info(f"Review packet generated: priority={result.priority}")
+            
+            return result
+        
+        except Exception as e:
+            logger.error(f"Review packet generation error: {e}", exc_info=True)
+            raise ValueError(f"Review packet generation failed: {str(e)}") from e
 
 
 # Singleton instance (lazy initialization)

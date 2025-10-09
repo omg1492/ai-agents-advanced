@@ -12,7 +12,15 @@ from temporalio import activity
 from temporalio.common import RetryPolicy
 
 from llm_adapter import get_llm_adapter
-from models import ComplaintClassification, ComplaintExtraction, UserProfile, ComplaintDecision
+from models import (
+    ComplaintClassification,
+    ComplaintExtraction,
+    UserProfile,
+    ComplaintDecision,
+    UserMessage,
+    ReviewPacket,
+    Action
+)
 
 logger = logging.getLogger(__name__)
 
@@ -259,6 +267,159 @@ USER PROFILE:
     except Exception as e:
         logger.error(
             f"ORCH_PHASE=decide_error workflow_id={workflow_id} "
+            f"error={str(e)}"
+        )
+        raise
+
+
+@activity.defn(name="generate_user_message")
+async def generate_user_message_activity(
+    decision: ComplaintDecision,
+    extraction: ComplaintExtraction,
+    user_profile: UserProfile
+) -> UserMessage:
+    """
+    Generate user-facing message for VALID or NOT_VALID decisions.
+    
+    - VALID: Apologize and confirm refund/replacement
+    - NOT_VALID: Explain why complaint was rejected and what info could change decision
+    
+    Args:
+        decision: Complaint decision with action and reason
+        extraction: Extracted complaint information
+        user_profile: User profile data
+    
+    Returns:
+        UserMessage with subject, message, and tone
+    
+    Activity configuration:
+        - schedule_to_close_timeout: 30 seconds
+        - retry_policy: max_attempts=3, initial_interval=1s, backoff=2.0
+    """
+    workflow_id = activity.info().workflow_id
+    logger.info(
+        f"ORCH_PHASE=generate_message workflow_id={workflow_id} "
+        f"action={decision.action}"
+    )
+    
+    try:
+        # Build context for message generation
+        context = {
+            "action": decision.action.value,
+            "decision_reason": decision.reason,
+            "products": extraction.products_involved or [],
+            "order_id": extraction.order_id,
+            "complaint_reason": extraction.reason or "Not specified",
+            "user_segment": user_profile.segment,
+            "loyalty_level": user_profile.loyalty_level
+        }
+        
+        context_text = f"""
+DECISION: {context['action']}
+DECISION REASONING: {context['decision_reason']}
+
+COMPLAINT DETAILS:
+- Products: {', '.join(context['products']) if context['products'] else 'Not specified'}
+- Order ID: {context['order_id'] or 'Not provided'}
+- Issue: {context['complaint_reason']}
+
+CUSTOMER:
+- Segment: {context['user_segment']}
+- Loyalty: {context['loyalty_level']}
+"""
+        
+        adapter = get_llm_adapter()
+        message = await adapter.generate_user_message(
+            action=decision.action,
+            context=context_text,
+            response_schema=UserMessage
+        )
+        
+        logger.info(
+            f"ORCH_PHASE=generate_message_complete workflow_id={workflow_id} "
+            f"tone={message.tone}"
+        )
+        
+        return message
+    
+    except Exception as e:
+        logger.error(
+            f"ORCH_PHASE=generate_message_error workflow_id={workflow_id} "
+            f"error={str(e)}"
+        )
+        raise
+
+
+@activity.defn(name="generate_review_packet")
+async def generate_review_packet_activity(
+    decision: ComplaintDecision,
+    extraction: ComplaintExtraction,
+    user_profile: UserProfile
+) -> ReviewPacket:
+    """
+    Generate human review packet for HUMAN_REVIEW decisions.
+    
+    Creates structured packet with:
+    - Case summary
+    - Arguments for/against approval
+    - Recommended action
+    - Priority level
+    - Customer context
+    
+    Args:
+        decision: Complaint decision with action and reason
+        extraction: Extracted complaint information
+        user_profile: User profile data
+    
+    Returns:
+        ReviewPacket with structured review information
+    
+    Activity configuration:
+        - schedule_to_close_timeout: 30 seconds
+        - retry_policy: max_attempts=3, initial_interval=1s, backoff=2.0
+    """
+    workflow_id = activity.info().workflow_id
+    logger.info(
+        f"ORCH_PHASE=generate_review workflow_id={workflow_id}"
+    )
+    
+    try:
+        # Build comprehensive context for review packet
+        context_text = f"""
+DECISION REASONING (why escalated): {decision.reason}
+
+COMPLAINT DETAILS:
+- Products: {', '.join(extraction.products_involved) if extraction.products_involved else 'Not specified'}
+- Order ID: {extraction.order_id or 'Not provided'}
+- Order Date: {extraction.order_date or 'Not provided'}
+- Issue Description: {extraction.reason or 'Not specified'}
+- Evidence: {extraction.evidence_provided or 'None mentioned'}
+
+USER PROFILE:
+- User ID: {user_profile.user_id}
+- Segment: {user_profile.segment} (loyalty: {user_profile.loyalty_level})
+- User Score: {user_profile.user_score:.1f}/100
+- Order History: {user_profile.total_orders} orders
+- Complaint History: {user_profile.complaint_count} previous complaints ({(user_profile.complaint_count/user_profile.total_orders*100) if user_profile.total_orders > 0 else 0:.1f}% rate)
+- Location: {user_profile.city}, {user_profile.country}
+"""
+        
+        adapter = get_llm_adapter()
+        review_packet = await adapter.generate_review_packet(
+            context=context_text,
+            response_schema=ReviewPacket
+        )
+        
+        logger.info(
+            f"ORCH_PHASE=generate_review_complete workflow_id={workflow_id} "
+            f"priority={review_packet.priority}"
+        )
+        
+        return review_packet
+    
+    except Exception as e:
+        logger.error(
+            f"ORCH_PHASE=generate_review_error workflow_id={workflow_id} "
             f"error={str(e)}"
         )
         raise
