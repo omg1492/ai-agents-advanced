@@ -15,47 +15,6 @@ This plan drives an iterative, test-first implementation of a durable complaint 
 
 Non-goals (for now): actual DB writes, real authZ, multi-order correlation, refund side-effects.
 
----
-## 1. Architectural Boundaries
-Component / Responsibility:
-- Temporal Workflow: Orchestrates state machine & branching; holds no external side-effects directly; deterministic logic only.
-- Activities: Encapsulate side-effects (mock fetch order, fetch profile) and LLM calls (segmented per purpose for observability & caching potential).
-- Rules Module: Pure Python post-processing of LLM structured outputs (validation + guardrails) → unit-testable without Temporal.
-- Policy Artifact: Static markdown / text file injected into decision LLM activity (kept under version control for determinism & auditing).
-- Tests: (a) Pure rule tests (b) Activity contract tests (monkeypatch LLM adapter) (c) Workflow path tests via Temporal test environment.
-
----
-## 2. Directory Structure (to be created incrementally)
-```
-orchestration/
-	complaint_workflow/
-		__init__.py
-		policies/
-			complaint_policies.md
-		models.py
-		rules.py
-		llm_adapter.py            # Thin wrapper (LiteLLM / OpenAI) – swappable, mocked in tests
-		activities.py             # LLM + data fetch activities
-		workflow.py               # Temporal workflow definition
-		worker.py                 # Worker process
-		client_run.py             # Manual trigger / demo script
-		config.py                 # Thresholds, timeouts, task queue name
-		tests/
-			test_rules.py
-			test_activity_decision_parsing.py
-			test_workflow_valid.py
-			test_workflow_needs_more_info.py
-			test_workflow_human_review.py
-```
-
----
-## 3. Temporal / Tooling Setup
-Step 3.1 Install Temporal CLI (developer machine) – one‑time.
-Step 3.2 Start dev server: `temporal server start-dev` (PowerShell).
-Step 3.3 Add Python dependencies (Temporal SDK, pydantic, httpx, lite-llm or openai). Use project-level `pyproject.toml` or an isolated one (decide based on repo conventions; prefer shared if agent already uses OpenAI client libs).
-Step 3.4 Create minimal `workflow.py` + `worker.py` + trivial test workflow returning a constant to validate environment.
-
----
 ## 4. Data & Model Contracts
 Define (Pydantic):
 - ComplaintIn { complaint_id, raw_text, user_id (optional), order_id (optional), order_date (optional), items (optional list[str]), created_at }
