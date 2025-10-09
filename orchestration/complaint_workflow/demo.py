@@ -30,7 +30,11 @@ load_dotenv()
 # Import workflows and activities using sandbox passthrough
 with workflow.unsafe.imports_passed_through():
     from workflow import ComplaintWorkflow, TASK_QUEUE_NAME
-    from activities import classify_complaint_activity
+    from activities import (
+        classify_complaint_activity,
+        extract_complaint_info_activity,
+        fetch_user_profile_activity
+    )
     from models import ComplaintIn
 
 # Configure logging
@@ -108,12 +112,14 @@ async def process_complaint(client: Client, complaint: ComplaintIn, name: str):
 async def main():
     """Run demo with all example complaints, managing its own worker."""
     print("\n" + "=" * 80)
-    print("COMPLAINT WORKFLOW DEMO - Step 1 & 2 Implementation")
+    print("COMPLAINT WORKFLOW DEMO - Steps 1-4 Implementation")
     print("=" * 80)
     print()
     print("This demo processes example complaints through:")
     print("  ✓ Step 1: Load complaint from JSON file")
     print("  ✓ Step 2: LLM classification (is it a complaint?)")
+    print("  ✓ Step 3: LLM extraction (products, order_id, reason, evidence)")
+    print("  ✓ Step 4: Fetch user profile (segment, loyalty, score - mocked)")
     print()
     print("=" * 80)
     print()
@@ -142,7 +148,11 @@ async def main():
         client,
         task_queue=TASK_QUEUE_NAME,
         workflows=[ComplaintWorkflow],
-        activities=[classify_complaint_activity]
+        activities=[
+            classify_complaint_activity,
+            extract_complaint_info_activity,
+            fetch_user_profile_activity
+        ]
     )
     
     # Run worker as background task
@@ -161,7 +171,8 @@ async def main():
         # Process each example complaint
         complaints_dir = Path(__file__).parent / "complaints"
         complaint_files = [
-            ("complaint1.json", "Valid Complaint"),
+            ("complaint1.json", "Valid Complaint - Broken Jar"),
+            ("complaint2.json", "Valid Complaint - Rotten Produce with Photo Evidence"),
             ("non-complaint.json", "Non-Complaint (Inquiry)"),
         ]
         

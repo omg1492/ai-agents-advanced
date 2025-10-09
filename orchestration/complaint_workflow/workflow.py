@@ -7,7 +7,13 @@ and resolution activities. Maintains determinism by delegating side-effects to a
 
 from temporalio import workflow
 
-from activities import classify_complaint_activity, ACTIVITY_TIMEOUT, ACTIVITY_RETRY_POLICY
+from activities import (
+    classify_complaint_activity,
+    extract_complaint_info_activity,
+    fetch_user_profile_activity,
+    ACTIVITY_TIMEOUT,
+    ACTIVITY_RETRY_POLICY
+)
 from models import ComplaintIn, TerminalStatus, WorkflowResult
 
 # Task queue constant (shared with worker)
@@ -74,11 +80,43 @@ class ComplaintWorkflow:
             f"confidence={classification.confidence:.2f}"
         )
         
-        # TODO: Phase 2-5 (field extraction, data fetch, decision, resolution)
+        # Phase 2: Extract complaint information
+        extraction = await workflow.execute_activity(
+            extract_complaint_info_activity,
+            complaint.message,
+            start_to_close_timeout=ACTIVITY_TIMEOUT,
+            retry_policy=ACTIVITY_RETRY_POLICY
+        )
+        
+        workflow.logger.info(
+            f"Extracted info: {workflow_id}, "
+            f"order_id={extraction.order_id}, "
+            f"products={extraction.products_involved}, "
+            f"reason={extraction.reason}"
+        )
+        
+        # Phase 3: Fetch user profile
+        user_profile = await workflow.execute_activity(
+            fetch_user_profile_activity,
+            complaint.user_id,
+            start_to_close_timeout=ACTIVITY_TIMEOUT,
+            retry_policy=ACTIVITY_RETRY_POLICY
+        )
+        
+        workflow.logger.info(
+            f"Fetched user profile: {workflow_id}, "
+            f"user_id={user_profile.user_id}, segment={user_profile.segment}, "
+            f"loyalty={user_profile.loyalty_level}, score={user_profile.user_score:.1f}, "
+            f"orders={user_profile.total_orders}, complaints={user_profile.complaint_count}"
+        )
+        
+        # TODO: Phase 4-5 (decision, resolution)
         
         workflow.logger.info(f"Completed complaint workflow: {workflow_id}")
         return WorkflowResult(
             complaint_id=workflow_id,
             terminal_status=TerminalStatus.COMPLETED,
-            reason="Classified as complaint - pending implementation of remaining phases"
+            reason=f"Extracted complaint info - order_id={extraction.order_id}, "
+                   f"products={len(extraction.products_involved) if extraction.products_involved else 0} items, "
+                   f"user_score={user_profile.user_score:.1f}"
         )

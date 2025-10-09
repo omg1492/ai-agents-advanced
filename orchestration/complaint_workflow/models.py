@@ -42,6 +42,30 @@ class ComplaintClassification(BaseModel):
     confidence: float = Field(ge=0.0, le=1.0, description="Classification confidence 0-1")
 
 
+class ComplaintExtraction(BaseModel):
+    """Extracted information from complaint message using structured output."""
+    products_involved: Optional[list[str]] = Field(
+        default=None,
+        description="List of products mentioned in the complaint, None if not specified"
+    )
+    order_date: Optional[str] = Field(
+        default=None,
+        description="Order date mentioned in the complaint (YYYY-MM-DD format), None if not specified"
+    )
+    order_id: Optional[str] = Field(
+        default=None,
+        description="Order ID/number mentioned in the complaint, None if not specified"
+    )
+    reason: Optional[str] = Field(
+        default=None,
+        description="Main reason/issue described in the complaint, None if unclear"
+    )
+    evidence_provided: Optional[str] = Field(
+        default=None,
+        description="Description of any evidence mentioned (photos, receipts, etc.), None if not mentioned"
+    )
+
+
 class OrderRecord(BaseModel):
     """Mock order data structure."""
     order_id: str
@@ -52,10 +76,18 @@ class OrderRecord(BaseModel):
 
 
 class UserProfile(BaseModel):
-    """Mock user profile data."""
-    user_id: str
-    segment: str = "regular"
-    loyalty_level: str = "bronze"
+    """Mock user profile data from user management system."""
+    user_id: str = Field(description="User identifier")
+    segment: str = Field(description="Customer segment: premium, regular, occasional")
+    loyalty_level: str = Field(description="Loyalty tier: platinum, gold, silver, bronze")
+    city: str = Field(description="User's city")
+    country: str = Field(description="User's country")
+    user_score: float = Field(
+        ge=0.0, le=100.0,
+        description="Internal user quality score (0-100). High score = good customer (many orders, pays on time, positive reviews). Low score = problematic (frequent complaints, late payments, bad reviews)"
+    )
+    total_orders: int = Field(ge=0, description="Total number of orders placed")
+    complaint_count: int = Field(ge=0, description="Number of complaints filed")
 
 
 class DecisionOutput(BaseModel):

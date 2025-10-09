@@ -1,15 +1,25 @@
-# Complaint Handling Workflow
+# Co## Overview
+
+This workflow implements **Steps 1-4** of the complaint handling business process:
+
+1. **Complaint Receipt**: Accept complaint input (message + user_id)
+2. **LLM Classification**: Determine if input is actually a complaint using Azure OpenAI structured outputs
+3. **LLM Extraction**: Extract key information from complaint message (products, order_id, order_date, reason, evidence)
+4. **User Profile Fetch**: Retrieve user profile data (segment, loyalty level, user score, location - currently mocked)
+
+**Current Status**: Steps 1-4 implemented and tested. Steps 5+ (decision-making, resolution) are pending.andling Workflow
 
 Temporal-based complaint handling workflow with Azure OpenAI LLM integration.
 
 ## Overview
 
-This workflow implements **Steps 1-2** of the complaint handling business process:
+This workflow implements **Steps 1-3** of the complaint handling business process:
 
 1. **Complaint Receipt**: Accept complaint input (message + user_id)
 2. **LLM Classification**: Determine if input is actually a complaint using Azure OpenAI structured outputs
+3. **Information Extraction**: Extract structured data from complaint (products, order_id, order_date, reason, evidence)
 
-**Current Status**: Steps 1-2 implemented and tested. Steps 3+ (field validation, data fetching, decision-making) are pending.
+**Current Status**: Steps 1-3 implemented and tested. Steps 4+ (data fetching, decision-making, resolution) are pending.
 
 ## Features
 
@@ -17,7 +27,8 @@ This workflow implements **Steps 1-2** of the complaint handling business proces
 - **Responses API**: Azure OpenAI Responses API with reasoning support and structured outputs
 - **Type Safety**: Pydantic models for all data contracts
 - **Observability**: Structured logging with `ORCH_PHASE` prefixes
-- **Simplified Model**: Minimal input (message + user_id), order details extracted by LLM later
+- **Simplified Model**: Minimal input (message + user_id), order details extracted by LLM
+- **Intelligent Extraction**: LLM extracts structured information with null handling for missing fields
 
 ## Quick Start
 
@@ -122,7 +133,19 @@ uv run python client_run.py complaints/complaint1.json
 }
 ```
 
-**Design Decision**: Simple binary classification at this step. Field extraction and validation will happen in later workflow phases (Steps 3-4).
+### ComplaintExtraction
+
+```python
+{
+  "products_involved": list[str] | None,  # Product names mentioned
+  "order_date": str | None,               # Order date in YYYY-MM-DD format
+  "order_id": str | None,                 # Order ID/number
+  "reason": str | None,                   # Main complaint issue
+  "evidence_provided": str | None         # Mention of photos, receipts, etc.
+}
+```
+
+**Design Decision**: All fields are Optional (can be None if not mentioned in the message). The LLM extracts only what is explicitly stated.
 
 ### WorkflowResult
 

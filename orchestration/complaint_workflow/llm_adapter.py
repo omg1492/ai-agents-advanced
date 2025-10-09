@@ -109,6 +109,68 @@ NOT complaints: general questions, order inquiries, product availability request
         except Exception as e:
             logger.error(f"Classification error: {e}", exc_info=True)
             raise ValueError(f"Classification failed: {str(e)}") from e
+    
+    async def extract(
+        self,
+        text: str,
+        response_schema: type[BaseModel]
+    ) -> BaseModel:
+        """
+        Extract structured information from text using Responses API.
+        
+        Args:
+            text: Input text to extract information from
+            response_schema: Pydantic model defining expected response structure
+        
+        Returns:
+            Instance of response_schema with extracted information
+        
+        Raises:
+            ValueError: If response parsing fails
+        """
+        system_prompt = """You are an information extraction system for customer complaints.
+Extract the following information from the complaint message if present:
+- Products involved (list of product names/types mentioned)
+- Order date (convert to YYYY-MM-DD format if possible)
+- Order ID (any order number or identifier mentioned)
+- Reason for complaint (brief summary of the main issue)
+- Evidence provided (mention of photos, receipts, attachments, etc.)
+
+Important rules:
+1. Only extract information that is explicitly mentioned in the message
+2. If information is not present, set the field to null
+3. For order dates, try to standardize to YYYY-MM-DD format
+4. For products, extract specific product names if mentioned
+5. Keep the reason concise but descriptive"""
+        
+        try:
+            # Use Responses API with structured outputs
+            response = await self.client.responses.parse(
+                model=self.model,
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": text}
+                ],
+                text_format=response_schema,
+                reasoning=Reasoning(effort=self.reasoning_effort)
+            )
+            
+            # Parse structured output
+            if not response.output_parsed:
+                raise ValueError("No parsed output in response")
+            
+            result = response.output_parsed
+            
+            logger.info(
+                f"Extraction completed: order_id={result.order_id}, "
+                f"products={len(result.products_involved) if result.products_involved else 0}"
+            )
+            
+            return result
+        
+        except Exception as e:
+            logger.error(f"Extraction error: {e}", exc_info=True)
+            raise ValueError(f"Extraction failed: {str(e)}") from e
 
 
 # Singleton instance (lazy initialization)
