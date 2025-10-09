@@ -43,7 +43,10 @@ This document describes the **overall architecture** of the Dream Farm AI platfo
   - [15. Tool Specifications (JSON Schemas – Summaries)](#15-tool-specifications-json-schemas--summaries)
   - [16. Observability \& Telemetry](#16-observability--telemetry)
   - [17. Deployment \& Runtime](#17-deployment--runtime)
-  - [18. Extensibility \& Roadmap (Selected)](#18-extensibility--roadmap-selected)
+  - [18. Workflow Orchestration \& Extension Points](#18-workflow-orchestration--extension-points)
+    - [18.1 Complaint Handling Workflow](#181-complaint-handling-workflow)
+    - [18.2 Architecture Extension Points](#182-architecture-extension-points)
+    - [18.3 Glossary (Selected Terms)](#183-glossary-selected-terms)
   - [19. Appendices](#19-appendices)
     - [19.1. Implementation History](#191-implementation-history)
     - [19.2. Related Documentation](#192-related-documentation)
@@ -502,18 +505,50 @@ Logs: single-line structured key=value for graph & memory pipelines. Future: met
 
 ---
 
-## 18. Extensibility & Roadmap (Selected)
-| Area | Near-Term | Future |
-|------|-----------|--------|
-| Retrieval | Add reranker | Multi-vector facets |
-| Graph | Enable similarity edges | Learned graph embeddings |
-| Memory | PII redaction | Cross-session goal evolution analytics |
-| Voice | Realtime streaming tokens | Emotion-aware prosody tuning |
-| Security | Fine-grained data tagging | ABAC / policy engine |
-| Evaluation | Add Langfuse scoring | Automated regression gating |
-| Code Execution | Persistent containers | Multi-step workflow automation |
-| Dynamic UI | Template library | Interactive WebSocket components |
+## 18. Workflow Orchestration & Extension Points
 
+### 18.1 Complaint Handling Workflow
+The platform includes a durable AI‑assisted business workflow (complaint handling) implemented with Temporal to manage multi‑step, stateful resolution paths outside the synchronous chat cycle. Conversational exchanges may trigger a workflow start; subsequent progress occurs independently with reliability features (retries, timers, deterministic replay) inappropriate for ad‑hoc agent loops.
+
+Phases:
+1. Ingest complaint text + optional identifiers.
+2. LLM classification: confirm it is a complaint; otherwise short exit.
+3. Field sufficiency evaluation: user id plus at least one order locator (order id OR (date + item description)).
+4. Missing data → clarification message crafted by LLM; terminal status NEEDS_MORE_INFO.
+5. Sufficient data → fetch (mock) order + (mock) user profile activities.
+6. Decision LLM (context + policies) returns action ∈ {VALID, NOT_VALID, HUMAN_REVIEW} + reason.
+7. VALID / NOT_VALID → LLM crafts final user message; audit event recorded.
+8. HUMAN_REVIEW → LLM produces structured review packet; terminal status PENDING_REVIEW.
+
+Characteristics:
+- Deterministic workflow: branching logic contains no direct side-effects; all external interactions reside in activities.
+- Policy artifact: versioned markdown supplying constraints; aids reproducibility and audit.
+- Structured outputs: JSON schemas (classification, decision, user message, review packet) enable pure unit testing & guardrails.
+- Observability: each activity logs structured key=value lines (complaint_id, phase, action) for timeline reconstruction.
+- Isolation: module (`orchestration/complaint_workflow`) decoupled from chat session lifecycle; avoids tying network requests to long-running operations.
+
+### 18.2 Architecture Extension Points
+This system favors explicit seams over speculative roadmap tables. Core extension points:
+
+| Area | Extension Mechanism | Contract / Boundary | Notes |
+|------|--------------------|----------------------|-------|
+| Retrieval | New ranking signal or reranker | `rag_service` fusion hook returns ranked list | Must accept & return `(id, score)` pairs |
+| Graph | Additional traversal strategy | New function-call tool returning structured JSON | VIP filtering remains post-join |
+| Memory | Extra enrichment sources | Batch pipeline producing profile patch schema | Patches additive & size‑bounded |
+| Voice | Alternate realtime provider | Adapter exposing uniform transcript events | Must not change tool set semantics |
+| Orchestration | New workflow module | Subfolder under `orchestration/`, Temporal registration | Activities own side-effects |
+| Code Execution | New runtime backend | Executor abstraction + artifact interface | Enforce resource/time quotas |
+| Tools | Add MCP server | MCP config list; tool schema docstring | Declare privacy & rate limits |
+| Security | New data fence | SQL predicate injection layer | Fail closed on evaluation errors |
+| Evaluation | Quality metrics / scoring | DF_META consumer or tracing spans | Non-intrusive to prompts |
+
+Extension Design Principles:
+- Inversion of control for external providers (LLM adapter, voice, workflows).
+- Deterministic core: side-effects pushed to activities/tools.
+- Typed schemas for all tool and activity I/O (Pydantic enforced at boundary).
+- Fail-open only for non-critical enhancements (e.g., enrichment signals); fail-closed for security/fencing.
+
+### 18.3 Glossary (Selected Terms)
 | Term | Definition |
 |------|------------|
 | RAG | Retrieval-Augmented Generation – augment LLM with external context |
@@ -526,6 +561,7 @@ Logs: single-line structured key=value for graph & memory pipelines. Future: met
 | Adhoc UI | Dynamically generated HTML components rendered in secure iframes |
 | CSP | Content Security Policy - HTTP header controlling resource loading |
 | srcdoc | iframe attribute for injecting HTML directly (safer than external URLs) |
+| Temporal Orchestration | Durable, code-first workflow engine for stateful business workflows |
 
 ---
 
