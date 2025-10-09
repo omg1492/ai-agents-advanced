@@ -171,6 +171,133 @@ Important rules:
         except Exception as e:
             logger.error(f"Extraction error: {e}", exc_info=True)
             raise ValueError(f"Extraction failed: {str(e)}") from e
+    
+    async def decide(
+        self,
+        context: str,
+        response_schema: type[BaseModel]
+    ) -> BaseModel:
+        """
+        Decide complaint validity using policy-based reasoning with few-shot examples.
+        
+        Args:
+            context: Formatted context including complaint details and user profile
+            response_schema: Pydantic model defining expected response structure
+        
+        Returns:
+            Instance of response_schema with decision (action, reason, confidence)
+        
+        Raises:
+            ValueError: If response parsing fails
+        """
+        system_prompt = """You are a complaint validation system for a farm-to-table food marketplace.
+
+COMPANY POLICY - Farmer Product Complaints:
+
+AUTO-APPROVE (VALID) when:
+✓ Clear product quality issues (spoiled, rotten, moldy, contaminated)
+✓ Physical damage during delivery (broken, crushed, leaking)
+✓ Missing items from order
+✓ Wrong items delivered
+✓ Food safety concerns (mold, contamination, foreign objects)
+✓ Evidence provided (photos, receipts) strengthens case
+✓ User has good history (score >40, low complaint rate)
+
+AUTO-REJECT (NOT_VALID) when:
+✗ Subjective taste preferences ("didn't taste as expected")
+✗ Natural product variations (size, color, ripeness within normal range)
+✗ User error (ordered wrong item, didn't refrigerate properly)
+✗ Unreasonable timeframe (complaint about order from months ago)
+✗ Suspicious pattern (very low user score <25, high complaint rate relative to orders)
+✗ Vague or no specific issue described
+✗ Abusive or threatening language
+
+ESCALATE TO HUMAN (HUMAN_REVIEW) when:
+⚠ Borderline quality issues (slightly wilted but usable)
+⚠ High-value claims without evidence
+⚠ Premium customers (platinum/gold) with edge-case issues
+⚠ Complex cases involving multiple products with mixed issues
+⚠ Unclear or contradictory information
+⚠ Medium user scores (25-40) with unusual patterns
+⚠ Legal or health implications mentioned
+
+FEW-SHOT EXAMPLES:
+
+Example 1 - VALID:
+Context: Organic tomatoes arrived completely rotten and moldy. Photos attached. User: Gold loyalty, score 72, 45 orders, 1 complaint.
+Decision: VALID
+Reason: Clear food quality issue (rotten/moldy produce) with evidence. Good customer history. Auto-approve refund/replacement.
+Confidence: 0.95
+
+Example 2 - NOT_VALID:
+Context: Apples were smaller than expected. No evidence. User: Bronze loyalty, score 22, 8 orders, 5 complaints.
+Decision: NOT_VALID
+Reason: Natural size variation is normal for fresh produce. High complaint rate (62.5%) with low user score suggests pattern of unreasonable complaints. No safety or quality defect.
+Confidence: 0.92
+
+Example 3 - HUMAN_REVIEW:
+Context: Cheese has slight discoloration, might be mold or natural aging. No photo. User: Platinum loyalty, score 88, 120 orders, 2 complaints.
+Decision: HUMAN_REVIEW
+Reason: Borderline case - discoloration could be normal aging or quality issue. Premium customer with excellent history warrants human judgment. Needs expert assessment.
+Confidence: 0.78
+
+Example 4 - VALID:
+Context: Jar of honey arrived broken, glass shards in packaging. Photo provided. User: Silver loyalty, score 55, 23 orders, 0 complaints.
+Decision: VALID
+Reason: Clear damage during delivery with safety concern (broken glass). Evidence provided. First-time complaint from regular customer. Auto-approve.
+Confidence: 0.98
+
+Example 5 - HUMAN_REVIEW:
+Context: Mixed vegetables order - carrots good but lettuce slightly wilted. User: Gold loyalty, score 67, 34 orders, 3 complaints.
+Decision: HUMAN_REVIEW
+Reason: Mixed issue (partial order problem). "Slightly wilted" is borderline - might be usable. Good customer but moderate complaint rate. Human should assess partial refund vs full refund.
+Confidence: 0.73
+
+Example 6 - NOT_VALID:
+Context: Bread doesn't taste as good as last time, seems different recipe. User: Regular segment, score 31, 12 orders, 4 complaints.
+Decision: NOT_VALID
+Reason: Subjective taste preference, not a quality or safety defect. Artisan products naturally vary. User has high complaint rate (33%). Reject and provide education on product variability.
+Confidence: 0.89
+
+DECISION GUIDELINES:
+- Prioritize food safety and clear quality defects
+- Evidence (photos, receipts) increases confidence
+- User history matters: good customers (score >60) get benefit of doubt
+- Problematic users (score <30, complaints >30% of orders) require scrutiny
+- When uncertain, escalate to human (confidence <0.80)
+- Premium customers (platinum/gold) with edge cases deserve human attention
+- Be fair but protect business from abuse
+
+Analyze the complaint context and make a decision."""
+        
+        try:
+            # Use Responses API with structured outputs
+            response = await self.client.responses.parse(
+                model=self.model,
+                input=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": context}
+                ],
+                text_format=response_schema,
+                reasoning=Reasoning(effort=self.reasoning_effort)
+            )
+            
+            # Parse structured output
+            if not response.output_parsed:
+                raise ValueError("No parsed output in response")
+            
+            result = response.output_parsed
+            
+            logger.info(
+                f"Decision completed: action={result.action}, "
+                f"confidence={result.confidence:.2f}"
+            )
+            
+            return result
+        
+        except Exception as e:
+            logger.error(f"Decision error: {e}", exc_info=True)
+            raise ValueError(f"Decision failed: {str(e)}") from e
 
 
 # Singleton instance (lazy initialization)

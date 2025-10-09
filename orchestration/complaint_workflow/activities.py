@@ -12,7 +12,7 @@ from temporalio import activity
 from temporalio.common import RetryPolicy
 
 from llm_adapter import get_llm_adapter
-from models import ComplaintClassification, ComplaintExtraction, UserProfile
+from models import ComplaintClassification, ComplaintExtraction, UserProfile, ComplaintDecision
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +175,91 @@ async def fetch_user_profile_activity(user_id: str) -> UserProfile:
         logger.error(
             f"ORCH_PHASE=fetch_user_profile_error workflow_id={workflow_id} "
             f"user_id={user_id} error={str(e)}"
+        )
+        raise
+
+
+@activity.defn(name="decide_complaint_validity")
+async def decide_complaint_validity_activity(
+    extraction: ComplaintExtraction,
+    user_profile: UserProfile
+) -> ComplaintDecision:
+    """
+    Decide complaint validity using LLM with company policy and few-shot examples.
+    
+    Evaluates complaint against company policy considering:
+    - Product quality issues (freshness, damage, contamination)
+    - User history (loyalty level, user score, past complaints)
+    - Evidence availability
+    - Claim reasonableness
+    
+    Args:
+        extraction: Extracted complaint information
+        user_profile: User profile data
+    
+    Returns:
+        ComplaintDecision with action (VALID/NOT_VALID/HUMAN_REVIEW), reason, and confidence
+    
+    Activity configuration:
+        - schedule_to_close_timeout: 30 seconds
+        - retry_policy: max_attempts=3, initial_interval=1s, backoff=2.0
+    """
+    workflow_id = activity.info().workflow_id
+    logger.info(
+        f"ORCH_PHASE=decide workflow_id={workflow_id} "
+        f"user_score={user_profile.user_score:.1f} segment={user_profile.segment}"
+    )
+    
+    try:
+        # Build context for decision
+        context = {
+            "products": extraction.products_involved or [],
+            "order_id": extraction.order_id,
+            "order_date": extraction.order_date,
+            "reason": extraction.reason or "Not specified",
+            "evidence": extraction.evidence_provided or "None mentioned",
+            "user_segment": user_profile.segment,
+            "loyalty_level": user_profile.loyalty_level,
+            "user_score": user_profile.user_score,
+            "total_orders": user_profile.total_orders,
+            "complaint_count": user_profile.complaint_count,
+            "city": user_profile.city,
+            "country": user_profile.country
+        }
+        
+        # Format context as text for LLM
+        context_text = f"""
+COMPLAINT DETAILS:
+- Products: {', '.join(context['products']) if context['products'] else 'Not specified'}
+- Order ID: {context['order_id'] or 'Not provided'}
+- Order Date: {context['order_date'] or 'Not provided'}
+- Reason: {context['reason']}
+- Evidence: {context['evidence']}
+
+USER PROFILE:
+- Segment: {context['user_segment']} (loyalty: {context['loyalty_level']})
+- User Score: {context['user_score']:.1f}/100 (higher = better customer)
+- Order History: {context['total_orders']} orders, {context['complaint_count']} previous complaints
+- Location: {context['city']}, {context['country']}
+"""
+        
+        adapter = get_llm_adapter()
+        decision = await adapter.decide(
+            context=context_text,
+            response_schema=ComplaintDecision
+        )
+        
+        logger.info(
+            f"ORCH_PHASE=decide_complete workflow_id={workflow_id} "
+            f"action={decision.action} confidence={decision.confidence:.2f}"
+        )
+        
+        return decision
+    
+    except Exception as e:
+        logger.error(
+            f"ORCH_PHASE=decide_error workflow_id={workflow_id} "
+            f"error={str(e)}"
         )
         raise
 

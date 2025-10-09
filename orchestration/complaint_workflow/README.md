@@ -1,13 +1,14 @@
 # Co## Overview
 
-This workflow implements **Steps 1-4** of the complaint handling business process:
+This workflow implements **Steps 1-5** of the complaint handling business process:
 
 1. **Complaint Receipt**: Accept complaint input (message + user_id)
 2. **LLM Classification**: Determine if input is actually a complaint using Azure OpenAI structured outputs
 3. **LLM Extraction**: Extract key information from complaint message (products, order_id, order_date, reason, evidence)
 4. **User Profile Fetch**: Retrieve user profile data (segment, loyalty level, user score, location - currently mocked)
+5. **LLM Decision**: Evaluate complaint validity using company policy with few-shot examples (VALID/NOT_VALID/HUMAN_REVIEW)
 
-**Current Status**: Steps 1-4 implemented and tested. Steps 5+ (decision-making, resolution) are pending.andling Workflow
+**Current Status**: Steps 1-5 implemented and tested. Step 6 (resolution generation) is pending.andling Workflow
 
 Temporal-based complaint handling workflow with Azure OpenAI LLM integration.
 

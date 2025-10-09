@@ -11,6 +11,7 @@ from activities import (
     classify_complaint_activity,
     extract_complaint_info_activity,
     fetch_user_profile_activity,
+    decide_complaint_validity_activity,
     ACTIVITY_TIMEOUT,
     ACTIVITY_RETRY_POLICY
 )
@@ -110,13 +111,26 @@ class ComplaintWorkflow:
             f"orders={user_profile.total_orders}, complaints={user_profile.complaint_count}"
         )
         
-        # TODO: Phase 4-5 (decision, resolution)
+        # Phase 4: Decide complaint validity
+        decision = await workflow.execute_activity(
+            decide_complaint_validity_activity,
+            args=[extraction, user_profile],
+            start_to_close_timeout=ACTIVITY_TIMEOUT,
+            retry_policy=ACTIVITY_RETRY_POLICY
+        )
+        
+        workflow.logger.info(
+            f"Decision made: {workflow_id}, "
+            f"action={decision.action}, confidence={decision.confidence:.2f}, "
+            f"reason={decision.reason[:100]}..."
+        )
+        
+        # TODO: Phase 5 (resolution - generate user message or review packet)
         
         workflow.logger.info(f"Completed complaint workflow: {workflow_id}")
         return WorkflowResult(
             complaint_id=workflow_id,
             terminal_status=TerminalStatus.COMPLETED,
-            reason=f"Extracted complaint info - order_id={extraction.order_id}, "
-                   f"products={len(extraction.products_involved) if extraction.products_involved else 0} items, "
-                   f"user_score={user_profile.user_score:.1f}"
+            action=decision.action,
+            reason=decision.reason
         )

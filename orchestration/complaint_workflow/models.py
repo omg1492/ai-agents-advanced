@@ -66,6 +66,20 @@ class ComplaintExtraction(BaseModel):
     )
 
 
+class ComplaintDecision(BaseModel):
+    """LLM decision on complaint validity with policy-based reasoning."""
+    action: Action = Field(
+        description="Decision: VALID (auto-approve), NOT_VALID (auto-reject), or HUMAN_REVIEW (escalate)"
+    )
+    reason: str = Field(
+        description="Detailed explanation for the decision based on company policy"
+    )
+    confidence: float = Field(
+        ge=0.0, le=1.0,
+        description="Decision confidence 0-1"
+    )
+
+
 class OrderRecord(BaseModel):
     """Mock order data structure."""
     order_id: str
