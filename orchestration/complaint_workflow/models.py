@@ -80,15 +80,6 @@ class ComplaintDecision(BaseModel):
     )
 
 
-class OrderRecord(BaseModel):
-    """Mock order data structure."""
-    order_id: str
-    user_id: str
-    items: list[str]
-    date: str
-    amount: float = 0.0
-
-
 class UserProfile(BaseModel):
     """Mock user profile data from user management system."""
     user_id: str = Field(description="User identifier")
@@ -102,12 +93,6 @@ class UserProfile(BaseModel):
     )
     total_orders: int = Field(ge=0, description="Total number of orders placed")
     complaint_count: int = Field(ge=0, description="Number of complaints filed")
-
-
-class DecisionOutput(BaseModel):
-    """LLM decision on complaint validity."""
-    action: Action = Field(description="Action: VALID, NOT_VALID, or HUMAN_REVIEW")
-    reason: str = Field(description="Explanation for decision")
 
 
 class UserMessage(BaseModel):

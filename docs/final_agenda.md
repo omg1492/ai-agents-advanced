@@ -164,15 +164,23 @@ AI analyzuje nutriční a zdravotní data uživatele, vizualizuje je v přehledn
 
 Automatizované workflow vyhodnotí stížnost, přiložené důkazy a pravidla nároku, aby okamžitě řešilo jasné případy a ostatní eskalovalo.  Rychlá reakce zlepšuje NPS a snižuje provozní náklady podpory.
 
-- Model routing s LiteLLM a problematika latence a nákladů  
 - Code-first orchestrační platforma pro byznys workflow (AI agenti s větší autonomií)
+- Durable workflows s Temporal pro spolehlivost a audit trail
+- Structured outputs (Pydantic) pro type-safe rozhodování
+- Policy-based decision making s few-shot examples
 
 **Praktické cvičení:** 
 
-- Vytvoříme workflow pro řešení stížnosti zákazníka
+- Vytvoříme workflow pro řešení stížnosti zákazníka s Temporal
+- Implementujeme 6-fázový proces: klasifikace → extrakce → profil → rozhodnutí → řešení
+- Vyzkoušíme různé scénáře (validní stížnost, eskalace, ne-stížnost)
 
 **Výstupy z lekce:** (Umím…)
 
+- Využít Temporal pro durable AI workflows
+- Implementovat policy-based decision making s LLM
+- Oddělit workflow logiku od side-effectů (activities)
+- Využít structured outputs pro type-safe komunikaci s LLM
 - Využít AI na pozadí zpracování workflow, nejen v chatu
 
 ## 8. lekce: Multi-agent systémy

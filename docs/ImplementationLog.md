@@ -1,3 +1,95 @@
+## 2025-01-09 Complaint Workflow Complete Implementation & Cleanup
+
+Successfully implemented complete 6-phase Temporal-based complaint handling workflow with Azure OpenAI LLM integration, followed by comprehensive cleanup removing test infrastructure and unused code.
+
+**Phase 1-2: Classification & Extraction**
+- Implemented `classify_complaint_activity` using Azure OpenAI Responses API with structured outputs (Pydantic schemas)
+- Binary classification with confidence scoring (is_complaint: bool, confidence: float)
+- Implemented `extract_complaint_info_activity` to extract structured data from raw message text
+- Extraction handles nullable fields: products, order_id, order_date, reason, evidence_provided
+- Simplified input model: ComplaintIn only requires message + user_id (no upfront order details)
+
+**Phase 3: User Profile Fetch**
+- Implemented `fetch_user_profile_activity` with mock data generator
+- Deterministic hash-based profile generation for consistent testing
+- Profile attributes: segment (premium/regular/occasional), loyalty_level (platinum/gold/silver/bronze), user_score (0-100), total_orders, complaint_count, city, country
+- Simulates external user management system API call
+
+**Phase 4: Policy-Based Decision**
+- Implemented `decide_complaint_validity_activity` with comprehensive company policy for farm-to-table marketplace
+- Policy includes clear criteria for VALID (auto-approve), NOT_VALID (auto-reject), HUMAN_REVIEW (escalation)
+- Added 6 few-shot examples covering edge cases: clear quality issues, missing evidence, suspicious patterns, partial orders
+- Decision output: action (VALID/NOT_VALID/HUMAN_REVIEW), reason, confidence score
+- Context bundle: combines extraction + user profile for holistic evaluation
+
+**Phase 5-6: Resolution Generation**
+- Implemented `generate_user_message_activity` for VALID/NOT_VALID outcomes
+- Different prompts per action type: apologetic (VALID) vs firm but respectful (NOT_VALID)
+- Message includes subject, body, tone metadata
+- Implemented `generate_review_packet_activity` for HUMAN_REVIEW escalation
+- Review packet structure: summary, arguments_for_approval, arguments_against_approval, recommended_action, priority (high/medium/low), customer_context
+- Successfully caught suspicious user patterns (e.g., 0 orders but 3 complaints)
+
+**Workflow Orchestration**
+- 6-phase deterministic workflow with early exit for non-complaints
+- Activity timeout: 30 seconds per activity
+- Retry policy: max_attempts=3, initial_interval=1s, backoff=2.0
+- Structured logging with ORCH_PHASE markers for observability
+- Terminal status: COMPLETED (resolved), PENDING_REVIEW (escalated), NEEDS_MORE_INFO (insufficient data)
+
+**Testing Infrastructure**
+- Created 3 test scenarios in `complaints/` folder:
+  - complaint1.json: Broken jar (no order_id) → VALID decision
+  - complaint2.json: Rotten produce with photos → HUMAN_REVIEW (suspicious user)
+  - non-complaint.json: Product inquiry → Early exit
+- Implemented `demo.py` with embedded worker pattern for self-contained testing
+- All scenarios tested successfully with proper decision routing
+
+**Cleanup Phase**
+- Removed pytest infrastructure: deleted `pytest.ini`, removed pytest dependencies from `pyproject.toml`
+- Removed unused models: `OrderRecord` (mock order structure never used), `DecisionOutput` (duplicate of ComplaintDecision)
+- Kept essential models: ComplaintIn, ComplaintClassification, ComplaintExtraction, UserProfile, ComplaintDecision, UserMessage, ReviewPacket, WorkflowResult
+- Rewrote `README.md` to reflect complete implementation (removed "Steps 1-3 only" outdated sections)
+- Updated `Design.md` Section 18.1 with accurate phase descriptions and implementation status
+
+**Technical Stack**
+- Temporal v1.8.0+ for durable workflow orchestration
+- Azure OpenAI GPT-5 with Responses API (preview) for structured outputs with reasoning
+- Pydantic v2 for type-safe data contracts and LLM output validation
+- Python 3.12+ with async/await patterns
+- UV package manager for dependency management
+
+**Key Technical Decisions**
+- **Simplified Input**: ComplaintIn only requires raw message + user_id; order details extracted by LLM (reduces coupling with external systems)
+- **Policy-Driven**: Company policy embedded in prompt rather than external artifact (simpler for demo, can be externalized later)
+- **Embedded Worker**: Demo includes worker lifecycle management for single-command testing
+- **Nullable Extraction**: All extracted fields optional to handle incomplete information gracefully
+- **Few-Shot Examples**: 6 examples dramatically improve decision quality vs zero-shot
+- **Hash-Based Profiles**: Deterministic user profile generation ensures reproducible test results
+
+**Production Readiness**
+- Complete end-to-end workflow validated with 3 scenarios
+- Proper error handling and retry logic
+- Structured logging for monitoring and debugging
+- Separate worker deployment pattern for production (worker.py)
+- Temporal Web UI integration at localhost:8233
+
+**Configuration**
+- `OPENAI_API_KEY`: Azure OpenAI API key
+- `OPENAI_BASE_URL`: Azure OpenAI endpoint (ends with /openai/v1/)
+- `OPENAI_API_VERSION`: 2024-10-21 (preview)
+- `OPENAI_MODEL`: gpt-5
+- `REASONING_EFFORT`: minimal|low|medium|high (default: minimal)
+
+**Next Steps (if needed)**
+- Integration with real order management system
+- Real user profile API integration
+- Email/notification sending for user messages
+- Admin UI for HUMAN_REVIEW cases
+- Metrics and monitoring dashboards
+- Unit tests for individual activities
+- Integration tests with Temporal time-skipping
+
 ## 2025-01-08 Visualization MCP Complete Integration (Phase 1-3)
 
 Successfully implemented end-to-end visualization MCP integration from backend artifact detection to frontend sandboxed iframe display, enabling interactive HTML infographics in chat.

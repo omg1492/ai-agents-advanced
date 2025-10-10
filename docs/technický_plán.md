@@ -165,15 +165,24 @@ Automatizované workflow vyhodnotí stížnost, přiložené důkazy a pravidla 
 Rychlá reakce zlepšuje NPS a snižuje provozní náklady podpory.
 
 #### Technické aspekty plné verze
-- Temporal orchestrace + model-routing (LiteLLM)
+- Temporal orchestrace s 6-fázovým workflow procesem
+- Azure OpenAI Responses API se structured outputs (Pydantic)
+- Policy-based decision making s few-shot examples (6 anotovaných případů)
+- Oddělení workflow logiky od side-effectů (activities)
+- Mock user profile service (deterministic hash-based generation)
+- Structured logging s ORCH_PHASE prefixes
+- Demo s embedded worker pattern + 3 testovací scénáře
 
 #### Technické kroky – kódování naživo
-- Jednoduchý workflow pro řešení stížnosti
+- Základní Temporal workflow pro klasifikaci a rozhodování
+- LLM strukturované výstupy (classification, extraction, decision)
+- Generování user messages a review packets
 
 #### Použité technologie a nástroje
-- Temporal  
-- LiteLLM (model routing)  
-- Python
+- Temporal (durable workflows)
+- Azure OpenAI (Responses API, structured outputs)
+- Python 3.12 + uv (package management)
+- Pydantic (type-safe data models)
 
 ### Lekce 08 – Multi-agent systémy
 

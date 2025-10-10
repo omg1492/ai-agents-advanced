@@ -113,12 +113,14 @@ Automatizované workflow vyhodnotí stížnost, přiložené důkazy a pravidla 
 **Koncepty:**
 - Agent orchestration
 - Workflow automation
-- Model routing  
+- Durable workflows
+- Policy-based decision making
 
 **Technologie:**
 - Temporal
-- LiteLLM
+- Azure OpenAI (Responses API with structured outputs)
 - Python
+- Pydantic
 
 ### Lekce 08 – Multi-agent systémy
 S rostoucí sofistikovaností AI agenta a rozšiřujícím se byznysem virtuálního tržiště vzniká potřeba vyvíjet některé části systému víc nezávisle a soustředit se na specializovaného agenta. Nový obchodní nápad má přivést na tržiště i kuchaře, kteří mohou nabízet služby pro různé oslavy a firemní akce a propojit tak dodavatele farmářských produktů, jejich zákazníků a služeb přípravy jídla. Na základě požadavku uživatele musí vzájemnou interakcí původního agenta (farmářské tržiště) a nového agenta (tržiště kuchařů a služeb) vzniknout dohoda který kuchař z jakých surovin co by zajistil a jaká je celková cena a tyto varianty nabídnout uživateli.  

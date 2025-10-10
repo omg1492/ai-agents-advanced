@@ -58,8 +58,7 @@ Jaké funkce přidáme do aplikace v jaké lekci je k přečteně v [agendě](ag
 - MCP servery (interní + web-search, Tavily)  
 - Function calling (vlastní nástroje)  
 - LangGraph (agentic RAG, orchestrace agentů)  
-- Temporal (workflow)  
-- LiteLLM (model routing)  
+- Temporal (workflow orchestration)  
 
 **UI & Interakce:**  
 - React (assistant-ui)  
