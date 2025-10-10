@@ -4,10 +4,18 @@
 Implement a multi-agent system where a specialized Chef Agent handles culinary service queries (chefs, catering, availability, pricing) via MCP tools, and integrates with the main DreamFarm Agent using agent-as-tool pattern.
 
 ## Implementation Strategy
-- **Phase 1**: MCP Chef Services Server (tools + mocks)
-- **Phase 2**: Chef Agent (simple stateless API)
-- **Phase 3**: Integration (Chef Agent as tool in DreamFarm Agent)
-- **Phase 4**: Deployment & Documentation
+- **Phase 1**: MCP Chef Services Server (tools + mocks) ✅ Complete
+- **Phase 2**: Azure Deployment for Chef Services MCP ✅ Complete
+- **Phase 3**: Chef Agent (stateless API using Responses API + remote MCP)
+- **Phase 4**: Integration (Chef Agent as tool in DreamFarm Agent)
+- **Phase 5**: Documentation & Demo
+
+## Key Architectural Decisions
+1. **MCP Server**: Cloud-hosted on Azure Container Apps (not local)
+2. **MCP Integration**: Responses API native MCP support (no custom HTTP client)
+3. **Agent Language**: Czech system prompt for consistent UX
+4. **Configuration**: Unified OpenAI config pattern (matches DreamFarm agent)
+5. **Testing**: Separate unit tests (mocked) + integration tests (real Azure MCP)
 
 ---
 
@@ -244,112 +252,127 @@ Implement a multi-agent system where a specialized Chef Agent handles culinary s
 
 ## Phase 3: Chef Agent Implementation
 
-### 3.1 Create Agent Project Structure
-- [ ] Create directory `agents/chef-agent/`
-- [ ] Create `pyproject.toml`:
-  - [ ] Name: "chef-agent"
-  - [ ] Dependencies: `fastapi`, `openai`, `python-dotenv`, `httpx`, `pydantic`
-- [ ] Create `.env.template`:
-  - [ ] `OPENAI_API_KEY`
-  - [ ] `OPENAI_MODEL` (default: gpt-4o)
-  - [ ] `OPENAI_BASE_URL` (optional, for Azure)
-  - [ ] `OPENAI_API_VERSION` (optional, for Azure)
-  - [ ] `CHEF_MCP_SERVER_URL` (http://localhost:8013/mcp)
-  - [ ] `CHEF_MCP_API_KEY`
-  - [ ] `HOST` (default: 0.0.0.0)
-  - [ ] `PORT` (default: 8002)
-- [ ] Create `.env` from template
-- [ ] Create `.python-version` (3.12)
-- [ ] Run `uv sync`
+### 3.1 Create Agent Project Structure ✅
+- [x] Create directory `agents/chef-agent/`
+- [x] Create `pyproject.toml`:
+  - [x] Name: "chef-agent"
+  - [x] Dependencies: `fastapi`, `openai`, `python-dotenv`, `pydantic`, `uvicorn`
+- [x] Create `.env.template`:
+  - [x] Unified OpenAI config: `OPENAI_API_KEY`, `OPENAI_MODEL`, `OPENAI_BASE_URL` (optional for Azure), `OPENAI_API_VERSION` (optional for Azure)
+  - [x] `CORS_ORIGINS` (default: `*`)
+  - [x] `LOG_LEVEL` (default: `INFO`)
+  - [x] `PORT` (default: `8002`)
+  - [x] Chef MCP service config: `CHEF_SERVICES_MCP_URL`, `CHEF_SERVICES_MCP_API_KEY`
+- [x] Create `.env` from template
+- [x] Create `.python-version` (3.12)
+- [x] Run `uv sync`
 
-### 3.2 Implement Agent Core
-- [ ] Create `src/main.py` (FastAPI app)
-- [ ] Create `src/models/`:
-  - [ ] `message.py`: `QueryRequest(message: str)`, `QueryResponse(response: str)`
-- [ ] Create `src/services/`:
-  - [ ] `openai_service.py`: Unified OpenAI client (copy from dreamfarm-agent)
-  - [ ] `mcp_client.py`: MCP tool client for Chef Services
-  - [ ] `chef_agent_service.py`: Core agent logic
+### 3.2 Implement Agent Core ✅
+- [x] Create `src/main.py` (FastAPI app)
+- [x] Create `src/models/`:
+  - [x] `message.py`: `QueryRequest(message: str)`, `QueryResponse(response: str, response_id: str)`
+  - [x] `health.py`: `HealthResponse(status: str)`
+- [x] Create `src/services/`:
+  - [x] `config_service.py`: Load environment config (similar to dreamfarm-agent pattern)
+  - [x] `openai_service.py`: Unified OpenAI client using Responses API (copy pattern from dreamfarm-agent)
 
-### 3.3 Implement Chef Agent Service
-- [ ] Create system prompt for Chef Agent:
+### 3.3 Implement Chef Agent Service prompt ✅
+- [x] Create system prompt for Chef Agent (English language - per user request):
   ```
-  You are a culinary services assistant specializing in connecting customers 
-  with professional chefs and catering services. You help plan events, 
-  recommend chefs based on cuisine preferences and dietary needs, check 
-  availability, and provide accurate pricing quotes.
+  Jsi specialista na gastronomické služby DreamFarm. Pomáháš uživatelům najít správného kucháře,
+  objednat cateringové služby, kontrolovat dostupnost a spočítat ceny. Máš přístup k pěti nástrojům:
   
-  When discussing services:
-  - Always verify availability before quoting final prices
-  - Clarify guest count and dietary restrictions early
-  - Explain what's included in each service tier
-  - Provide chef profiles with specialties and experience
-  - Confirm all details before placing orders
+  1. search_chefs - najdi kucháře podle speciality, kuchyně nebo dietetických požadavků
+  2. search_services - najdi cateringové a další služby podle typu a požadavků
+  3. check_availability - zkontroluj dostupnost kucháře nebo služby k určitému datu
+  4. calculate_pricing - vypočítej cenu služby (vždy před objednávkou!)
+  5. place_order - potvrď a ulož objednávku (pouze po potvrzení ceny uživatelem)
   
-  You have access to the following tools:
-  - search_chefs: Find chefs by specialty or event type
-  - search_services: Find catering/delivery/meal prep services
-  - check_availability: Check if a chef/service is available on a date
-  - calculate_pricing: Get cost estimates with detailed breakdown
-  - place_order: Book a chef or service (confirm with user first!)
+  Proces objednávky:
+  1. Zjisti potřeby uživatele (typ služby, počet hostů, datum, speciality)
+  2. Použij vhodné nástroje pro vyhledání (search_chefs / search_services)
+  3. Zkontroluj dostupnost (check_availability)
+  4. Spočítej cenu (calculate_pricing) a prezentuj ji uživateli
+  5. Po potvrzení vytvoř objednávku (place_order)
+  
+  Buď přátelský, profesionální a vždy ověřuj detaily před finalizací.
   ```
-- [ ] Implement stateless query method:
-  - [ ] Accept message string
-  - [ ] Register Chef Services MCP tools
-  - [ ] Call OpenAI Responses API with tools
-  - [ ] Handle tool calls (invoke MCP server)
-  - [ ] Return final text response
-- [ ] No conversation history (stateless)
 
-### 3.4 Implement MCP Client
-- [ ] Create MCP HTTP client:
-  - [ ] Discovery: GET `/mcp/` to list tools
-  - [ ] Invocation: POST `/mcp/` with tool name + args
-  - [ ] Auth: Add `Authorization: Bearer <token>` header
-- [ ] Parse MCP responses
-- [ ] Error handling and retries
+### 3.4 Implement MCP Tools Registration ✅
+- [x] Create `get_tools()` method in `openai_service.py`:
+  - [x] Register Chef Services MCP server using `type: "mcp"` pattern:
+    ```python
+    {
+        "type": "mcp",
+        "server_label": "chef_services",
+        "server_url": config.chef_services_mcp_url,
+        "require_approval": "never",
+        "headers": {
+            "Authorization": f"Bearer {config.chef_services_mcp_api_key}",
+        },
+    }
+    ```
+  - [x] Follow same pattern as Farmer Tools / Tavily in dreamfarm-agent
+- [x] No custom HTTP client needed - Responses API handles MCP discovery and execution
 
 ### 3.5 Create API Endpoint
 - [ ] POST `/query`:
   - [ ] Request: `{"message": "string"}`
-  - [ ] Response: `{"response": "string"}`
-  - [ ] No auth (simplified for Phase 1)
-  - [ ] CORS enabled (for testing)
+  - [ ] Response: `{"response": "string", "response_id": "string"}`
+  - [ ] Error handling with proper HTTP status codes
 - [ ] GET `/health`:
-  - [ ] Return 200 OK
+  - [ ] Return `{"status": "ok"}` with 200
+- [ ] CORS middleware:
+  - [ ] Configurable via `CORS_ORIGINS` environment variable
+  - [ ] Default: `*` (allow all for development)
 
-### 3.6 Write Agent Tests
-- [ ] Create `tests/test_chef_agent.py`
-- [ ] Mock MCP server responses
-- [ ] Test scenarios:
-  - [ ] Simple chef search query
-  - [ ] Availability check workflow
-  - [ ] Pricing calculation
-  - [ ] Multi-turn workflow (search → check → price → order)
-  - [ ] Error handling (tool failures)
-- [ ] Run: `uv run pytest tests/ -v`
+### 3.6 Write Unit Tests
+- [ ] Create `tests/test_chef_agent_service.py`:
+  - [ ] Mock OpenAI Responses API calls
+  - [ ] Test system prompt construction
+  - [ ] Test tool registration (MCP tools present in request)
+- [ ] Create `tests/test_api.py`:
+  - [ ] Test `/query` endpoint with various inputs
+  - [ ] Test `/health` endpoint
+  - [ ] Test error handling (missing API key, invalid requests)
+  - [ ] Test CORS headers
+- [ ] Use `pytest` with `httpx.AsyncClient` for API testing
+- [ ] Target: >80% coverage
 
-### 3.7 Local Testing
-- [ ] Run MCP server: `cd tools/mcp_chef_services && uv run python main.py`
-- [ ] Run agent: `cd agents/chef-agent && uv run uvicorn src.main:app --reload --port 8002`
+### 3.7 Write Integration Tests
+- [ ] Create `tests/test_integration_remote_mcp.py`:
+  - [ ] Test against deployed Chef Services MCP (use `CHEF_SERVICES_MCP_URL` from env)
+  - [ ] Test end-to-end flow: user query → agent → MCP tools → response
+  - [ ] Scenarios:
+    - [ ] "Najdi italského kucháře" (search_chefs)
+    - [ ] "Kolik stojí catering pro 30 lidí?" (search_services + calculate_pricing)
+    - [ ] "Je volný nějaký kuchař 15. ledna?" (check_availability)
+  - [ ] Verify MCP tool calls in response metadata (if available)
+- [ ] Run with: `uv run pytest tests/test_integration_remote_mcp.py -v`
+
+### 3.8 Local Testing
+- [ ] Start agent: `cd agents/chef-agent && uv run uvicorn src.main:app --reload --port 8002`
 - [ ] Test with curl:
   ```bash
   curl -X POST http://localhost:8002/query \
     -H "Content-Type: application/json" \
-    -d '{"message": "Find me an Italian chef for 20 people"}'
+    -d '{"message": "Najdi mi italského kucháře pro svatbu"}'
   ```
-- [ ] Verify agent calls MCP tools correctly
+- [ ] Verify:
+  - [ ] Agent connects to remote Chef Services MCP (Azure)
+  - [ ] Tools are called correctly (check logs for MCP discovery and execution)
+  - [ ] Response is in Czech and contextually appropriate
 
-### 3.8 Create Agent README
+### 3.9 Create Agent README
 - [ ] Create `agents/chef-agent/README.md`
 - [ ] Document:
-  - [ ] Purpose (specialized culinary services agent)
-  - [ ] Architecture (stateless API + MCP tools)
-  - [ ] Setup instructions
-  - [ ] Environment variables
-  - [ ] API specification
-  - [ ] Example queries
-  - [ ] Testing instructions
+  - [ ] Purpose (specialized culinary services agent using remote Chef Services MCP)
+  - [ ] Architecture (stateless, Responses API, remote MCP tools)
+  - [ ] Environment configuration (OpenAI, MCP URL/key, CORS)
+  - [ ] How to run locally
+  - [ ] How to run tests (unit + integration)
+  - [ ] API endpoints (`/query`, `/health`)
+  - [ ] Testing instructions and example queries
 
 ---
 
@@ -535,12 +558,14 @@ Implement a multi-agent system where a specialized Chef Agent handles culinary s
 - [x] Remote integration tests passing (9/9 tests with FastMCP Client)
 
 ### Phase 3: Chef Agent ✓
-- [ ] Agent project created
-- [ ] MCP client implemented
-- [ ] Chef Agent service with system prompt
-- [ ] Stateless API endpoint (/query)
-- [ ] Unit tests written
-- [ ] Local testing with MCP server verified
+- [ ] Agent project created (pyproject.toml, .env.template, structure)
+- [ ] Config service implemented (load OpenAI + MCP settings)
+- [ ] OpenAI service implemented (Responses API client with MCP tool registration)
+- [ ] Chef Agent service with Czech system prompt
+- [ ] Stateless API endpoint (/query, /health) with CORS
+- [ ] Unit tests written (service + API) - target >80% coverage
+- [ ] Integration tests against remote MCP (end-to-end scenarios)
+- [ ] Local testing verified (agent → Azure MCP)
 - [ ] README created
 
 ### Phase 4: DreamFarm Integration ✓
