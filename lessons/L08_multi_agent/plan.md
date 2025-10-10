@@ -175,7 +175,7 @@ Implement a multi-agent system where a specialized Chef Agent handles culinary s
 
 ## Phase 2: Azure Deployment for Chef Services MCP
 
-### 2.1 Create Dockerfile
+### 2.1 Create Dockerfile ✅
 - [x] Copy Dockerfile from `mcp_public_farmer_tools`
 - [x] Update base image if needed (using python:3.12-slim)
 - [x] Update EXPOSE port to 8013
@@ -184,7 +184,7 @@ Implement a multi-agent system where a specialized Chef Agent handles culinary s
 - [x] Test local run: `docker run -p 8013:8013 -e MCP_API_KEY=test mcp-chef-services:local`
 - [x] Verified health endpoint responds with OK
 
-### 2.2 Add GitHub Actions Workflow
+### 2.2 Add GitHub Actions Workflow ✅
 - [x] Create `.github/workflows/build-mcp-chef-services.yml`
 - [x] Copy template from `build-mcp-public-farmer-tools.yml`
 - [x] Update:
@@ -192,52 +192,53 @@ Implement a multi-agent system where a specialized Chef Agent handles culinary s
   - [x] Image name: `ghcr.io/tkubica12/advanced-ai-applications/mcp-chef-services`
   - [x] Build context path: `tools/mcp_chef_services`
   - [x] Trigger paths: `tools/mcp_chef_services/**`
-- [ ] Push and verify workflow builds image (ready to push)
+- [x] Push and verify workflow builds image (ready to push)
 
-### 2.3 Create Terraform Configuration
-- [ ] Create `deploy/azure/mcp_tools/container_app.chef-services.tf`
-- [ ] Copy template from `container_app.farmer-tools.tf`
-- [ ] Update:
-  - [ ] Resource name: `azapi_resource.chef_services`
-  - [ ] Container App name: `ca-mcp-chef-services`
-  - [ ] Target port: 8013
-  - [ ] Secret name: `chef-services-api-key`
-  - [ ] Environment variables
-  - [ ] Image reference variable
-- [ ] Add variables to `variables.tf`:
-  - [ ] `chef_services_api_key` (sensitive)
-  - [ ] `chef_services_image` (default: latest from GHCR)
-  - [ ] `chef_services_min_replicas` (default: 0)
-- [ ] Add to `secrets.auto.tfvars`:
-  - [ ] `chef_services_api_key = "your-secure-key"`
-- [ ] Add to `configs.auto.tfvars`:
-  - [ ] Image URL
-  - [ ] Min replicas
-- [ ] Add output to `outputs.tf`:
-  - [ ] `chef_services_url` (FQDN)
+### 2.3 Create Terraform Configuration ✅
+- [x] Create `deploy/azure/mcp_tools/container_app.chef-services.tf`
+- [x] Copy template from `container_app.farmer-tools.tf`
+- [x] Update:
+  - [x] Resource name: `azapi_resource.chef_services`
+  - [x] Container App name: `ca-mcp-chef-services`
+  - [x] Target port: 8013
+  - [x] Secret name: `chef-services-api-key`
+  - [x] Environment variables
+  - [x] Image reference variable
+- [x] Add variables to `variables.tf`:
+  - [x] `chef_services_api_key` (sensitive)
+  - [x] `chef_services_image` (default: latest from GHCR)
+  - [x] `chef_services_min_replicas` (default: 0)
+- [x] Add to `secrets.auto.tfvars`:
+  - [x] `chef_services_api_key = "your-secure-key"`
+- [x] Add to `configs.auto.tfvars`:
+  - [x] Image URL
+  - [x] Min replicas
+- [x] Add output to `outputs.tf`:
+  - [x] `chef_services_url` (FQDN)
 
-### 2.4 Deploy to Azure
-- [ ] Run Terraform:
+### 2.4 Deploy to Azure ✅
+- [x] Run Terraform:
   ```bash
   cd deploy/azure/mcp_tools
   terraform init
   terraform plan
   terraform apply
   ```
-- [ ] Verify deployment:
-  - [ ] Check Container App in Azure Portal
-  - [ ] Test health endpoint: `https://<fqdn>/health`
-  - [ ] Test MCP endpoint with Authorization header
+- [x] Verify deployment:
+  - [x] Check Container App in Azure Portal
+  - [x] Test health endpoint: `https://<fqdn>/health`
+  - [x] Test MCP endpoint with Authorization header
 
-### 2.5 Create Integration Tests for Remote MCP
-- [ ] Create `tests/test_remote_chef_mcp.py`
-- [ ] Use environment variable `CHEF_SERVICES_MCP_URL`
-- [ ] Use environment variable `CHEF_SERVICES_MCP_API_KEY`
-- [ ] Test scenarios:
-  - [ ] Discovery (list tools)
-  - [ ] Each tool invocation with remote server
-  - [ ] Auth failure scenarios
-- [ ] Run: `pytest tests/test_remote_chef_mcp.py -v`
+### 2.5 Create Integration Tests for Remote MCP ✅
+- [x] Create `tests/test_remote_chef_mcp.py`
+- [x] Use environment variable `CHEF_SERVICES_MCP_URL`
+- [x] Use environment variable `CHEF_SERVICES_MCP_API_KEY`
+- [x] Test scenarios:
+  - [x] Discovery (list tools)
+  - [x] Each tool invocation with remote server (5 tools tested)
+  - [x] Auth failure scenarios
+- [x] Run: `pytest tests/test_remote_chef_mcp.py -v` (9/9 tests passing)
+- [x] Use FastMCP Client pattern (not raw HTTP/JSON-RPC)
 
 ---
 
@@ -526,12 +527,12 @@ Implement a multi-agent system where a specialized Chef Agent handles culinary s
 - [ ] Local testing verified
 - [ ] README created
 
-### Phase 2: Azure Deployment ✓
-- [ ] Dockerfile created
-- [ ] GitHub Actions workflow created
-- [ ] Terraform configuration created
-- [ ] Deployed to Azure Container Apps
-- [ ] Remote integration tests passing
+### Phase 2: Azure Deployment ✅
+- [x] Dockerfile created
+- [x] GitHub Actions workflow created
+- [x] Terraform configuration created
+- [x] Deployed to Azure Container Apps
+- [x] Remote integration tests passing (9/9 tests with FastMCP Client)
 
 ### Phase 3: Chef Agent ✓
 - [ ] Agent project created

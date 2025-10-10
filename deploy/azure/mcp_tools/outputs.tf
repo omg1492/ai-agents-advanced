@@ -11,5 +11,10 @@ output "deployment_summary" {
       health   = "https://${azapi_resource.viz_gen.output.properties.configuration.ingress.fqdn}/health"
       replicas = "${var.viz_gen_min_replicas}-1"
     }
+    chef_services = {
+      url      = "https://${azapi_resource.chef_services.output.properties.configuration.ingress.fqdn}"
+      health   = "https://${azapi_resource.chef_services.output.properties.configuration.ingress.fqdn}/health"
+      replicas = "${var.chef_services_min_replicas}-1"
+    }
   }
 }

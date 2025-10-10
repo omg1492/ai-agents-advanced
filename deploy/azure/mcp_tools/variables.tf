@@ -81,3 +81,24 @@ DESC
   type        = string
   default     = "gpt-5"
 }
+
+variable "chef_services_image" {
+  description = <<DESC
+Docker image for the chef services MCP server.
+Example: ghcr.io/tkubica12/advanced-ai-applications/mcp-chef-services:latest
+DESC
+  type        = string
+  default     = "ghcr.io/tkubica12/advanced-ai-applications/mcp-chef-services:latest"
+}
+
+variable "chef_services_min_replicas" {
+  description = "Minimum number of replicas for chef services (0 = scale-to-zero)"
+  type        = number
+  default     = 0
+}
+
+variable "chef_services_api_key" {
+  description = "Static bearer token for authenticating requests to the chef services MCP server."
+  type        = string
+  sensitive   = true
+}
