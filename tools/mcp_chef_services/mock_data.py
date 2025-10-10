@@ -246,15 +246,19 @@ MOCK_AVAILABILITY: Dict[str, List[str]] = _generate_chef_availability()
 _order_counter = 0
 
 
-def get_next_order_id() -> str:
-    """Generate next sequential order ID.
+def get_next_order_id(event_date: datetime) -> str:
+    """Generate next sequential order ID with date prefix.
+    
+    Args:
+        event_date: Date of the event for the order
     
     Returns:
-        Order ID in format "order_NNNN" (e.g., "order_0001")
+        Order ID in format "ORD_YYYYMMDD_NNN" (e.g., "ORD_20251225_001")
     """
     global _order_counter
     _order_counter += 1
-    return f"order_{_order_counter:04d}"
+    date_str = event_date.strftime("%Y%m%d")
+    return f"ORD_{date_str}_{_order_counter:03d}"
 
 
 # ============================================================================
