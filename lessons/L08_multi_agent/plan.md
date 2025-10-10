@@ -176,22 +176,23 @@ Implement a multi-agent system where a specialized Chef Agent handles culinary s
 ## Phase 2: Azure Deployment for Chef Services MCP
 
 ### 2.1 Create Dockerfile
-- [ ] Copy Dockerfile from `mcp_public_farmer_tools`
-- [ ] Update base image if needed
-- [ ] Update EXPOSE port to 8013
-- [ ] Update CMD to run `main.py`
-- [ ] Test local build: `docker build -t mcp-chef-services:local .`
-- [ ] Test local run: `docker run -p 8013:8013 -e MCP_API_KEY=test mcp-chef-services:local`
+- [x] Copy Dockerfile from `mcp_public_farmer_tools`
+- [x] Update base image if needed (using python:3.12-slim)
+- [x] Update EXPOSE port to 8013
+- [x] Update CMD to run `main.py` (includes mock_data.py)
+- [x] Test local build: `docker build -t mcp-chef-services:local .`
+- [x] Test local run: `docker run -p 8013:8013 -e MCP_API_KEY=test mcp-chef-services:local`
+- [x] Verified health endpoint responds with OK
 
 ### 2.2 Add GitHub Actions Workflow
-- [ ] Create `.github/workflows/build-mcp-chef-services.yml`
-- [ ] Copy template from `build-mcp-public-farmer-tools.yml`
-- [ ] Update:
-  - [ ] Workflow name
-  - [ ] Image name: `ghcr.io/tkubica12/advanced-ai-applications/mcp-chef-services`
-  - [ ] Build context path: `tools/mcp_chef_services`
-  - [ ] Trigger paths: `tools/mcp_chef_services/**`
-- [ ] Push and verify workflow builds image
+- [x] Create `.github/workflows/build-mcp-chef-services.yml`
+- [x] Copy template from `build-mcp-public-farmer-tools.yml`
+- [x] Update:
+  - [x] Workflow name: "Build and Publish mcp-chef-services"
+  - [x] Image name: `ghcr.io/tkubica12/advanced-ai-applications/mcp-chef-services`
+  - [x] Build context path: `tools/mcp_chef_services`
+  - [x] Trigger paths: `tools/mcp_chef_services/**`
+- [ ] Push and verify workflow builds image (ready to push)
 
 ### 2.3 Create Terraform Configuration
 - [ ] Create `deploy/azure/mcp_tools/container_app.chef-services.tf`
