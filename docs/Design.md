@@ -47,66 +47,75 @@ This document describes the **overall architecture** of the Dream Farm AI platfo
     - [18.1 Complaint Handling Workflow](#181-complaint-handling-workflow)
     - [18.2 Architecture Extension Points](#182-architecture-extension-points)
     - [18.3 Glossary (Selected Terms)](#183-glossary-selected-terms)
-  - [19. Appendices](#19-appendices)
-    - [19.1. Implementation History](#191-implementation-history)
+  - [19. Multi-Agent Architecture](#19-multi-agent-architecture)
+    - [19.1. Business Context \& Rationale](#191-business-context--rationale)
+    - [19.2. Chef Agent Overview](#192-chef-agent-overview)
+    - [19.3. Chef Services MCP Server](#193-chef-services-mcp-server)
+    - [19.4. Agent-as-Tool Pattern](#194-agent-as-tool-pattern)
+    - [19.5. Integration Approaches](#195-integration-approaches)
+    - [19.6. Data Flow \& Orchestration](#196-data-flow--orchestration)
+    - [19.7. Configuration \& Environment](#197-configuration--environment)
+    - [19.8. Future Extensibility](#198-future-extensibility)
+  - [20. Appendices](#20-appendices)
+    - [20.1. Implementation History](#201-implementation-history)
     - [19.2. Related Documentation](#192-related-documentation)
-  - [20. Technical Stack](#20-technical-stack)
-  - [21. API Design](#21-api-design)
-    - [21.1. Base Configuration](#211-base-configuration)
-    - [21.2. Environment Variables](#212-environment-variables)
-    - [21.3. OpenAI Provider Configuration (Unified)](#213-openai-provider-configuration-unified)
-  - [22. Retrieval \& Search Architecture](#22-retrieval--search-architecture)
-    - [22.1. Hybrid RAG (Semantic + Keyword with RRF)](#221-hybrid-rag-semantic--keyword-with-rrf)
-    - [22.2. Agentic Tool-Based Retrieval (Function Calling)](#222-agentic-tool-based-retrieval-function-calling)
-    - [22.3. VIP Fencing](#223-vip-fencing)
-    - [22.4. Full-Text Search (FTS) Enhancement](#224-full-text-search-fts-enhancement)
-  - [23. Semantic Caching (First-Turn Accelerator)](#23-semantic-caching-first-turn-accelerator)
-  - [24. Database and Knowledge Graph Schema (production-ready)](#24-database-and-knowledge-graph-schema-production-ready)
-    - [24.1. Products (relational, hybrid search)](#241-products-relational-hybrid-search)
-    - [24.2. Stock (relational)](#242-stock-relational)
-    - [24.3. Knowledge graph (Apache AGE)](#243-knowledge-graph-apache-age)
-    - [24.4. Detailed Taxonomy \& Cuisine Enrichment Specification](#244-detailed-taxonomy--cuisine-enrichment-specification)
-    - [24.5. RAG Configuration](#245-rag-configuration)
-  - [25. Thread/Session Management Strategy](#25-threadsession-management-strategy)
-    - [25.1. Session Lifecycle](#251-session-lifecycle)
-    - [25.2. Data Storage](#252-data-storage)
-    - [25.3. Benefits of Hybrid Session API](#253-benefits-of-hybrid-session-api)
-    - [25.4. API Endpoints](#254-api-endpoints)
-    - [25.5. Data Models](#255-data-models)
-  - [26. Project Structure](#26-project-structure)
-  - [27. Service Responsibilities](#27-service-responsibilities)
-    - [27.1. DreamFarm Agent (Port 8001)](#271-dreamfarm-agent-port-8001)
-    - [27.2. Future Agents](#272-future-agents)
-    - [27.3. Infrastructure](#273-infrastructure)
-  - [28. Tool Integration Strategy \& Function Interfaces](#28-tool-integration-strategy--function-interfaces)
-    - [28.1. MCP vs REST API Decision](#281-mcp-vs-rest-api-decision)
-    - [28.2. Benefits of MCP-First Approach](#282-benefits-of-mcp-first-approach)
-    - [28.3. AI Tools Overview](#283-ai-tools-overview)
-    - [28.4. Internal Function-Call Interfaces (Agentic Retrieval)](#284-internal-function-call-interfaces-agentic-retrieval)
-    - [28.5. Graph Traversal Retrieval](#285-graph-traversal-retrieval)
-    - [28.6. Breadth-First Taxonomy Search (Updated Design: Semantic Concept Matching First)](#286-breadth-first-taxonomy-search-updated-design-semantic-concept-matching-first)
-    - [28.7. Summary of Graph Tools After Update](#287-summary-of-graph-tools-after-update)
-    - [28.8. Cypher Query Patterns (conceptual):](#288-cypher-query-patterns-conceptual)
-  - [29. Runtime Configuration Pattern](#29-runtime-configuration-pattern)
-    - [29.1. Development Flow](#291-development-flow)
-    - [29.2. Implementation Details](#292-implementation-details)
-  - [30. Development Workflow](#30-development-workflow)
-  - [31. Security Considerations](#31-security-considerations)
-    - [31.1. Authentication \& Authorization](#311-authentication--authorization)
-  - [32. Future Enhancements](#32-future-enhancements)
-  - [33. Code Execution \& Dynamic UI Generation](#33-code-execution--dynamic-ui-generation)
-    - [33.1. Overview \& Capabilities](#331-overview--capabilities)
-    - [33.2. Architecture Components](#332-architecture-components)
-    - [33.3. Security Model](#333-security-model)
-    - [33.4. Data Models \& Message Types](#334-data-models--message-types)
-    - [33.5. Tool Definitions](#335-tool-definitions)
-    - [33.6. Implementation Files](#336-implementation-files)
-    - [33.7. Environment Configuration](#337-environment-configuration)
-    - [33.8. Frontend Integration](#338-frontend-integration)
-    - [33.9. Reference Implementation: Weight Tracking Analysis](#339-reference-implementation-weight-tracking-analysis)
-    - [33.10. Testing Strategy](#3310-testing-strategy)
-    - [33.11. Monitoring \& Observability](#3311-monitoring--observability)
-    - [33.12. Known Limitations \& Future Work](#3312-known-limitations--future-work)
+  - [21. Technical Stack](#21-technical-stack)
+  - [22. API Design](#22-api-design)
+    - [22.1. Base Configuration](#221-base-configuration)
+    - [22.2. Environment Variables](#222-environment-variables)
+    - [22.3. OpenAI Provider Configuration (Unified)](#223-openai-provider-configuration-unified)
+  - [23. Retrieval \& Search Architecture](#23-retrieval--search-architecture)
+    - [23.1. Hybrid RAG (Semantic + Keyword with RRF)](#231-hybrid-rag-semantic--keyword-with-rrf)
+    - [23.2. Agentic Tool-Based Retrieval (Function Calling)](#232-agentic-tool-based-retrieval-function-calling)
+    - [23.3. VIP Fencing](#233-vip-fencing)
+    - [23.4. Full-Text Search (FTS) Enhancement](#234-full-text-search-fts-enhancement)
+  - [24. Semantic Caching (First-Turn Accelerator)](#24-semantic-caching-first-turn-accelerator)
+  - [25. Database and Knowledge Graph Schema (production-ready)](#25-database-and-knowledge-graph-schema-production-ready)
+    - [25.1. Products (relational, hybrid search)](#251-products-relational-hybrid-search)
+    - [25.2. Stock (relational)](#252-stock-relational)
+    - [25.3. Knowledge graph (Apache AGE)](#253-knowledge-graph-apache-age)
+    - [25.4. Detailed Taxonomy \& Cuisine Enrichment Specification](#254-detailed-taxonomy--cuisine-enrichment-specification)
+    - [26.5. RAG Configuration](#265-rag-configuration)
+  - [26. Thread/Session Management Strategy](#26-threadsession-management-strategy)
+    - [26.1. Session Lifecycle](#261-session-lifecycle)
+    - [26.2. Data Storage](#262-data-storage)
+    - [26.3. Benefits of Hybrid Session API](#263-benefits-of-hybrid-session-api)
+    - [26.4. API Endpoints](#264-api-endpoints)
+    - [26.5. Data Models](#265-data-models)
+  - [27. Project Structure](#27-project-structure)
+  - [28. Service Responsibilities](#28-service-responsibilities)
+    - [30.1. DreamFarm Agent (Port 8001)](#301-dreamfarm-agent-port-8001)
+    - [30.2. Future Agents](#302-future-agents)
+    - [30.3. Infrastructure](#303-infrastructure)
+  - [29. Tool Integration Strategy \& Function Interfaces](#29-tool-integration-strategy--function-interfaces)
+    - [30.1. MCP vs REST API Decision](#301-mcp-vs-rest-api-decision)
+    - [30.2. Benefits of MCP-First Approach](#302-benefits-of-mcp-first-approach)
+    - [30.3. AI Tools Overview](#303-ai-tools-overview)
+    - [30.4. Internal Function-Call Interfaces (Agentic Retrieval)](#304-internal-function-call-interfaces-agentic-retrieval)
+    - [30.5. Graph Traversal Retrieval](#305-graph-traversal-retrieval)
+    - [30.6. Breadth-First Taxonomy Search (Updated Design: Semantic Concept Matching First)](#306-breadth-first-taxonomy-search-updated-design-semantic-concept-matching-first)
+    - [30.7. Summary of Graph Tools After Update](#307-summary-of-graph-tools-after-update)
+    - [30.8. Cypher Query Patterns (conceptual):](#308-cypher-query-patterns-conceptual)
+  - [30. Runtime Configuration Pattern](#30-runtime-configuration-pattern)
+    - [30.1. Development Flow](#301-development-flow)
+    - [30.2. Implementation Details](#302-implementation-details)
+  - [31. Development Workflow](#31-development-workflow)
+  - [32. Security Considerations](#32-security-considerations)
+    - [32.1. Authentication \& Authorization](#321-authentication--authorization)
+  - [33. Future Enhancements](#33-future-enhancements)
+  - [34. Code Execution \& Dynamic UI Generation](#34-code-execution--dynamic-ui-generation)
+    - [34.1. Overview \& Capabilities](#341-overview--capabilities)
+    - [34.2. Architecture Components](#342-architecture-components)
+    - [34.3. Security Model](#343-security-model)
+    - [34.4. Data Models \& Message Types](#344-data-models--message-types)
+    - [34.5. Tool Definitions](#345-tool-definitions)
+    - [34.6. Implementation Files](#346-implementation-files)
+    - [34.7. Environment Configuration](#347-environment-configuration)
+    - [34.8. Frontend Integration](#348-frontend-integration)
+    - [34.9. Reference Implementation: Weight Tracking Analysis](#349-reference-implementation-weight-tracking-analysis)
+    - [34.10. Testing Strategy](#3410-testing-strategy)
+    - [34.11. Monitoring \& Observability](#3411-monitoring--observability)
+    - [34.12. Known Limitations \& Future Work](#3412-known-limitations--future-work)
 
 
 ---
@@ -119,6 +128,7 @@ Dream Farm is a virtual marketplace connecting local farmers with customers via 
 - Use tools (internal APIs, MCP servers, web search) safely
 - Personalize responses through privacy-preserving memory & user profile preferences
 - Support voice-based interaction (hands-free mode)
+- Delegate to specialized agents (e.g., Chef Agent for culinary services) via agent-as-tool pattern
 - Evolve toward multi-agent collaboration & workflow orchestration
 
 Key non-functional goals: transparency, extensibility, data security (VIP & per-user fencing), reproducibility, minimized hallucination, auditability of personalization.
@@ -552,9 +562,630 @@ Extension Design Principles:
 
 ---
 
-## 19. Appendices
+## 19. Multi-Agent Architecture
 
-### 19.1. Implementation History
+### 19.1. Business Context & Rationale
+
+As the Dream Farm marketplace grows, the business expands beyond simple product catalog queries into adjacent service domains. The first such expansion targets **culinary services**: connecting customers with professional chefs and catering services for events, celebrations, and corporate functions. This creates an opportunity to:
+
+1. **Cross-Sell**: Customers browsing farm products for an event can simultaneously book a chef or catering service.
+2. **Service Bundling**: Offer complete solutions (ingredients + preparation + service) rather than just raw products.
+3. **Market Differentiation**: Position Dream Farm as a full-stack farm-to-table platform, not just a marketplace.
+
+**Architectural Driver**: As each service domain introduces specialized knowledge, workflows, and data models, a **monolithic agent** approach becomes unwieldy. Different domains benefit from:
+- Independent development & deployment cycles
+- Specialized prompts & tool sets
+- Domain-specific scaling & optimization
+- Clear bounded contexts for maintainability
+
+**Solution**: Multi-agent architecture with **agent-as-tool** pattern, enabling the primary DreamFarm Agent to delegate culinary service requests to a specialized **Chef Agent** while maintaining a unified user experience.
+
+---
+
+### 19.2. Chef Agent Overview
+
+**Purpose**: Specialized conversational agent focused exclusively on culinary services, chef discovery, catering coordination, and event planning.
+
+**Scope** (Phase 1 - Educational):
+- Simplified implementation (no database)
+- Mock data with in-memory consistency (IDs, names, availability stable within session)
+- Single MCP server exposing all chef service tools
+- Stateless tool calls (no persistent order tracking initially)
+
+**Key Capabilities**:
+1. **Chef Discovery**: Search for chefs by specialty (Italian, BBQ, vegan), event type, or skill level
+2. **Service Search**: Find catering packages, delivery services, meal prep services
+3. **Availability Checking**: Query chef calendars, check booking conflicts
+4. **Pricing**: Calculate costs based on guest count, menu complexity, service duration
+5. **Order Placement**: Mock order booking with confirmation IDs
+
+**Prompt Role**:
+```
+You are a culinary services assistant specializing in connecting customers with 
+professional chefs and catering services. You help plan events, recommend chefs 
+based on cuisine preferences and dietary needs, check availability, and provide 
+accurate pricing quotes.
+
+When discussing services:
+- Always verify availability before quoting final prices
+- Clarify guest count and dietary restrictions early
+- Explain what's included in each service tier
+- Provide chef profiles with specialties and experience
+- Confirm all details before placing orders
+```
+
+**Non-Goals** (deferred to future phases):
+- Real payment processing (mock confirmations only)
+- Chef-side interfaces (agent serves customers, not providers)
+- Complex multi-day event coordination
+- Integration with external calendar systems
+
+---
+
+### 19.3. Chef Services MCP Server
+
+**Implementation**: Python FastMCP server under `tools/mcp_chef_services/`
+
+**Mock Data Strategy**:
+```python
+# In-memory data structures (simplified example)
+MOCK_CHEFS = [
+    {
+        "chef_id": "chef_001",
+        "name": "Alessandro Rossi",
+        "specialties": ["Italian", "Mediterranean", "Pasta"],
+        "experience_years": 15,
+        "rate_per_hour": 120,
+        "bio": "...",
+        "certifications": ["Michelin-trained", "ServSafe"]
+    },
+    # ... 10-15 mock chefs
+]
+
+MOCK_SERVICES = [
+    {
+        "service_id": "svc_001",
+        "type": "catering",
+        "name": "Corporate Lunch Catering",
+        "base_price": 25,  # per person
+        "min_guests": 10,
+        "includes": ["Setup", "Buffet service", "Cleanup"]
+    },
+    # ... 8-10 mock services
+]
+
+# Simple availability model: blocked dates per chef
+MOCK_AVAILABILITY = {
+    "chef_001": ["2025-10-15", "2025-10-22"],  # blocked dates
+    # ...
+}
+```
+
+**Tool Definitions**:
+
+#### Tool 1: `search_chefs`
+```json
+{
+  "name": "search_chefs",
+  "description": "Search for chefs by specialty, cuisine type, or event requirements",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "specialty": {
+        "type": "string",
+        "description": "Cuisine type or specialty (e.g., 'Italian', 'BBQ', 'vegan', 'pastry')"
+      },
+      "event_type": {
+        "type": "string",
+        "description": "Type of event (e.g., 'wedding', 'corporate', 'private_dinner')"
+      },
+      "max_results": {
+        "type": "integer",
+        "default": 5,
+        "description": "Maximum number of chefs to return"
+      }
+    },
+    "required": []
+  }
+}
+```
+**Returns**:
+```json
+{
+  "chefs": [
+    {
+      "chef_id": "chef_001",
+      "name": "Alessandro Rossi",
+      "specialties": ["Italian", "Mediterranean"],
+      "experience_years": 15,
+      "rate_per_hour": 120,
+      "bio": "Award-winning chef specializing in authentic regional Italian cuisine",
+      "match_score": 0.95
+    }
+  ],
+  "total_found": 3
+}
+```
+
+#### Tool 2: `search_services`
+```json
+{
+  "name": "search_services",
+  "description": "Search for catering services, delivery options, or meal prep packages",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "service_type": {
+        "type": "string",
+        "enum": ["catering", "delivery", "meal_prep", "private_chef"],
+        "description": "Type of service needed"
+      },
+      "guest_count": {
+        "type": "integer",
+        "description": "Number of guests (for capacity filtering)"
+      },
+      "cuisine": {
+        "type": "string",
+        "description": "Preferred cuisine style"
+      }
+    },
+    "required": ["service_type"]
+  }
+}
+```
+**Returns**:
+```json
+{
+  "services": [
+    {
+      "service_id": "svc_001",
+      "type": "catering",
+      "name": "Corporate Lunch Catering",
+      "base_price_per_person": 25,
+      "min_guests": 10,
+      "max_guests": 200,
+      "includes": ["Setup", "Buffet service", "Cleanup"],
+      "description": "Professional catering for business events..."
+    }
+  ]
+}
+```
+
+#### Tool 3: `check_availability`
+```json
+{
+  "name": "check_availability",
+  "description": "Check chef or service availability for specific dates",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "chef_id": {
+        "type": "string",
+        "description": "Chef identifier (from search_chefs)"
+      },
+      "service_id": {
+        "type": "string",
+        "description": "Service identifier (from search_services)"
+      },
+      "date": {
+        "type": "string",
+        "format": "date",
+        "description": "Requested date (YYYY-MM-DD)"
+      },
+      "duration_hours": {
+        "type": "integer",
+        "description": "Expected duration in hours"
+      }
+    },
+    "required": ["date"]
+  }
+}
+```
+**Returns**:
+```json
+{
+  "available": true,
+  "chef_id": "chef_001",
+  "date": "2025-11-05",
+  "conflicts": [],
+  "next_available_date": null
+}
+```
+or if blocked:
+```json
+{
+  "available": false,
+  "date": "2025-10-15",
+  "conflicts": ["Already booked for wedding event"],
+  "next_available_date": "2025-10-18"
+}
+```
+
+#### Tool 4: `calculate_pricing`
+```json
+{
+  "name": "calculate_pricing",
+  "description": "Calculate total cost for chef services or catering based on requirements",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "chef_id": {
+        "type": "string",
+        "description": "Chef identifier"
+      },
+      "service_id": {
+        "type": "string",
+        "description": "Service identifier"
+      },
+      "guest_count": {
+        "type": "integer",
+        "description": "Number of guests/servings"
+      },
+      "duration_hours": {
+        "type": "integer",
+        "description": "Event duration in hours"
+      },
+      "menu_complexity": {
+        "type": "string",
+        "enum": ["simple", "moderate", "complex"],
+        "description": "Menu complexity level"
+      },
+      "additional_services": {
+        "type": "array",
+        "items": {"type": "string"},
+        "description": "Extra services (e.g., 'wine_pairing', 'decorations')"
+      }
+    },
+    "required": ["guest_count"]
+  }
+}
+```
+**Returns**:
+```json
+{
+  "total_cost": 3200,
+  "breakdown": {
+    "chef_fee": 960,  // 8 hours * $120/hr
+    "service_fee": 1500,  // 60 guests * $25/person
+    "additional": 740,
+    "tax": 0  // (mock: no tax calculation)
+  },
+  "currency": "USD",
+  "guest_count": 60,
+  "per_person_cost": 53.33,
+  "notes": "Includes setup, service, and cleanup. Wine pairing adds $15/person."
+}
+```
+
+#### Tool 5: `place_order`
+```json
+{
+  "name": "place_order",
+  "description": "Place a booking order for chef services or catering",
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "chef_id": {
+        "type": "string"
+      },
+      "service_id": {
+        "type": "string"
+      },
+      "date": {
+        "type": "string",
+        "format": "date"
+      },
+      "guest_count": {
+        "type": "integer"
+      },
+      "duration_hours": {
+        "type": "integer"
+      },
+      "menu_notes": {
+        "type": "string",
+        "description": "Dietary restrictions, preferences, special requests"
+      },
+      "contact_info": {
+        "type": "object",
+        "properties": {
+          "name": {"type": "string"},
+          "email": {"type": "string"},
+          "phone": {"type": "string"}
+        }
+      }
+    },
+    "required": ["date", "guest_count", "contact_info"]
+  }
+}
+```
+**Returns**:
+```json
+{
+  "order_id": "ORD_20251015_001",
+  "status": "confirmed",
+  "chef_name": "Alessandro Rossi",
+  "service_name": "Private Dinner Service",
+  "date": "2025-11-05",
+  "guest_count": 12,
+  "total_cost": 1680,
+  "confirmation_sent_to": "customer@example.com",
+  "next_steps": "Chef will contact you within 24 hours to finalize menu details."
+}
+```
+
+**Consistency Rules**:
+- IDs are deterministic hashes of names (same chef name → same chef_id across calls)
+- Availability blocks persist in-memory for session duration
+- Pricing calculations use consistent formulas (no random variation)
+- Orders generate sequential IDs per session (ORD_YYYYMMDD_NNN)
+
+**Error Handling**:
+- Invalid chef_id / service_id: return error with suggestion to search first
+- Date in past: reject with clear message
+- Capacity violations (guest_count > max_guests): return constraint message
+
+---
+
+### 19.4. Agent-as-Tool Pattern
+
+**Concept**: Expose the entire Chef Agent as a callable tool within the DreamFarm Agent's tool set, enabling seamless domain delegation without the user perceiving separate systems.
+
+**User Experience Flow**:
+1. User (in DreamFarm conversation): "I need farm products for a wedding and someone to cook them"
+2. DreamFarm Agent:
+   - Recognizes culinary service intent
+   - Calls `semantic_search` for farm products (own domain)
+   - Calls `delegate_to_chef_agent` tool with user request
+3. Chef Agent (via tool call):
+   - Processes chef/service query
+   - Returns structured response
+4. DreamFarm Agent:
+   - Synthesizes product recommendations + chef service options
+   - Presents unified answer to user
+
+**Prompt Orchestration** (DreamFarm Agent extended):
+```
+You have access to a specialized chef services assistant for culinary needs. 
+When the user requests:
+- Chef recommendations
+- Catering services
+- Event cooking
+- Meal preparation services
+
+Use the `delegate_to_chef_agent` tool to get expert culinary service information, 
+then integrate it with product recommendations from our farm marketplace.
+
+Example: User wants "a chef to prepare Italian dinner for 10 people"
+1. Call delegate_to_chef_agent(query="Italian chef for 10 people dinner")
+2. Extract chef options and pricing
+3. Call semantic_search(text="Italian ingredients pasta olive oil")
+4. Combine both in your response
+```
+
+---
+
+### 19.5. Integration Approaches
+
+Three integration patterns evaluated; all remain **implementation options** at this design stage:
+
+#### Option A: Agent-to-Agent Protocol (Preferred for Production)
+**Mechanism**: Direct HTTP/gRPC communication between agent backends
+
+**Advantages**:
+- Clean separation of concerns (each agent = independent service)
+- Standard service mesh patterns (retries, circuit breakers, load balancing)
+- Language-agnostic (Chef Agent could be Node.js, Go, etc.)
+- Easy horizontal scaling per agent type
+
+**Trade-offs**:
+- Requires service discovery / endpoint management
+- More operational complexity (multiple deployments)
+
+**Implementation Sketch**:
+```python
+# In DreamFarm Agent
+class ChefAgentClient:
+    def __init__(self, base_url: str):
+        self.base_url = base_url  # http://chef-agent:8002
+    
+    async def query(self, user_message: str, context: dict) -> dict:
+        response = await httpx.post(
+            f"{self.base_url}/query",
+            json={"message": user_message, "context": context}
+        )
+        return response.json()
+
+# Registered as tool
+{
+    "name": "delegate_to_chef_agent",
+    "description": "Query chef services agent for culinary assistance",
+    "function": lambda query: ChefAgentClient.query(query, {})
+}
+```
+
+#### Option B: MCP Server Wrapper (Hybrid)
+**Mechanism**: Wrap Chef Agent logic inside an MCP server; DreamFarm Agent calls it like any MCP tool
+
+**Advantages**:
+- Leverages existing MCP infrastructure
+- Unified tool registration pattern
+- Easier for educational / demo scenarios (single protocol)
+
+**Trade-offs**:
+- MCP not designed for complex stateful conversations (better for atomic tools)
+- Loses some agent autonomy (becomes "smart tool" rather than peer agent)
+
+**Implementation Sketch**:
+```python
+# tools/mcp_chef_agent/server.py
+@mcp_server.tool()
+async def query_chef_services(query: str, context: dict = None) -> dict:
+    """
+    Query the chef services agent for culinary recommendations.
+    Returns structured chef/service data.
+    """
+    # Internal: Initialize Chef Agent conversation
+    chef_agent = ChefAgentSession()
+    response = await chef_agent.process(query, context)
+    return response  # Structured JSON
+```
+
+#### Option C: Function Calling with Prompt Delegation (Simplest)
+**Mechanism**: DreamFarm Agent prompt includes "Chef Agent persona" instructions; uses function calls to Chef MCP tools
+
+**Advantages**:
+- No separate deployment
+- Simplest for Phase 1 / educational use
+- Minimal infrastructure
+
+**Trade-offs**:
+- No true agent independence (prompt injection risk)
+- Scaling tied to main agent
+- Harder to evolve Chef domain separately
+
+**Implementation**: Already implicitly supported (existing MCP tools + extended prompt)
+
+**Decision Matrix**:
+
+| Criteria | A2A Protocol | MCP Wrapper | Function Call |
+|----------|-------------|-------------|---------------|
+| Independence | ✅ High | ⚠️ Medium | ❌ Low |
+| Operational Complexity | ⚠️ High | ✅ Medium | ✅ Low |
+| Educational Clarity | ⚠️ Medium | ✅ High | ✅ High |
+| Production Readiness | ✅ High | ⚠️ Medium | ❌ Low |
+| Phase 1 Suitability | ⚠️ Overkill | ✅ Good | ✅ Good |
+
+**Recommended Path**:
+- **Phase 1 (Lesson 8)**: Option C (Function Calling) for simplicity
+- **Phase 2 (Production Track)**: Option B (MCP Wrapper) as intermediate step
+- **Phase 3 (Scale)**: Option A (A2A) for full multi-agent orchestration
+
+---
+
+### 19.6. Data Flow & Orchestration
+
+**Scenario**: User requests catering for farm product event
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant DF as DreamFarm Agent
+    participant CHEF as Chef Agent/MCP
+    participant DB as Product DB
+    
+    U->>DF: "I need products and chef for 50-person wedding"
+    
+    Note over DF: Intent classification:<br/>Farm products + Chef service
+    
+    DF->>DB: semantic_search("wedding catering vegetables")
+    DB-->>DF: [Products: lettuce, tomatoes, olive oil, ...]
+    
+    DF->>CHEF: delegate_to_chef_agent("chef for 50-person wedding")
+    Note over CHEF: Internal processing:<br/>1. search_chefs(event_type="wedding")<br/>2. check_availability(date=inferred)<br/>3. calculate_pricing(guest_count=50)
+    CHEF-->>DF: {chefs: [...], services: [...], estimated_cost: 3200}
+    
+    Note over DF: Synthesize combined response
+    
+    DF-->>U: "I found fresh vegetables from 3 farms...<br/>For catering, Alessandro Rossi is available<br/>at $3,200 for 50 guests. Shall I proceed?"
+    
+    U->>DF: "Yes, book Alessandro"
+    DF->>CHEF: delegate_to_chef_agent("book Alessandro for Nov 5, 50 guests")
+    CHEF->>CHEF: place_order(chef_id="chef_001", date="2025-11-05", ...)
+    CHEF-->>DF: {order_id: "ORD_...", status: "confirmed"}
+    DF-->>U: "Booking confirmed! Order #ORD_20251105_001"
+```
+
+**Key Orchestration Points**:
+1. **Intent Detection**: DreamFarm Agent classifies multi-domain requests
+2. **Parallel Delegation**: Can call product search + chef delegation concurrently
+3. **Context Passing**: Shares inferred details (date, guest count) between domains
+4. **Response Fusion**: Single coherent answer combining both domains
+5. **Transaction Coordination**: (Future) Handle booking + product reservation atomically
+
+---
+
+### 19.7. Configuration & Environment
+
+**Chef Agent / MCP Server**:
+```bash
+# .env (Chef Agent)
+CHEF_AGENT_PORT=8002
+OPENAI_API_KEY=<same or separate key>
+OPENAI_MODEL=gpt-4o  # or gpt-5
+
+# Mock data configuration
+CHEF_MOCK_DATA_SEED=42  # Deterministic random seed
+CHEF_AVAILABILITY_WINDOW_DAYS=90  # How far ahead to allow bookings
+```
+
+**DreamFarm Agent Integration**:
+```bash
+# .env (DreamFarm Agent)
+CHEF_AGENT_ENABLED=true
+
+# Option A: A2A
+CHEF_AGENT_URL=http://chef-agent:8002
+
+# Option B: MCP
+CHEF_MCP_SERVER_URL=http://localhost:8003/mcp
+CHEF_MCP_API_KEY=<optional>
+
+# Option C: Function Calling (no extra config, just enable tools)
+```
+
+**Docker Compose Addition**:
+```yaml
+services:
+  chef-agent:
+    build: ./tools/mcp_chef_services
+    ports:
+      - "8002:8002"
+    environment:
+      - CHEF_AGENT_PORT=8002
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    networks:
+      - dreamfarm
+```
+
+---
+
+### 19.8. Future Extensibility
+
+**Additional Agent Domains** (potential):
+- **Nutrition Agent**: Dietary analysis, meal planning, health recommendations
+- **Logistics Agent**: Delivery routing, packaging optimization, sustainability tracking
+- **Finance Agent**: Payment processing, invoicing, subscription management
+- **Farmer Agent**: Producer-side interface (inventory updates, order fulfillment)
+
+**Multi-Agent Patterns to Explore**:
+- **Hierarchical Orchestration**: Supervisor agent delegates to specialist agents
+- **Peer Collaboration**: Agents negotiate directly (e.g., Chef + Logistics coordinate delivery)
+- **Event-Driven**: Agents subscribe to domain events (order placed → notify logistics)
+- **Consensus**: Multiple agents vote on recommendations (nutrition + chef + farmer agree on meal plan)
+
+**Challenges to Address**:
+- **Conversation Continuity**: Maintain context across agent boundaries
+- **Conflict Resolution**: What if Product Agent and Chef Agent give contradicting advice?
+- **Cost Management**: Each agent call = LLM invocation; optimize delegation decisions
+- **Latency**: Sequential agent calls add latency; need parallel execution strategies
+- **Observability**: Trace requests across multiple agent hops; unified telemetry
+
+**Architectural Safeguards**:
+- Agent interfaces remain **stateless** (no shared in-memory state)
+- Communication via **structured schemas** (Pydantic models)
+- Timeout & circuit breaker policies per agent call
+- Fallback to single-agent mode if delegation fails
+- Clear **bounded contexts** (no domain bleed between agents)
+
+---
+
+**End of Section 19: Multi-Agent Architecture**
+
+---
+
+## 20. Appendices
+
+### 20.1. Implementation History
 Incremental feature development notes and decision rationale maintained in `ImplementationLog.md` for audit trail.
 
 ### 19.2. Related Documentation
@@ -564,7 +1195,7 @@ Incremental feature development notes and decision rationale maintained in `Impl
 
 ---
 
-## 20. Technical Stack
+## 21. Technical Stack
 
 **Backend:**
 - **Language**: Python 3.11+
@@ -612,14 +1243,14 @@ Incremental feature development notes and decision rationale maintained in `Impl
 
 ---
 
-## 21. API Design
+## 22. API Design
 
-### 21.1. Base Configuration
+### 22.1. Base Configuration
 - **DreamFarm Agent Port**: 8001 (main AI agent, LLM logic, sessions, CORS)
 - **Frontend Port**: 3000 (default for React/Vite)
 - **Environment**: `.env` file for DreamFarm agent
 
-### 21.2. Environment Variables
+### 22.2. Environment Variables
 **DreamFarm Agent (.env) - Unified:**
 ```
 # OpenAI (hosted by OpenAI)
@@ -721,7 +1352,7 @@ REACT_APP_API_VERSION=v1
 
 The Dockerfile includes a startup script that generates `public/config.js` from environment variables.
 
-### 21.3. OpenAI Provider Configuration (Unified)
+### 22.3. OpenAI Provider Configuration (Unified)
 
 The system supports both Azure OpenAI and OpenAI API with a single client.
 Use ``OPENAI_BASE_URL`` and ``OPENAI_API_VERSION`` when talking to Azure; omit them for OpenAI-hosted.
@@ -744,7 +1375,7 @@ This abstraction allows the same codebase to work with both providers seamlessly
 
 ---
 
-## 22. Retrieval & Search Architecture
+## 23. Retrieval & Search Architecture
 
 The platform provides multiple complementary retrieval modes:
 1. Hybrid RAG (semantic + keyword fusion) – prompt inlined context blocks (internal fusion logic)
@@ -753,11 +1384,11 @@ The platform provides multiple complementary retrieval modes:
 
 VIP fencing (row-level filtering) currently applies only to the agentic tool-based retrieval path; hybrid RAG remains unrestricted (shows full catalog) unless extended later.
 
-### 22.1. Hybrid RAG (Semantic + Keyword with RRF)
+### 23.1. Hybrid RAG (Semantic + Keyword with RRF)
 
 The DreamFarm Agent includes a hybrid RAG system combining semantic + full‑text retrieval:
 
-#### 22.1.1. RAG Architecture (Hybrid)
+#### 23.1.1. RAG Architecture (Hybrid)
 1. **Semantic Pass**: Generate embedding for user query; vector similarity over `simple_products.embedding` (cosine) → ranked list S
 2. **Keyword Extraction**: LLM (Responses API structured output) extracts normalized keywords (product names, producer names, salient nouns)
 3. **Full‑Text Pass**: Build `to_tsquery` over `fts_combined` from extracted keywords → ranked list K (ts_rank)
@@ -765,7 +1396,7 @@ The DreamFarm Agent includes a hybrid RAG system combining semantic + full‑tex
 5. **Prompt Injection**: Format F (same block format) → `<relevant_products>` in system prompt (existing behavior; unchanged downstream)
 6. **Logging** (INFO): counts for semantic, keywords, fts, fused
 
-#### 22.1.2. Design Notes
+#### 23.1.2. Design Notes
 - **Structured Output**: Pydantic `ExtractedKeywords(keywords: List[str])` passed via `response_format` json_schema; deterministic schema for parsing
 - **Safety**: Keyword extraction failure → fallback to semantic only; empty keywords skip FTS
 - **FTS Query**: OR-joined sanitized keywords (`|`) with `simple` config & `unaccent`; limit = `RAG_MAX_RESULTS` (pre‑fusion diversity kept by fusion step)
@@ -773,7 +1404,7 @@ The DreamFarm Agent includes a hybrid RAG system combining semantic + full‑tex
 - **Score Reporting**: Final `similarity_score` field holds fused score (semantic method unchanged for tests)
 - **Extensibility**: Future third signal (graph, stock filters, reranker) can add another ranked list before fusion
 
-#### 22.1.3. RAG Components
+#### 23.1.3. RAG Components
 
 **RAGService** (`src/services/rag_service.py`):
 - Embedding generation
@@ -783,7 +1414,7 @@ The DreamFarm Agent includes a hybrid RAG system combining semantic + full‑tex
 - Result formatting + prompt injection
 - Feature flags: `ENABLE_RAG`, interplay with `AGENTIC_SEARCH_ENABLED`
 
-### 22.2. Agentic Tool-Based Retrieval (Function Calling)
+### 23.2. Agentic Tool-Based Retrieval (Function Calling)
 Enabled via `AGENTIC_SEARCH_ENABLED=true`. The LLM receives two retrieval tool schemas and decides dynamically which (and how many times) to invoke; the backend does not merge or rerank across tool outputs—each call returns an independent result set the model can reference in subsequent reasoning.
 
 Tools (JSON schema arguments):
@@ -800,7 +1431,7 @@ Fallback: If agentic search disabled or model opts not to call tools, system use
 
 HyDE Meta: When generated, truncated hash + token count emitted in a `DF_META` line with kind `hyde_generation`.
 
-### 22.3. VIP Fencing
+### 23.3. VIP Fencing
 Applied only in agentic retrieval tool queries:
 ```
 WHERE (products.is_vip = false OR :user_is_vip = true)
@@ -827,12 +1458,12 @@ Notes
 - Additional btree indexes on product_id, producer_name, and product_name for lookups.
 - Full-text search enabled via generated column `fts_combined` + GIN index (unaccent + simple config).
 
-### 22.4. Full-Text Search (FTS) Enhancement
+### 23.4. Full-Text Search (FTS) Enhancement
 Hybrid support: `fts_combined` (trigger-maintained due to unaccent immutability) + GIN index for keyword fallback alongside vector search. Extension: `unaccent`.
 
 ---
 
-## 23. Semantic Caching (First-Turn Accelerator)
+## 24. Semantic Caching (First-Turn Accelerator)
 
 Purpose: Reduce latency and model cost for extremely common FIRST user turns (greetings, capability questions, generic help requests) by answering from a local cache when the opening user message semantically matches a precomputed canonical question.
 
@@ -885,11 +1516,11 @@ Future Enhancements:
 
 ---
 
-## 24. Database and Knowledge Graph Schema (production-ready)
+## 25. Database and Knowledge Graph Schema (production-ready)
 
 This section specifies the target schema for production, with a richer `products` table for hybrid search, a `stock` table, and a knowledge graph using Apache AGE.
 
-### 24.1. Products (relational, hybrid search)
+### 25.1. Products (relational, hybrid search)
 
 Purpose: primary product catalog optimized for hybrid retrieval (semantic + keyword) and downstream reranking.
 
@@ -927,7 +1558,7 @@ Notes
   score = 0.6 * (1 - cosine_distance(embedding, :query_vec)) + 0.4 * ts_rank_cd(fts_document, plainto_tsquery(:q))
 - Keep `simple_products` as a minimal seed/training/lesson table; `products` supersedes it for production use.
 
-### 24.2. Stock (relational)
+### 25.2. Stock (relational)
 
 Purpose: current stock quantity per product (and producer for provenance).
 
@@ -950,7 +1581,7 @@ Notes
 - Matches generator output in `data/source_json/stock.json` (producerId, productId, onStock).
 - If products are unique to a producer, (product_id) could be unique; we keep a composite PK for generality.
 
-### 24.3. Knowledge graph (Apache AGE)
+### 25.3. Knowledge graph (Apache AGE)
 
 Purpose: model rich relationships (producer → product, certifications, allergens, categories) and enable graph traversals for recommendations, explanations, and exploration.
 
@@ -986,7 +1617,7 @@ Relational ↔ Graph integration (recommended pattern)
   2) Use those IDs as parameters to a Cypher query for traversals/enrichment (e.g., producers, certifications, similar products) and optionally re‑rank.
   3) Join the `cypher(...)` results with relational tables on the `productId`/`producerId` properties.
 
-### 24.4. Detailed Taxonomy & Cuisine Enrichment Specification
+### 25.4. Detailed Taxonomy & Cuisine Enrichment Specification
 
 Goals
 - Introduce two higher‑level concept layers (Category, Cuisine) above raw products to enable semantic grouping, faceted exploration, recommendation pivots, and richer natural‑language answers (e.g., "These cheeses fit Italian Mediterranean salads").
@@ -1100,13 +1731,13 @@ AGE operational notes
 - Use `SELECT create_graph('dreamfarm');` once, then `cypher('dreamfarm', $$ ... $$)` for DML/queries.
 - Store external IDs as vertex properties (e.g., `Product {productId: '...'}`) to bridge to relational tables.
 
-### 24.5. RAG Configuration
+### 26.5. RAG Configuration
 
 **Feature Flag**: Set `ENABLE_RAG=true` to enable semantic search
 **Similarity Threshold**: `RAG_SIMILARITY_THRESHOLD=0.7` (0.0-1.0, higher = more strict)
 **Max Results**: `RAG_MAX_RESULTS=3` (top N similar products to include)
 
-#### 24.5.1. RAG Workflow
+#### 26.5.1. RAG Workflow
 1. User asks: "I need fresh vegetables for a salad"
 2. System generates embedding for the query
 3. Cosine similarity search finds relevant products (e.g., lettuce, tomatoes, cucumbers)
@@ -1114,7 +1745,7 @@ AGE operational notes
 5. System prompt includes: `<relevant_products>Product info...</relevant_products>`
 6. AI assistant responds with knowledge of available products
 
-#### 24.5.2. Benefits
+#### 26.5.2. Benefits
 - **Semantic Understanding**: Finds products by meaning, not just keywords
 - **Real-time Context**: Always uses current product database
 - **Configurable**: Can be enabled/disabled and tuned via environment variables
@@ -1122,18 +1753,18 @@ AGE operational notes
 
 ---
 
-## 25. Thread/Session Management Strategy
+## 26. Thread/Session Management Strategy
 
 The system implements a hybrid session API that combines lightweight thread handles with provider-side conversation state via the Responses API.
 
-### 25.1. Session Lifecycle
+### 26.1. Session Lifecycle
 1. **Create Session**: Frontend calls `POST /threads` to get a session handle (`thread_id`)
 2. **Send Messages**: Frontend sends messages via `POST /threads/{thread_id}/messages`
 3. **Server-side State**: Backend calls OpenAI Responses API with `store=True` and remembers only the last `response_id` per `thread_id` to continue with `previous_response_id` on the next turn
 4. **History**: Backend maintains an in-memory message list for UI display; content is not used to generate responses (Responses API maintains actual conversation state)
 5. **Persistence**: Thread metadata and history stored in-memory; conversation state persisted by Responses API; optional database persistence for raw conversations when CONVERSATION_STORE_ENABLED=true
 
-### 25.2. Data Storage
+### 26.2. Data Storage
 ```python
 # In-memory storage (main.py)
 _threads: dict[str, ThreadModel] = {}
@@ -1149,7 +1780,7 @@ _html_artifact_registry: dict[str, dict] = {}  # Custom UI artifact storage
 # - PostgreSQL user_profiles table: User personalization data
 ```
 
-### 25.3. Benefits of Hybrid Session API
+### 26.3. Benefits of Hybrid Session API
 - **Stateless HTTP**: Each request is independent, easier to scale
 - **Provider State**: Uses Responses API server-side state via `previous_response_id`
 - **OpenAI Compatible**: Aligns with Responses API conversation model
@@ -1157,11 +1788,11 @@ _html_artifact_registry: dict[str, dict] = {}  # Custom UI artifact storage
 - **Optional Persistence**: Memory features can be enabled/disabled independently
 - **Debugging**: Easy to inspect conversation history
 
-### 25.4. API Endpoints
+### 26.4. API Endpoints
 
 **Base URL**: `http://localhost:8001`
 
-#### 25.4.1. POST /chat
+#### 26.4.1. POST /chat
 Single-endpoint chat using server-side conversation state.
 
 Uses Responses API with `store=true` and `previous_response_id` for continuity.
@@ -1185,7 +1816,7 @@ Uses Responses API with `store=true` and `previous_response_id` for continuity.
 
 **Note**: Stream responses may include meta lines prefixed with `DF_META:` containing JSON telemetry about tool usage or reasoning. Clients should display these separately from assistant text.
 
-#### 25.4.2. POST /threads
+#### 26.4.2. POST /threads
 Create a new conversation thread.
 
 **Request Body:**
@@ -1205,7 +1836,7 @@ Create a new conversation thread.
 }
 ```
 
-#### 25.4.3. PUT /threads/{thread_id}/title
+#### 26.4.3. PUT /threads/{thread_id}/title
 Rename (retitle) an existing thread. Only the owning user may rename a thread.
 
 **Request Body:**
@@ -1229,7 +1860,7 @@ Errors:
 - 404 if thread not found (or not owned by user)
 - 422 on validation failure
 
-#### 25.4.4. DELETE /threads/{thread_id}
+#### 26.4.4. DELETE /threads/{thread_id}
 Delete a thread and its persisted raw transcript. Idempotent (second delete returns 404).
 
 **Response:**
@@ -1240,7 +1871,7 @@ Delete a thread and its persisted raw transcript. Idempotent (second delete retu
 }
 ```
 
-#### 25.4.5. GET /threads/{thread_id}
+#### 26.4.5. GET /threads/{thread_id}
 Get thread information.
 
 **Response:**
@@ -1254,7 +1885,7 @@ Get thread information.
 }
 ```
 
-#### 25.4.6. POST /threads/{thread_id}/messages
+#### 26.4.6. POST /threads/{thread_id}/messages
 Send a message in a conversation thread.
 
 **Request Body:**
@@ -1276,7 +1907,7 @@ Send a message in a conversation thread.
 }
 ```
 
-#### 25.4.7. POST /threads/{thread_id}/messages/stream
+#### 26.4.7. POST /threads/{thread_id}/messages/stream
 Send a message and stream the assistant response tokens progressively.
 
 Response is a streamed text/plain body with chunks of assistant text as they arrive.
@@ -1286,7 +1917,7 @@ Notes:
 - Uses the same prompt template and optional RAG context as the non-streaming route
 - Appends final assistant message to in-memory history when stream completes
 
-#### 25.4.8. GET /threads/{thread_id}/messages
+#### 26.4.8. GET /threads/{thread_id}/messages
 Get conversation history for a thread.
 
 **Query Parameters:**
@@ -1310,7 +1941,7 @@ Get conversation history for a thread.
 }
 ```
 
-#### 25.4.9. GET /health
+#### 26.4.9. GET /health
 Health check endpoint.
 
 **Response:**
@@ -1321,9 +1952,9 @@ Health check endpoint.
 }
 ```
 
-### 25.5. Data Models
+### 26.5. Data Models
 
-#### 25.5.1. Chat (Pydantic)
+#### 26.5.1. Chat (Pydantic)
 ```python
 class ChatRequest(BaseModel):
   message: str
@@ -1335,7 +1966,7 @@ class ChatResponse(BaseModel):
   timestamp: str
 ```
 
-#### 25.5.2. Thread (Pydantic)
+#### 26.5.2. Thread (Pydantic)
 ```python
 class Thread(BaseModel):
     thread_id: str
@@ -1357,7 +1988,7 @@ class ThreadRenameRequest(BaseModel):
   title: constr(min_length=1, max_length=160)
 ```
 
-#### 25.5.3. Message (Pydantic)
+#### 26.5.3. Message (Pydantic)
 ```python
 class Message(BaseModel):
     message_id: str
@@ -1377,7 +2008,7 @@ class SendMessageResponse(BaseModel):
     assistant_response: str
     timestamp: str
 
-#### 25.5.5. Health (Pydantic)
+#### 26.5.5. Health (Pydantic)
 ```python
 class HealthResponse(BaseModel):
     status: str
@@ -1386,7 +2017,7 @@ class HealthResponse(BaseModel):
 
 ---
 
-## 26. Project Structure
+## 27. Project Structure
 
 ```
 advanced-ai-applications/
@@ -1485,9 +2116,9 @@ advanced-ai-applications/
 
 ---
 
-## 27. Service Responsibilities
+## 28. Service Responsibilities
 
-### 27.1. DreamFarm Agent (Port 8001)
+### 30.1. DreamFarm Agent (Port 8001)
 **Purpose**: Main AI agent for the Dream Farm marketplace
 - **LLM Integration**: Azure OpenAI Service or OpenAI API communication
 - **Session API**: Lightweight `/threads` endpoints for session handles; Responses API maintains conversation state
@@ -1497,19 +2128,19 @@ advanced-ai-applications/
 - **API Endpoints**: All REST endpoints for the Dream Farm application
 - **Agent Orchestration**: Can coordinate with other agents in multi-agent scenarios
 
-### 27.2. Future Agents
+### 30.2. Future Agents
 - **Chef Agent**: Specialized agent for cooking/catering services
 - **Other Domain Agents**: Additional specialized agents as business grows
 
-### 27.3. Infrastructure
+### 30.3. Infrastructure
 - **nginx/Envoy**: For production load balancing, SSL, static files
 - **Authentication**: Can be added as middleware to agents or separate service
 
 ---
 
-## 28. Tool Integration Strategy & Function Interfaces
+## 29. Tool Integration Strategy & Function Interfaces
 
-### 28.1. MCP vs REST API Decision
+### 30.1. MCP vs REST API Decision
 
 **Use MCP Protocol for:**
 - RAG/knowledge base queries
@@ -1527,7 +2158,7 @@ advanced-ai-applications/
 - Core business logic
 - Frontend-backend communication
 
-### 28.2. Benefits of MCP-First Approach
+### 30.2. Benefits of MCP-First Approach
 
 1. **Standardized Interface**: All tools speak the same protocol
 2. **AI-Native Design**: MCP is designed specifically for AI tool integration
@@ -1538,7 +2169,7 @@ advanced-ai-applications/
 
 This approach allows the API Gateway to remain focused on core business logic while delegating specialized tasks to dedicated MCP servers.
 
-### 28.3. AI Tools Overview
+### 30.3. AI Tools Overview
 
 Tools live under `tools/` (standalone services / MCP servers) or as internal function-call interfaces exposed to the LLM. Scope:
 
@@ -1559,7 +2190,7 @@ Tools live under `tools/` (standalone services / MCP servers) or as internal fun
 
 - Tavily Remote MCP (SaaS web search)
 
-### 28.4. Internal Function-Call Interfaces (Agentic Retrieval)
+### 30.4. Internal Function-Call Interfaces (Agentic Retrieval)
 - `semantic_search` (arguments: text: string) – semantic vector similarity (HyDE capable) with VIP fence.
 - `keyword_search` (arguments: keywords: string[]) – full‑text search over `fts_document` / `fts_combined` with VIP fence.
 
@@ -1569,7 +2200,7 @@ No backend fusion: model may call tools multiple times and integrate / compare r
 
 Telemetry: Each invocation emits `DF_META` line (`search_tool_call`) with counts pre/post VIP filter.
 
-### 28.5. Graph Traversal Retrieval
+### 30.5. Graph Traversal Retrieval
 
 Objective: Expose the knowledge graph (Apache AGE) as an additional retrieval surface complementary to vector/FTS tools, enabling the LLM to:
 - Start from abstract user intent → hypothesize likely higher‑level concepts (categories, cuisines, allergens, certifications) → fan out to candidate products (breadth-first taxonomy expansion).
@@ -1591,26 +2222,26 @@ Tools (proposed JSON schemas):
   - `limit: int` (optional, default 10, max 25)
   Returns: `{ start_product: { product_id, product_name }, similar_products: [ { product_id, product_name, shared_traits: [ { kind, id, name } ], similarity_score } ] }`
 
-#### 28.5.1. Clarification: DFS Similarity Tool Rationale
+#### 30.5.1. Clarification: DFS Similarity Tool Rationale
 The `graph_dfs_similarity_search` tool intentionally centers on trait overlap (Categories, Cuisines, Certifications, Allergens, Producer) to surface products that are *structurally* similar in the knowledge graph. It does NOT perform semantic embedding similarity itself — that happens earlier (e.g., via semantic product search) and this DFS tool refines or broadens recommendations by relationship structure. Its scoring (weights per trait family) is documented below; no changes needed at this time.
 
 ---
 
-### 28.6. Breadth-First Taxonomy Search (Updated Design: Semantic Concept Matching First)
+### 30.6. Breadth-First Taxonomy Search (Updated Design: Semantic Concept Matching First)
 
 Earlier draft examples showed ad‑hoc text matching (ILIKE / CONTAINS) against concept names/descriptions. We are replacing that with a semantic concept selection phase to produce more robust recall and nuanced alignment with user intent. This section supersedes any prior LIKE‑based concept matching references.
 
-#### 28.6.1. Design Motivation
+#### 30.6.1. Design Motivation
 User queries describing desired attributes (e.g., “mild Italian cheese without nuts certified organic”) combine multiple abstract facets. Literal substring filtering is brittle (pluralization, synonyms, language drift). A semantic embedding layer over higher‑level concept entities (Category, Cuisine, Certification, Allergen) provides resilient matching and ranking before graph expansion.
 
-#### 28.6.2. Key Decisions
+#### 30.6.2. Key Decisions
 1. Do **not** store embeddings directly inside AGE vertex properties for similarity search. While AGE lives in PostgreSQL, AGE itself does not expose native vector indexing operators; we instead leverage **pgvector** in dedicated relational tables and then bridge via shared IDs.
 2. Maintain a **unified concept embeddings table** covering all supported concept types instead of one table per type to simplify maintenance and multi‑type ranking.
 3. Keep graph vertices lean (IDs + minimal display properties) and perform semantic retrieval outside the graph; then pass selected vertex IDs into controlled BFS expansion.
 4. Support **negative constraints** (e.g., “without nuts”, “no dairy”) via lightweight structured extraction so we can exclude or penalize conflicting traits early.
 5. Provide explicit configurability for per‑type weights and similarity thresholds to tune precision vs. recall.
 
-#### 28.6.3. Data Structures (Relational Layer)
+#### 30.6.3. Data Structures (Relational Layer)
 `concept_embeddings` (new table – conceptual schema):
 | Column | Type | Notes |
 | ------ | ---- | ----- |
@@ -1628,7 +2259,7 @@ Indexes / Performance:
 - Composite btree on (`concept_type`, `concept_id`).
 - Optional partial index for active concepts if future soft deletes are introduced.
 
-#### 28.6.4. Environment / Config Additions
+#### 30.6.4. Environment / Config Additions
 | Variable | Purpose | Default |
 | -------- | ------- | ------- |
 | `GRAPH_BFS_CONCEPT_TOP_K_PER_TYPE` | Max semantic matches kept per type before expansion | 5 |
@@ -1640,7 +2271,7 @@ Indexes / Performance:
 | `GRAPH_BFS_PRODUCT_DIVERSITY_PENALTY` | Penalize overrepresentation of a single concept | 0.15 |
 | `GRAPH_BFS_SCORE_NORMALIZE` | Normalize final product scores to 0..1 | true |
 
-#### 28.6.5. Input & Structured Extraction
+#### 30.6.5. Input & Structured Extraction
 Tool input: `hypothesis_text` (free form), `max_hops`, `limit`.
 
 Pre‑processing (LLM structured extraction schema conceptually):
@@ -1652,7 +2283,7 @@ Pre‑processing (LLM structured extraction schema conceptually):
 ```
 This step is optional but improves negative constraint handling. If extraction fails, proceed with raw text embedding and skip negative filtering (fail‑open, transparent in telemetry).
 
-#### 28.6.6. Semantic Concept Selection Algorithm (Pseudo Steps)
+#### 30.6.6. Semantic Concept Selection Algorithm (Pseudo Steps)
 1. Receive `hypothesis_text`.
 2. (Optional) Extract positive/negative cues.
 3. Generate embedding for `hypothesis_text` (single pass; do **not** split unless text length exceeds model safe window – future optimization).
@@ -1662,7 +2293,7 @@ This step is optional but improves negative constraint handling. If extraction f
 7. Record telemetry: counts per type, filtered out below threshold, final selected.
 8. Produce ordered concept seed list with (concept_id, concept_type, similarity_score, weight = type_weight * similarity_score).
 
-#### 28.6.7. BFS Expansion (Concept → Product)
+#### 30.6.7. BFS Expansion (Concept → Product)
 1. Initialize frontier with selected concept vertex IDs (Category/Cuisine/Certification). Allergens appear only if user *explicitly* wants inclusion; otherwise they act mainly as negative constraints (avoidance). We keep allergen vertices optional in frontier to avoid recommending allergen-rich items when user intent is exclusionary.
 2. Execute constrained breadth expansion up to `max_hops` (default 2):
    - Hop 1: Concept → Product edges (`HAS_CATEGORY`, `HAS_CUISINE`, `HAS_CERTIFICATION`).
@@ -1670,7 +2301,7 @@ This step is optional but improves negative constraint handling. If extraction f
 3. Collect candidate product IDs with per‑product matched concept set (and path metadata for explainability).
 4. Early stop if candidate set exceeds safety bound (e.g., 5 * requested limit) – mark `truncated=true` in telemetry and continue to scoring subset.
 
-#### 28.6.8. Product Scoring (Heuristic)
+#### 30.6.8. Product Scoring (Heuristic)
 For each candidate product:
 ```
 base_score = Σ (concept_weight for each matched concept)
@@ -1692,10 +2323,10 @@ Return top `limit` products with:
 }
 ```
 
-#### 28.6.9. VIP Filtering Interaction
+#### 30.6.9. VIP Filtering Interaction
 Apply VIP fencing *after* BFS product scoring but before final truncation: remove VIP products if user not VIP, then re-rank remaining (no score recomputation unless large removals force re-normalization). Telemetry records pre/post counts.
 
-#### 28.6.10. Observability & Telemetry
+#### 30.6.10. Observability & Telemetry
 `DF_META` line (kind: `graph_tool_call`) fields:
 ```
 {
@@ -1710,7 +2341,7 @@ Apply VIP fencing *after* BFS product scoring but before final truncation: remov
 }
 ```
 
-#### 28.6.11. Failure & Fallback Behavior
+#### 30.6.11. Failure & Fallback Behavior
 | Condition | Action |
 | --------- | ------ |
 | No concept passes threshold | Fallback to hybrid product RAG (semantic + keyword) and note `concept_fallback=true` |
@@ -1718,13 +2349,13 @@ Apply VIP fencing *after* BFS product scoring but before final truncation: remov
 | Extraction timeout | Skip extraction; proceed with raw text embedding |
 | Vector search timeout | Reduce per-type top-k (halve) and retry once; else fallback |
 
-#### 28.6.12. Advantages of This Approach
+#### 30.6.12. Advantages of This Approach
 - Robust to synonymy / paraphrasing (“nut-free”, “without nuts”).
 - Encourages explainable output (assistant can cite matched concept names and why chosen).
 - Clean separation of concerns: semantic retrieval (relational + pgvector) → structural expansion (graph) → heuristic fusion.
 - Extensible: new concept layers (Season, DietaryPattern) simply add rows to `concept_embeddings` and graph vertices/edges.
 
-#### 28.6.13. Future Enhancements
+#### 30.6.13. Future Enhancements
 1. Adaptive threshold: dynamic similarity floor based on distance gap between top and median candidate.
 2. Embedding caching: reuse embedding for subsequent refinement turns if user rephrases intent.
 3. Per‑concept decay: reduce weight for extremely common concepts (e.g., “organic”) using inverse document frequency style factor.
@@ -1733,7 +2364,7 @@ Apply VIP fencing *after* BFS product scoring but before final truncation: remov
 
 ---
 
-### 28.7. Summary of Graph Tools After Update
+### 30.7. Summary of Graph Tools After Update
 | Tool | Primary Purpose | Similarity Basis | Expansion Mode |
 | ---- | ----------------| ---------------- | -------------- |
 | `semantic_search` | Product-level semantic retrieval | Vector (products.embedding) | None (direct) |
@@ -1743,7 +2374,7 @@ Apply VIP fencing *after* BFS product scoring but before final truncation: remov
 
 This updated design removes dependence on ad‑hoc textual LIKE scanning for high‑level concepts and formally introduces a semantic concept retrieval layer feeding the BFS expansion.
 
-### 28.8. Cypher Query Patterns (conceptual):
+### 30.8. Cypher Query Patterns (conceptual):
 
 Breadth-First (taxonomy expansion):
 ```
@@ -1832,17 +2463,17 @@ Testing Strategy:
 
 ---
 
-## 29. Runtime Configuration Pattern
+## 30. Runtime Configuration Pattern
 
 The frontend uses a runtime configuration approach to support different environments without rebuilding the application:
 
-### 29.1. Development Flow
+### 30.1. Development Flow
 1. **Local Development**: Manually edit `public/config.js` with local backend URL
 2. **Docker Build**: Application is built once with a config template
 3. **Container Start**: Startup script generates `config.js` from environment variables
 4. **Application Load**: React app reads configuration from `window.APP_CONFIG`
 
-### 29.2. Implementation Details
+### 30.2. Implementation Details
 
 **Config Template (`public/config.js.template`):**
 ```javascript
@@ -1875,7 +2506,7 @@ This pattern enables:
 
 ---
 
-## 30. Development Workflow
+## 31. Development Workflow
 
 1. **DreamFarm Agent Setup**:
    - Use `uv` to create virtual environment and install dependencies
@@ -1904,7 +2535,7 @@ This pattern enables:
 
 ---
 
-## 31. Security Considerations
+## 32. Security Considerations
 
 - Environment variables for sensitive data (API keys, endpoints)
 - No hardcoded credentials in source code
@@ -1913,12 +2544,12 @@ This pattern enables:
 - JWT verification (Keycloak) when `AUTH_ENABLED=true`
 - Role / VIP enforcement at data access layer (defense-in-depth; currently only applied to agentic tool queries)
 
-### 31.1. Authentication & Authorization
+### 32.1. Authentication & Authorization
 Keycloak provides OIDC tokens with roles; backend middleware validates JWT (issuer & audience), extracts `user_id` (sub) and VIP status (role membership or explicit `is_vip` claim). Frontend performs Authorization Code + PKCE, stores token in memory, attaches Bearer header. Unauthorized or invalid token requests return 401 (when auth required). VIP fencing implemented via SQL predicate; LLM is instructed but not trusted to self‑filter.
 
 ---
 
-## 32. Future Enhancements
+## 33. Future Enhancements
 
 Potential areas for future expansion:
 - **Advanced Graph Analytics**: More sophisticated graph traversal algorithms, centrality measures, community detection
@@ -1932,9 +2563,9 @@ Potential areas for future expansion:
 
 ---
 
-## 33. Code Execution & Dynamic UI Generation
+## 34. Code Execution & Dynamic UI Generation
 
-### 33.1. Overview & Capabilities
+### 34.1. Overview & Capabilities
 
 **Purpose**: Enable data analysis and dynamic visualization generation by:
 1. Allowing LLM to execute Python code for calculations, chart generation, and file processing
@@ -1951,9 +2582,9 @@ Potential areas for future expansion:
 - "Create a dashboard card showing top 3 products by sales" → LLM generates interactive HTML card with animations
 - "Make an infographic comparing organic vs conventional produce prices" → Custom visual generated on-the-fly
 
-### 33.2. Architecture Components
+### 34.2. Architecture Components
 
-#### 33.2.1. Code Interpreter (Built-in Responses API)
+#### 34.2.1. Code Interpreter (Built-in Responses API)
 
 **Technology Choice**: Azure OpenAI Responses API `code_interpreter` tool
 - **Why**: Managed sandboxed Python environment, production-ready, integrated with Responses API
@@ -1971,7 +2602,7 @@ Container Lifecycle:
 
 **Pricing**: Additional charges beyond token costs (per container-hour)
 
-#### 33.2.2. Adhoc UI Generation (Custom MCP Tool)
+#### 34.2.2. Adhoc UI Generation (Custom MCP Tool)
 
 **Flow**:
 ```
@@ -1997,15 +2628,15 @@ Frontend renders in sandboxed iframe
    - Renders in sandboxed iframe with `srcdoc` attribute
    - Applies security constraints
 
-### 33.3. Security Model
+### 34.3. Security Model
 
-#### 33.3.1. Code Interpreter Security
+#### 34.3.1. Code Interpreter Security
 - **Isolation**: Code runs in separate container, no access to agent host
 - **File Scope**: Only accesses uploaded files, generated files stay in container
 - **Network**: Limited/no outbound access (depends on Azure OpenAI configuration)
 - **Timeout**: Execution timeouts prevent runaway processes
 
-#### 33.3.2. Dynamic HTML Security (Defense in Depth)
+#### 34.3.2. Dynamic HTML Security (Defense in Depth)
 
 **Layer 1 - Generation Constraints**:
 ```python
@@ -2061,9 +2692,9 @@ function escapeSrcDoc(html: string): string {
 }
 ```
 
-### 33.4. Data Models & Message Types
+### 34.4. Data Models & Message Types
 
-#### 33.4.1. Code Interpreter Messages
+#### 34.4.1. Code Interpreter Messages
 ```typescript
 // File upload (existing assistant-ui pattern)
 type FileMessage = {
@@ -2088,7 +2719,7 @@ type CodeInterpreterResult = {
 };
 ```
 
-#### 33.4.2. Custom UI Messages
+#### 34.4.2. Custom UI Messages
 ```typescript
 type CustomUIMessage = {
   role: 'assistant';
@@ -2104,9 +2735,9 @@ type CustomUIMessage = {
 };
 ```
 
-### 33.5. Tool Definitions
+### 34.5. Tool Definitions
 
-#### 33.5.1. Code Interpreter Tool (Responses API Built-in)
+#### 34.5.1. Code Interpreter Tool (Responses API Built-in)
 ```python
 # In agent initialization
 tools = [
@@ -2140,7 +2771,7 @@ Use it when user asks for:
 - Proxy downloads from Azure Files API on-demand, serves with inline display headers
 - Frontend markdown rendering auto-displays images via replaced URLs
 
-#### 33.5.2. Generate Infographic Tool (Custom MCP)
+#### 34.5.2. Generate Infographic Tool (Custom MCP)
 ```python
 {
     "name": "generate_infographic",
@@ -2172,11 +2803,11 @@ Use it when user asks for:
 }
 ```
 
-### 33.6. Implementation Files
+### 34.6. Implementation Files
 
 This section is deprecated as the feature was not implemented. The general project structure is described in section 26.
 
-### 33.7. Environment Configuration
+### 34.7. Environment Configuration
 
 ```bash
 # .env additions
@@ -2187,9 +2818,9 @@ HTML_SANITIZER_STRICT=true
 MAX_CUSTOM_UI_SIZE_KB=200
 ```
 
-### 33.8. Frontend Integration
+### 34.8. Frontend Integration
 
-#### 33.8.1. File Upload Component
+#### 34.8.1. File Upload Component
 ```tsx
 <FileUpload
   accept=".csv,.xlsx,.json,.txt,.pdf"
@@ -2207,7 +2838,7 @@ MAX_CUSTOM_UI_SIZE_KB=200
 />
 ```
 
-#### 33.8.2. Custom UI Renderer
+#### 34.8.2. Custom UI Renderer
 ```tsx
 function CustomUIMessage({ html }: { html: string }) {
   const escapedHtml = escapeSrcDoc(html);
@@ -2238,7 +2869,7 @@ function CustomUIMessage({ html }: { html: string }) {
 }
 ```
 
-### 33.9. Reference Implementation: Weight Tracking Analysis
+### 34.9. Reference Implementation: Weight Tracking Analysis
 
 **User Journey Example**
 
@@ -2300,7 +2931,7 @@ function CustomUIMessage({ html }: { html: string }) {
    </div>
    ```
 
-### 33.10. Testing Strategy
+### 34.10. Testing Strategy
 
 | Test Type | Coverage |
 |-----------|----------|
@@ -2311,7 +2942,7 @@ function CustomUIMessage({ html }: { html: string }) {
 | Security | Verify iframe sandbox blocks parent access |
 | E2E | User uploads file → gets analysis → requests dashboard → sees rendered UI |
 
-### 33.11. Monitoring & Observability
+### 34.11. Monitoring & Observability
 
 ```python
 # DF_META events
@@ -2332,7 +2963,7 @@ DF_META {
 }
 ```
 
-### 33.12. Known Limitations & Future Work
+### 34.12. Known Limitations & Future Work
 
 **Current Limitations**:
 - Code interpreter timeout: ~1 minute per execution
