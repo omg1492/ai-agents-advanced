@@ -160,6 +160,43 @@ return <VisualizationArtifact artifactId={id} apiUrl={backendUrl} />;
 
 ---
 
+## 3b. FastMCP Server Development
+| Issue | Symptom | Cause | Fix | Prevent |
+|-------|---------|-------|-----|---------|
+| **TokenVerifier missing base_url** | `AttributeError: 'EnvAPIKeyVerifier' object has no attribute 'base_url'` on server start | Custom `TokenVerifier` subclass doesn't call `super().__init__(base_url=...)` | Add `super().__init__(base_url=None)` in custom verifier's `__init__` | Always call parent `__init__` when subclassing FastMCP auth classes; use `inspect.signature()` to discover required parameters |
+
+FastMCP custom auth verifier pattern:
+```python
+from fastmcp.server.auth.auth import TokenVerifier, AccessToken
+from typing import Optional
+
+class EnvAPIKeyVerifier(TokenVerifier):
+    """Static bearer token verifier for development."""
+    
+    def __init__(self, required_token: str):
+        super().__init__(base_url=None)  # ← Critical: must call parent init
+        self._token = required_token
+    
+    async def verify_token(self, token: str) -> Optional[AccessToken]:
+        if token and token == self._token:
+            return AccessToken(
+                token=token,
+                client_id="api-key-user",
+                scopes=["*"],
+            )
+        return None
+```
+
+**Discovery Process for TokenVerifier Issue:**
+1. Server crashed on startup with `AttributeError: 'EnvAPIKeyVerifier' object has no attribute 'base_url'`
+2. Initial code copied from `mcp_public_farmer_tools` but that version was outdated
+3. Used Python introspection: `inspect.signature(TokenVerifier.__init__)` revealed required `base_url` parameter
+4. Signature showed: `(self, base_url: 'AnyHttpUrl | str | None' = None, required_scopes: 'list[str] | None' = None)`
+5. Fixed by adding `super().__init__(base_url=None)` call
+6. **Key lesson**: When subclassing framework classes, always check parent `__init__` signature; FastMCP 2.0 may differ from examples in older projects
+
+---
+
 ## 4. Data Imports & Embeddings
 | Issue | Symptom | Cause | Fix | Prevent |
 |-------|---------|-------|-----|---------|
@@ -266,6 +303,7 @@ Consolidated (applies on top of Category 6):
 - Embeddings: enforce 2000 dims.
 - Reasoning stream: record every item in order.
 - Voice: external session manager.
+- FastMCP auth: always call `super().__init__(base_url=None)` in custom `TokenVerifier` subclass.
 
 ---
 

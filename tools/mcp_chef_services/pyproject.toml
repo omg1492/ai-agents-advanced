@@ -1,0 +1,23 @@
+[project]
+name = "mcp-chef-services"
+version = "0.1.0"
+description = "MCP server for chef and catering services with mock data"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+	"fastmcp>=2.0.0",
+	"python-dotenv>=1.0.1",
+]
+
+[tool.setuptools]
+py-modules = ["main", "mock_data"]
+
+[tool.uv]
+package = true
+
+[tool.uv.sources]
+# No custom sources required; using PyPI
+
+#############################################
+# Tests are deferred to a dedicated MCP test framework
+# (kept out of this subproject to avoid low-level harnesses).
