@@ -41,6 +41,7 @@ def build_config():
         graph_search=None,
         memory_search=MemorySearchConfig(enabled=True, max_results=5),
         visualization_mcp=None,
+        chef_agent=None,
     )
 
 

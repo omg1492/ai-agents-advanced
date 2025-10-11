@@ -29,6 +29,7 @@ from src.services.graph_search_service import GraphSearchService
 from src.services.stock_service import StockService
 from src.services.memory_search_service import MemorySearchService
 from src.services.user_profile_service import UserProfileService
+from src.services.chef_agent_client import ChefAgentClient
 import os
 
 from openai import AsyncOpenAI
@@ -72,6 +73,17 @@ class OpenAIService:
         self._tavily = getattr(self._app_config, "tavily", None)
         # Remote MCP server (Visualization Generator)
         self._visualization_mcp = getattr(self._app_config, "visualization_mcp", None)
+        # Chef Agent (specialized culinary services agent via HTTP)
+        self._chef_agent: ChefAgentClient | None = None
+        try:
+            chef_cfg = getattr(self._app_config, "chef_agent", None)
+            if chef_cfg and chef_cfg.enabled and chef_cfg.url:
+                self._chef_agent = ChefAgentClient(base_url=chef_cfg.url)
+                logger.info(f"Chef Agent client initialized: url={chef_cfg.url}")
+            else:
+                logger.info("Chef Agent disabled; skipping chef_agent tool init")
+        except Exception as ce:  # pragma: no cover
+            logger.warning(f"Chef Agent client init failed: {ce}")
         # Local stock custom tool
         self._stock_service: StockService | None = stock_service
         if self._stock_service is None:
@@ -107,10 +119,11 @@ class OpenAIService:
         except Exception as ge:  # pragma: no cover
             logger.warning(f"Graph search init failed: {ge}")
         logger.info(
-            "Initialized OpenAI service base_url=%s model=%s stock_tool=%s tavily=%s viz_mcp=%s agentic=%s graph=%s memory_search=%s",
+            "Initialized OpenAI service base_url=%s model=%s stock_tool=%s chef_agent=%s tavily=%s viz_mcp=%s agentic=%s graph=%s memory_search=%s",
             getattr(self.client, "base_url", None),
             self.model_name,
             bool(self._stock_service and self._stock_service.enabled),
+            bool(self._chef_agent),
             bool(self._tavily and self._tavily.enabled),
             bool(self._visualization_mcp and self._visualization_mcp.enabled),
             bool(self._agentic_search and self._agentic_search.enabled),
@@ -407,6 +420,40 @@ class OpenAIService:
                     },
                 }
             )
+        
+        # Chef Agent tool - specialized culinary services agent
+        if self._chef_agent:
+            logger.info("Registering query_chef_services tool (chef_agent enabled)")
+            tools.append(
+                {
+                    "type": "function",
+                    "name": "query_chef_services",
+                    "description": """Query the specialized chef services agent for culinary assistance.
+
+Use this tool when users ask about:
+- Finding chefs or cooks (by specialty, cuisine type, event requirements)
+- Catering services for events and gatherings
+- Private chef services for homes or special occasions
+- Meal preparation and delivery services
+- Checking availability of chefs or services for specific dates
+- Getting pricing quotes for culinary services
+- Booking or ordering chef services
+
+The chef agent handles the complete workflow including search, availability checking, 
+pricing calculation, and order placement. Pass the user's query verbatim to the agent.""",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "message": {
+                                "type": "string",
+                                "description": "User's culinary services query (pass through verbatim)"
+                            }
+                        },
+                        "required": ["message"],
+                    },
+                }
+            )
+        
         return tools or None
 
     def _get_openai_client(self) -> AsyncOpenAI:

@@ -103,6 +103,19 @@ class VisualizationMCPConfig:
 
 
 @dataclass
+class ChefAgentConfig:
+    """Configuration for Chef Agent integration.
+    
+    The DreamFarm Agent can delegate culinary service queries to a specialized
+    Chef Agent that provides chef search, catering services, availability
+    checking, pricing calculations, and booking functionality via remote
+    Chef Services MCP tools.
+    """
+    enabled: bool
+    url: str | None
+
+
+@dataclass
 class StockToolConfig:
     """Configuration for local Stock API custom tool.
 
@@ -145,6 +158,7 @@ class AppConfig:
     farmer_tools: FarmerToolsConfig | None
     tavily: TavilyConfig | None
     visualization_mcp: VisualizationMCPConfig | None
+    chef_agent: ChefAgentConfig | None
     stock_tool: StockToolConfig | None
     auth: AuthConfig | None
     agentic_search: Optional["AgenticSearchConfig"]  # forward ref
@@ -325,6 +339,21 @@ class ConfigService:
             else None
         )
 
+        # Chef Agent configuration (specialized culinary services agent)
+        chef_agent_url = os.getenv("CHEF_AGENT_URL")
+        chef_agent_enabled = (
+            os.getenv("CHEF_AGENT_ENABLED", "false").lower() in ["true", "1", "yes", "on"]
+            and bool(chef_agent_url)
+        )
+        chef_agent_config = (
+            ChefAgentConfig(
+                enabled=chef_agent_enabled,
+                url=chef_agent_url,
+            )
+            if chef_agent_url
+            else None
+        )
+
         # Local Stock Tool configuration (custom function tool)
         stock_tool_url = os.getenv("STOCK_API_URL") or os.getenv("STOCK_TOOL_URL")
         stock_tool_enabled = (
@@ -397,6 +426,7 @@ class ConfigService:
             farmer_tools=farmer_tools_config,
             tavily=tavily_config,
             visualization_mcp=viz_mcp_config,
+            chef_agent=chef_agent_config,
             stock_tool=stock_tool_config,
             auth=auth_config,
             agentic_search=agentic_cfg,

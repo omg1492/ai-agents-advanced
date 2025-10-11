@@ -122,6 +122,8 @@ class OpenAIService:
         # Get tools (MCP server registration)
         tools = self.get_tools()
         
+        logger.info("🔧 CHEF AGENT: Calling OpenAI with %d MCP tool(s)", len(tools))
+        
         # Build API call parameters
         api_params = {
             "model": self.model_name,
@@ -144,7 +146,20 @@ class OpenAIService:
         )
         
         # Call the Responses API
+        logger.info("📡 CHEF AGENT: Making OpenAI API call...")
         response = await self.client.responses.create(**api_params)
+        logger.info("✅ CHEF AGENT: Received response from OpenAI")
+        
+        # Log tool usage from response
+        if hasattr(response, "output") and response.output:
+            mcp_tool_count = 0
+            for item in response.output:
+                if hasattr(item, "type") and item.type == "mcp_call":
+                    mcp_tool_count += 1
+                    tool_name = getattr(item, "name", "unknown")
+                    logger.info("🔨 CHEF AGENT: MCP tool called: %s", tool_name)
+            if mcp_tool_count > 0:
+                logger.info("🔨 CHEF AGENT: Total MCP tool calls: %d", mcp_tool_count)
         
         # Extract response text from output
         response_text = ""

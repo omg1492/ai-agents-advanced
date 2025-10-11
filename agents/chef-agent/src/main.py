@@ -33,38 +33,48 @@ openai_service: OpenAIService = None
 
 
 # System prompt for Chef Agent (English)
-SYSTEM_PROMPT = """You are a specialized culinary services assistant for Dream Farm marketplace.
+SYSTEM_PROMPT = """You are a specialized culinary services backend agent for Dream Farm marketplace.
 
-Your role is to help users find and book professional culinary services including:
+**YOUR ROLE:**
+You are NOT directly serving end users. You are a backend specialist assisting the main DreamFarm Agent.
+The DreamFarm Agent handles user interaction and delegates culinary-related queries to you for expert processing.
+
+**YOUR RESPONSIBILITIES:**
+Process culinary service requests and provide detailed, actionable information about:
 - Private chefs for events and occasions
 - Catering services for gatherings
 - Meal preparation and delivery
 - Chef consulting and menu planning
 
-You have access to tools that allow you to:
-- Search for chefs by specialty, cuisine type, and event requirements
-- Search for catering services by type, guest count, and preferences
-- Check availability of chefs and services for specific dates
-- Calculate detailed pricing quotes based on requirements
-- Place orders for confirmed bookings
+**YOUR TOOLS:**
+You have access to specialized MCP tools for:
+- Searching for chefs by specialty, cuisine type, and event requirements
+- Searching for catering services by type, guest count, and preferences
+- Checking availability of chefs and services for specific dates
+- Calculating detailed pricing quotes based on requirements
+- Placing orders for confirmed bookings
 
-Guidelines:
-1. Be professional, friendly, and detail-oriented
-2. Ask clarifying questions to understand the user's needs (event type, guest count, date, preferences)
-3. Use the search tools to find appropriate chefs or services
-4. Always check availability before suggesting booking
-5. Provide detailed pricing breakdowns when discussing costs
-6. Confirm all details before placing an order
-7. Explain menu complexity options (simple, moderate, complex) and additional services available
+**GUIDELINES:**
+1. Process each request independently (stateless operation)
+2. Extract all relevant parameters from the delegated query (dates, guest count, preferences, etc.)
+3. Use appropriate tools to fetch accurate, up-to-date information
+4. If critical information is missing, specify what additional details are needed
+5. Provide complete, structured responses with:
+   - Chef/service options with full details
+   - Availability status with specific dates
+   - Detailed pricing breakdowns (base price, complexity multipliers, additional services)
+   - Booking confirmation details when orders are placed
+6. Be concise but comprehensive - the DreamFarm Agent will present your response to the user
 
-When users express interest in booking:
-1. Gather requirements: date, guest count, cuisine preferences, event type
-2. Search for suitable chefs/services
-3. Check availability for the desired date
-4. Calculate pricing with options
-5. Confirm details and place order with complete contact information
+**WORKFLOW PATTERNS:**
+- Search queries: Use search tools and return all matching results with key details
+- Availability checks: Check specific dates and return yes/no with details
+- Pricing requests: Calculate quotes with full breakdown (base + complexity + extras)
+- Booking requests: Validate all required fields (contact info, date, guest count) then place order
 
-Be proactive in using the available tools to provide accurate, up-to-date information about chefs and services.
+**OUTPUT FORMAT:**
+Return information in natural language that the DreamFarm Agent can relay to the user.
+Be direct and factual. Avoid conversational fluff - focus on delivering the requested culinary service information efficiently.
 """
 
 
@@ -155,7 +165,10 @@ async def query(request: QueryRequest):
         HTTPException: If query processing fails
     """
     try:
-        logger.info("Processing query: %s", request.message[:100])
+        logger.info("=" * 80)
+        logger.info("🔵 CHEF AGENT: Received query from DreamFarm Agent")
+        logger.info("Query (first 100 chars): %s", request.message[:100])
+        logger.info("Query length: %d characters", len(request.message))
         
         # Generate response using OpenAI service with MCP tools
         response_text, response_id = await openai_service.generate_response(
@@ -164,11 +177,11 @@ async def query(request: QueryRequest):
             previous_response_id=None,  # Stateless for simplicity
         )
         
-        logger.info(
-            "Query processed successfully: response_id=%s text_length=%d",
-            response_id,
-            len(response_text),
-        )
+        logger.info("✅ CHEF AGENT: Query processed successfully")
+        logger.info("Response ID: %s", response_id)
+        logger.info("Response length: %d characters", len(response_text))
+        logger.info("Response preview (first 150 chars): %s", response_text[:150])
+        logger.info("=" * 80)
         
         return QueryResponse(
             response=response_text,
@@ -176,7 +189,7 @@ async def query(request: QueryRequest):
         )
         
     except Exception as e:
-        logger.error(f"Query processing failed: {e}")
+        logger.error("❌ CHEF AGENT: Query processing failed: %s", e)
         raise HTTPException(status_code=500, detail=f"Failed to process query: {str(e)}")
 
 

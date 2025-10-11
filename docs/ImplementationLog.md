@@ -1,83 +1,152 @@
-## 2025-10-10 MCP Chef Services Foundation (Phase 1.1-1.2)
+# Implementation Log
 
-Successfully implemented foundational infrastructure for MCP Chef Services server with mock data layer, completing first two phases of L08 multi-agent lesson.
+This document tracks key implementation decisions, architectural patterns, and critical learnings from development. It is organized by feature area in reverse chronological order.
 
-**Phase 1.1: Project Structure**
-- Created `tools/mcp_chef_services/` directory following mcp_public_farmer_tools pattern
-- Set up `pyproject.toml` with FastMCP 2.0 dependencies (fastmcp>=2.0.0, python-dotenv>=1.0.1)
-- Configured `.env.template` and `.env` with port 8013 and API key (dev-chef-secret)
-- Set Python version to 3.12 via `.python-version`
-- Created comprehensive `README.md` with usage instructions, mock data descriptions, testing guidance
-- Implemented `main.py` with FastMCP boilerplate including auth, CORS, health endpoint
+---
 
-**Phase 1.2: Mock Data Layer**
-- Implemented `MOCK_CHEFS` with 10 diverse chefs:
-  - Deterministic IDs (chef_001 through chef_010)
-  - Specialties: Italian, BBQ, Japanese, French Pastry, Mexican, Indian Vegetarian, German Fine Dining, Chinese, British Farm-to-Table, Middle Eastern
-  - Experience range: 9-18 years
-  - Hourly rates: $90-$150
-  - Realistic bios and certifications (Michelin-trained, ServSafe, etc.)
-- Implemented `MOCK_SERVICES` with 8 service types:
-  - Deterministic IDs (svc_001 through svc_008)
-  - Types: catering, private_chef, meal_prep, delivery
-  - Price range: $15-$120 per person
-  - Guest capacity: 1-300 guests
-  - Detailed descriptions and included items
-- Implemented `MOCK_AVAILABILITY` calendar with blocked dates per chef (October-November 2025 mock data)
-- Implemented `_order_counter` for sequential order ID generation (session-scoped, resets on restart)
-- Added helper functions: `_parse_date()`, `_is_date_available()`, `_get_next_available_date()`
+## Multi-Agent Architecture (Chef Agent)
 
-**Server Features**
-- FastMCP 2.0 HTTP transport on port 8013
-- `EnvAPIKeyVerifier` for static bearer token authentication (fixed to call `super().__init__(base_url=None)`)
-- Wildcard CORS middleware (configurable via `MCP_CORS_ORIGINS`)
-- `DeferDeleteMiddleware` to prevent premature session closure (60s deferral)
-- Health endpoint at `/health` ✅ verified working
-- MCP endpoint at `/mcp/` ready for tool registration
+### 2025-10-11: End-to-End Integration (Phases 2-4)
 
-**Testing & Validation**
-- Installed dependencies via `uv sync` (64 packages including FastMCP 2.12.4, MCP SDK 1.16.0)
-- Server starts successfully with banner display showing configuration
-- Health check responds with "OK" status
-- Server logs indicate proper initialization: "Starting MCP server 'Chef Services' with transport 'http'"
-- Port 8013 confirmed available and not conflicting with farmer_tools (8012)
+**Summary**: Successfully implemented a complete multi-agent architecture by integrating a specialized Chef Agent as a function tool within the main DreamFarm Agent. This enables culinary service delegation with a validated, end-to-end workflow.
 
-**Technical Decisions**
-- **Mock Data Strategy**: Deterministic IDs ensure consistent testing; same inputs always return same entities
-- **Auth Pattern**: Simple bearer token suitable for initial development; can be upgraded to JWT/OAuth later
-- **Data Structures**: In-memory Python dicts/lists for simplicity; no database overhead during prototyping
-- **Helper Functions**: Centralized date parsing and availability logic for reuse in tool implementations
-- **Session State**: Order counter is session-scoped (resets on restart) to simulate stateless behavior
+**Key Implementations**:
+- **Chef Agent (Backend Service)**:
+  - Created a standalone FastAPI agent on port `8002` with a stateless `/query` endpoint.
+  - System prompt optimized for a backend role, assisting the main agent without direct user interaction.
+  - Connects to a remote Chef Services MCP on Azure (port `8013`) for mock data.
+- **DreamFarm Agent Integration (Frontend-Facing)**:
+  - Implemented `chef_agent_client.py` as a robust HTTP client to communicate with the Chef Agent.
+  - Extended `config_service.py` with a `ChefAgentConfig` to enable/disable the feature via environment variables.
+  - Registered `query_chef_services` as a conditional function tool in `openai_service.py`.
+  - Updated the main streaming loop to handle the `function_call` lifecycle.
+- **Testing**:
+  - **Chef Agent**: Achieved 100% test pass rate (24 unit, 8 integration).
+  - **DreamFarm Agent**: All existing unit tests (56) pass.
+  - **Manual E2E**: Validated the full flow from user query ("I need an Italian chef") to Chef Agent delegation and back.
 
-**Bug Fixed During Implementation**
-- **Issue**: `AttributeError: 'EnvAPIKeyVerifier' object has no attribute 'base_url'`
-- **Root Cause**: FastMCP's `TokenVerifier.__init__` requires `base_url` parameter (discovered via introspection)
-- **Solution**: Added `super().__init__(base_url=None)` call in `EnvAPIKeyVerifier.__init__`
-- **Discovery Method**: Used `inspect.signature(TokenVerifier.__init__)` to examine required parameters
+**Critical Bug Fixes & Learnings**:
+1.  **OpenAI Responses API Continuation**:
+    - **Issue**: `400 Bad Request: Request contains duplicate item IDs`.
+    - **Learning**: The API's continuation pattern requires sending **only the tool outputs** in the subsequent request, not the entire message history. The `previous_response_id` maintains the conversation chain server-side.
+2.  **Follow-up Query Context**:
+    - **Issue**: Follow-up queries failed due to a lost `response_id`.
+    - **Learning**: The `response_id` must be captured from **every** final response to correctly link conversation turns.
+3.  **Process Management**:
+    - **Issue**: Code changes were not reflected because an old agent process was still running.
+    - **Learning**: Always verify the running process (`netstat`, `ps`) after code changes in a multi-agent setup.
+4.  **Visual Logging**:
+    - **Learning**: Using visual markers (e.g., 🍳, 🔵) and separators in logs dramatically improves debugging speed in multi-agent interactions.
 
-**Updated Documentation**
-- Updated `lessons/L08_multi_agent/plan.md`: Marked Phase 1.1 and 1.2 as complete ✅
-- Added server testing confirmation and health endpoint verification notes
-- Created `tools/mcp_chef_services/README.md` with complete usage instructions
+**Configuration**:
+- **DreamFarm Agent (`.env`)**:
+  ```properties
+  CHEF_AGENT_ENABLED=true
+  CHEF_AGENT_URL=http://localhost:8002
+  ```
+- **Chef Agent (`.env`)**:
+  ```properties
+  OPENAI_API_KEY=<Your Azure Key>
+  OPENAI_BASE_URL=<Your Azure Endpoint>/openai/v1/
+  CHEF_SERVICES_MCP_URL=<Your MCP URL>
+  CHEF_SERVICES_MCP_API_KEY=<Your MCP Key>
+  ```
 
-**Configuration**
-- `HOST=0.0.0.0` (default)
-- `PORT=8013` (distinct from farmer_tools)
-- `MCP_API_KEY=dev-chef-secret` (local development)
-- `MCP_CORS_ORIGINS=*` (default wildcard)
+### 2025-10-10: MCP Chef Services Foundation (Phase 1)
 
-**Next Steps (Phase 1.3)**
-Implement 5 MCP tools:
-1. `search_chefs` - Filter chefs by specialty, event type, rate
-2. `search_services` - Find services by type, capacity, price range
-3. `check_availability` - Check chef calendar for specific dates
-4. `calculate_pricing` - Calculate total cost (service + chef + hours)
-5. `place_order` - Generate mock order with order ID
+**Summary**: Implemented the foundational MCP server for Chef Services, including project structure, mock data layer, and core server features, running on port `8013`.
 
-**Integration Context**
-This MCP server will be consumed by the Chef Agent (Phase 2-3), which will then be integrated as a tool into the DreamFarm Agent using the agent-as-tool pattern (Phase 4). The multi-agent architecture is fully specified in `docs/Design.md` Section 19.
+**Key Implementations**:
+- **Project Structure**: Set up `tools/mcp_chef_services/` with `pyproject.toml` using FastMCP 2.0.
+- **Mock Data Layer**: Created deterministic mock data for chefs, services, and availability to ensure consistent testing.
+- **Server Features**:
+  - FastMCP 2.0 with HTTP transport.
+  - `EnvAPIKeyVerifier` for simple bearer token authentication.
+  - CORS and `DeferDeleteMiddleware` configured.
+  - `/health` endpoint for monitoring.
+- **Bug Fix**: Corrected an `AttributeError` in `EnvAPIKeyVerifier` by calling `super().__init__(base_url=None)`, a requirement in FastMCP 2.0. Discovered via `inspect.signature()`.
 
-## 2025-01-09 Complaint Workflow Complete Implementation & Cleanup
+---
+
+## Code Interpreter Integration
+
+### 2025-10-07: File Download Token Fallback (Phase 1.5)
+
+**Summary**: Enhanced the file download mechanism to be more resilient by adding a token-based fallback. This resolves 404 errors when Azure fails to return a `container_id`.
+
+**Key Implementations**:
+- The `_register_generated_file` function now always stores file metadata, including a short-lived download token, even if `container_id` is missing.
+- The `/files/{file_id}/content` endpoint now accepts the token via a query parameter (`?token=...`).
+- The frontend was updated to store and append this token to download URLs, allowing `<img>` tags to render generated charts reliably without auth/CORS issues.
+
+### 2025-01-07: File Display Implementation (Phase 1.4)
+
+**Summary**: Implemented the initial system for displaying files (plots, charts, CSVs) generated by the Code Interpreter.
+
+**Key Implementations**:
+- **Proxy Endpoint**: Created a `/files/{file_id}/content` backend endpoint to proxy file downloads from the Azure Files API, solving the sandbox accessibility issue.
+- **Real-time URL Replacement**: Implemented logic to replace sandboxed URLs (e.g., `sandbox:/mnt/data/plot.png`) with the proxy endpoint URL during the streaming response.
+- **Stateful Mapping**: Used a request-scoped, in-memory dictionary to map filenames to file IDs as they are generated.
+- **Metadata Events**: Emitted `DF_META` events with file metadata for potential frontend use.
+
+---
+
+## Complaint Handling Workflow (Temporal)
+
+### 2025-01-09: Complete Implementation & Cleanup
+
+**Summary**: Implemented and validated a complete 6-phase, Temporal-based workflow for handling user complaints, featuring LLM-driven classification, data extraction, and policy-based decisions. The implementation was followed by a comprehensive cleanup of test infrastructure.
+
+**Key Implementations**:
+- **Workflow Activities**:
+  - **Phase 1-2 (Classification & Extraction)**: Used Azure OpenAI structured outputs (Pydantic) to classify messages and extract complaint details.
+  - **Phase 3 (User Profile)**: Fetched user data from a mock, hash-based profile generator for deterministic testing.
+  - **Phase 4 (Decision)**: Applied a policy-driven prompt with 6 few-shot examples to decide complaint validity (VALID, NOT_VALID, HUMAN_REVIEW).
+  - **Phase 5-6 (Resolution)**: Generated tailored user messages or an escalation packet for human review.
+- **Orchestration**:
+  - Built a deterministic 6-phase workflow with early exits, activity timeouts (30s), and a retry policy.
+  - Implemented structured logging with `ORCH_PHASE` markers for observability.
+- **Cleanup**: Removed `pytest` infrastructure and unused Pydantic models, and updated the `README.md` to reflect the final, complete state.
+
+**Key Technical Decisions**:
+- **Simplified Input**: The workflow starts with only a raw message and user ID, reducing coupling. The LLM extracts necessary details.
+- **Embedded Policy**: The company policy was embedded directly in the prompt for simplicity, improving decision quality.
+- **Deterministic Mocks**: Hash-based user profiles ensure reproducible test results.
+
+---
+
+## Visualization MCP Integration
+
+### 2025-01-08: End-to-End Integration (Phases 1-3)
+
+**Summary**: Implemented a full end-to-end flow for displaying interactive HTML infographics from a Visualization MCP, from backend detection to a sandboxed frontend iframe.
+
+**Key Implementations**:
+- **Backend**:
+  - Registered the Visualization MCP as a conditional tool.
+  - Implemented an in-memory artifact registry with a 1-hour TTL.
+  - Created a public `/artifacts/{artifact_id}` endpoint to serve the HTML content.
+- **MCP Response Handling**:
+  - Detected `mcp_call` events in the final response (post-streaming).
+  - Extracted HTML from the MCP's JSON output.
+  - Registered the HTML as an artifact and emitted a `DF_META` event with the `artifact_id`.
+- **Frontend**:
+  - Created a sandboxed `<VisualizationArtifact>` iframe component to securely render the HTML.
+  - Used a custom link renderer in the markdown component to detect artifact URLs and display the iframe.
+
+**Critical Bug Fixes & Learnings**:
+1.  **Public Artifact Endpoint**:
+    - **Issue**: `401 Unauthorized` on the artifact endpoint.
+    - **Learning**: Browsers do not pass `Authorization` headers to an iframe's `src`. The endpoint must be public, with security relying on hard-to-guess UUIDs and a short TTL.
+2.  **Iframe URL Resolution**:
+    - **Issue**: The iframe loaded the frontend's `index.html` (wrong port).
+    - **Learning**: The frontend must pass the explicit backend URL to the iframe component to prevent relative URL resolution against the frontend's origin.
+
+---
+
+## Complaint Workflow Complete Implementation & Cleanup
+
+### 2025-01-09
 
 Successfully implemented complete 6-phase Temporal-based complaint handling workflow with Azure OpenAI LLM integration, followed by comprehensive cleanup removing test infrastructure and unused code.
 
@@ -614,7 +683,7 @@ Azure Specific
 Data Retention
 - Only text transcripts stored (no raw audio) leveraging existing message persistence path.
 Lessons
-- Long‑lived realtime resources must outlive component scopes; Strict Mode reveals lifecycle fragility early.
+- Long‑lived realtime resources must outlive component scopes; Strict Mode surfacing of lifecycle fragility is a feature—design for idempotent setup/teardown.
 - Separate client instances prevent cross‑API-version collisions (text vs realtime endpoints).
 
 ## 8. Frontend UX & Streaming Improvements
@@ -626,7 +695,7 @@ Lessons
 ## 9. Prompt & Grounding Strategy
 - System prompt modular blocks: User Profile, Memories, Relevant Products, Available Tools.
 - Strict grounding policy enumerated decision branches (product vs general query, zero results, alternative suggestions).
-- Added concise tool/data inventory section to set model expectations and reduce spurious tool calls.
+- Added concise tool/data inventory section to the system prompt to set model expectations and reduce spurious tool calls.
 
 ## 10. Schema & Data Model Highlights
 - `products`: pgvector embedding + VIP flag + supporting indexes.
@@ -864,15 +933,6 @@ This implementation represents a significant breakthrough in GPT-5 reasoning mod
 - Structured Pydantic `VideoProductSummary` mirrors image + PDF scripts for consistency.
 - Added `VIDEOS_INPUT_DIR` env var to `.env.template` and `.env`.
 - Clear TODO marker to switch to direct video ingestion once generally available in the Python SDK.
-
-## 2025-08-23 Full-Text Search for simple_products
-
-- Added FTS column `fts_combined` (unaccent + simple config) with trigger-based maintenance (initial generated column attempt failed: "generation expression is not immutable").
-- Created GIN index `idx_simple_products_fts_combined`.
-- Added extension script `03_install_unaccent.sql` to enable `unaccent`.
-- Updated `Design.md` (notes trigger approach & table column constraints).
-
-Rationale: enables hybrid (semantic + lexical) retrieval with explicit trigger logic; foundation for future rank fusion.
 
 ## 2025-08-24 Semantic Cache Seed Generation
 

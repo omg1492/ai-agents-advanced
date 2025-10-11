@@ -59,7 +59,9 @@ class TestQueryEndpoint:
             mock_service.generate_response.assert_called_once()
             call_args = mock_service.generate_response.call_args
             assert call_args.kwargs["user_text"] == "Find me an Italian chef"
-            assert "culinary services assistant" in call_args.kwargs["system_prompt"]
+            # Verify system prompt contains key backend agent concepts
+            assert "backend agent" in call_args.kwargs["system_prompt"]
+            assert "DreamFarm Agent" in call_args.kwargs["system_prompt"]
 
     @pytest.mark.asyncio
     async def test_query_empty_message(self):

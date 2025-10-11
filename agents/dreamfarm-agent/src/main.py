@@ -1390,6 +1390,58 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                                                 })
                                         except Exception as exec_e:  # noqa: BLE001
                                             logger.warning(f"Memory write profile function execution error: {exec_e}")
+                                    elif name == "query_chef_services":
+                                        # Chef Agent tool - delegate culinary service queries to specialized agent
+                                        logger.info("=" * 80)
+                                        logger.info("🍳 DREAMFARM: Model decided to call query_chef_services")
+                                        try:
+                                            chef_client = getattr(openai_service, "_chef_agent", None)
+                                            if chef_client:
+                                                raw_args = getattr(item, "arguments", "{}")
+                                                try:
+                                                    parsed_args = json.loads(raw_args) if isinstance(raw_args, str) else {}
+                                                except Exception:
+                                                    parsed_args = {}
+                                                
+                                                user_message = parsed_args.get("message", "")
+                                                logger.info("🍳 DREAMFARM: Extracted message: %s", user_message[:100])
+                                                logger.info("🍳 DREAMFARM: Calling Chef Agent client...")
+                                                
+                                                try:
+                                                    chef_response = await chef_client.query(user_message)
+                                                    logger.info("✅ DREAMFARM: Chef Agent returned response (%d chars)", len(chef_response))
+                                                    logger.info("Response preview: %s", chef_response[:150])
+                                                    logger.info("=" * 80)
+                                                    
+                                                    pending_outputs.append({
+                                                        "type": "function_call_output",
+                                                        "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                        "output": chef_response,
+                                                    })
+                                                    submit_meta = {
+                                                        "kind": "tool_event",
+                                                        "event_type": "tool.outputs_executed",
+                                                        "tool_name": "query_chef_services",
+                                                        "response_length": len(chef_response),
+                                                    }
+                                                    yield "\nDF_META:" + json.dumps(submit_meta, ensure_ascii=False) + "\n"
+                                                except Exception as ce:
+                                                    logger.error("❌ DREAMFARM: Chef Agent execution failed: %s", ce)
+                                                    logger.error("=" * 80)
+                                                    pending_outputs.append({
+                                                        "type": "function_call_output",
+                                                        "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                        "output": json.dumps({"error": "Chef Agent query failed", "details": str(ce)}),
+                                                    })
+                                            else:
+                                                logger.warning("⚠️ DREAMFARM: query_chef_services disabled - chef_client not available")
+                                                pending_outputs.append({
+                                                    "type": "function_call_output",
+                                                    "call_id": getattr(item, "call_id", getattr(item, "id", "")),
+                                                    "output": json.dumps({"error": "Chef Agent not available"}),
+                                                })
+                                        except Exception as exec_e:  # noqa: BLE001
+                                            logger.warning("❌ DREAMFARM: Chef Agent function execution error: %s", exec_e)
                                     else:
                                         # Unknown/unhandled function call - add empty output to avoid breaking loop
                                         logger.warning(f"Unhandled function call in streaming: {name}")
@@ -1426,8 +1478,13 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                         final_response = await response.get_final_response()
                         if final_response is not None:
                             logger.info("✓ Obtained final response from stream manager")
-                            if response_id_local is None:
-                                response_id_local = getattr(final_response, "id", None)
+                            # Always capture/update response_id from final_response if available
+                            final_resp_id = getattr(final_response, "id", None)
+                            if final_resp_id:
+                                response_id_local = final_resp_id
+                                logger.info(f"✓ Captured response_id from final_response.id: {response_id_local}")
+                            elif response_id_local is None:
+                                logger.warning("final_response has no 'id' attribute and response_id_local is None")
                     except Exception as stream_final_err:  # pragma: no cover
                         logger.warning(f"Unable to obtain final response from stream manager: {stream_final_err}")
 
@@ -1557,8 +1614,9 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                 if not pending_outputs:
                     break  # No more tool calls → finished
                     
-                # Add results and continue loop
-                input_messages.extend(pending_outputs)
+                # Replace input with tool outputs (previous context is in previous_response_id)
+                # We MUST NOT include the original messages again, as that causes duplicate ID errors
+                input_messages = pending_outputs
                 logger.info(f"Continuing reasoning loop with {len(pending_outputs)} tool output(s)")
                 
             except Exception as e:

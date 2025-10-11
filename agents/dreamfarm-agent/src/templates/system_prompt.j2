@@ -40,6 +40,7 @@ The following JSON is the persisted merged user profile capturing durable prefer
 {% if config and config.agentic_search and config.agentic_search.enabled %}{% set _ = tools_list.append('Agentic Search (function tools: semantic_product_search, keyword_product_search)') %}{% endif %}
 {% if config and config.graph_search and config.graph_search.enabled %}{% set _ = tools_list.append('Graph DFS (function tool: graph_dfs_similarity_search)') %}{% set _ = tools_list.append('Graph BFS Taxonomy (function tool: graph_bfs_taxonomy_search)') %}{% endif %}
 {% if config and config.stock_tool and config.stock_tool.enabled %}{% set _ = tools_list.append('Stock API (function tool get_stock)') %}{% endif %}
+{% if config and config.chef_agent and config.chef_agent.enabled %}{% set _ = tools_list.append('Chef Services (function tool query_chef_services: find chefs, catering, availability, pricing, booking)') %}{% endif %}
 {% if config and config.farmer_tools and config.farmer_tools.enabled %}{% set _ = tools_list.append('Farmer Tools (remote MCP: seasonal tips, time, weather)') %}{% endif %}
 {% if config and config.tavily and config.tavily.enabled %}{% set _ = tools_list.append('Web Search (Tavily MCP)') %}{% endif %}
 {% for t in tools_list %}- {{ t }}
