@@ -4,6 +4,69 @@ This document tracks key implementation decisions, architectural patterns, and c
 
 ---
 
+## API Configuration & Compatibility
+
+### 2025-01-13: Azure OpenAI v1 API Migration - API Version Elimination
+
+**Summary**: Migrated to Azure OpenAI's modern v1 GA API (`/openai/v1/`) which eliminates the need for `api-version` parameters and provides automatic access to latest features without monthly version updates.
+
+**Problem**: File upload tests were failing with "API version not supported" error when using `OPENAI_API_VERSION=2024-12-01-preview`. Investigation revealed Azure Files API doesn't support newer versioned preview APIs, only the general `preview` version. This created version compatibility conflicts between different Azure OpenAI endpoints.
+
+**Root Cause**: Azure OpenAI has different API version requirements for different endpoints:
+- Files API: Only supports `api-version=preview` (rejects `2024-12-01-preview`)
+- Responses API: Supports both `preview` and `2024-12-01-preview`
+- Single OpenAI client used `default_query` to apply one API version to ALL endpoints
+
+**Solution**: Adopted Azure OpenAI's v1 GA API which is OpenAI SDK-compatible and requires NO api-version parameter.
+
+**Key Changes**:
+
+1. **Updated `openai_service.py` (_get_openai_client method)**:
+   - Detects `/openai/v1/` in base URL
+   - For v1 endpoints: `default_query = None` (no api-version needed)
+   - For legacy endpoints: `default_query = {"api-version": api_version}` (backward compatible)
+
+2. **Updated Configuration Files**:
+   - `.env` and `.env.template`: Commented out `OPENAI_API_VERSION` with explanation
+   - Added clear documentation about v1 API not requiring api-version
+   - Kept parameter available for legacy endpoint support
+
+3. **Testing Results**:
+   - ✅ File upload tests: 2/2 PASSED (previously failing)
+   - ✅ Full test suite: 56/56 PASSED (no regressions)
+   - ✅ Responses API: Works perfectly
+   - ✅ Reasoning parameter: Fully supported
+   - ✅ All features: Embeddings, Files, Responses, Models - all GA in v1
+
+**Benefits**:
+- **No version conflicts**: All endpoints work with single client configuration
+- **Future-proof**: Automatic access to new GA features without code changes
+- **OpenAI SDK compatible**: Easier migration between OpenAI and Azure OpenAI
+- **No monthly updates**: v1 API provides continuous improvements without version bumps
+- **Simpler configuration**: One less environment variable to manage
+
+**Microsoft Documentation Reference**: 
+- Azure OpenAI v1 API lifecycle: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/api-version-lifecycle
+- Key quote: *"api-version is no longer a required parameter with the v1 GA API"*
+
+**v1 API GA Features** (as of October 2025):
+- `/openai/v1/chat/completions` ✅
+- `/openai/v1/embeddings` ✅
+- `/openai/v1/files` ✅
+- `/openai/v1/responses` ✅
+- `/openai/v1/fine_tuning/` ✅
+- `/openai/v1/models` ✅
+- `/openai/v1/vector_stores` ✅
+
+**Configuration Example**:
+```bash
+# Modern v1 API (recommended)
+OPENAI_BASE_URL=https://your-resource.openai.azure.com/openai/v1/
+# OPENAI_API_VERSION not needed! ✅
+```
+
+---
+
 ## Security & Quality Testing
 
 ### 2025-01-13: PyRIT 0.9.0 Security Red Teaming - Complete Implementation

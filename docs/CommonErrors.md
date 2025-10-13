@@ -6,7 +6,51 @@
 
 ## 1. Environment & Configuration
 
-### 1.1 Missing Environment Variables in Tests
+### 1.1 Azure OpenAI API Version Compatibility (Files API)
+**Symptom**: `Error code: 400 - {'error': {'code': 'BadRequest', 'message': 'API version not supported'}}` when uploading files
+
+**Root Cause**: Azure OpenAI Files API has different version requirements than other endpoints:
+- **Files API**: Only supports `api-version=preview` (rejects newer versions like `2024-12-01-preview`)
+- **Responses API**: Supports both `preview` and versioned previews
+- Single OpenAI client applies one `api-version` to ALL endpoints via `default_query`
+
+**Fix Option 1 - Modern v1 API (RECOMMENDED)**: Use Azure OpenAI v1 GA endpoint which requires NO api-version:
+```bash
+# .env
+OPENAI_BASE_URL=https://your-resource.openai.azure.com/openai/v1/
+# OPENAI_API_VERSION not needed! ✅
+```
+
+```python
+# openai_service.py
+if base_url and "/openai/v1/" in base_url:
+    # v1 GA API: no api-version required
+    default_query = None
+elif base_url and api_version:
+    # Legacy API: use api-version
+    default_query = {"api-version": api_version}
+```
+
+**Fix Option 2 - Legacy API**: Use `api-version=preview` for compatibility:
+```bash
+# .env (legacy endpoints only)
+OPENAI_API_VERSION=preview
+```
+
+**Benefits of v1 API**:
+- No version conflicts between endpoints
+- Automatic access to latest GA features
+- No monthly version updates needed
+- Full OpenAI SDK compatibility
+- All features supported: Files, Responses, Embeddings, Fine-tuning
+
+**Prevention**: 
+- Use v1 GA API endpoints (`/openai/v1/`) when available
+- Document API version requirements in `.env.template`
+- Test file upload functionality after API version changes
+- Reference: https://learn.microsoft.com/en-us/azure/ai-foundry/openai/api-version-lifecycle
+
+### 1.2 Missing Environment Variables in Tests
 **Symptom**: `KeyError: 'AZURE_OPENAI_EMBEDDING_API_KEY'` or similar environment variable errors
 
 **Root Cause**: `.env` file not loaded in test process, especially in integration tests
@@ -37,7 +81,7 @@ from src.services.config_service import ConfigService  # Safe now
 - Run integration tests separately: `pytest -m integration`
 - Load `.env` explicitly in integration test modules before imports
 
-### 1.2 Code Quality After Refactoring
+### 1.3 Code Quality After Refactoring
 **Symptom**: `IndentationError`, `SyntaxError`, or silent function nesting issues
 
 **Root Cause**: Large code patches shifted left margin or broke indentation

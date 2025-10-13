@@ -471,10 +471,16 @@ pricing calculation, and order placement. Pass the user's query verbatim to the 
         api_key = self._config.api_key
         base_url = self._config.base_url
 
-        # API version for Azure next-gen v1 when base_url is set
+        # Azure OpenAI v1 API: no api-version needed when using /openai/v1/ endpoint
+        # The v1 API is OpenAI-compatible and doesn't require monthly version updates
+        # Legacy endpoints still need api-version parameter
         default_query = None
-        if base_url:
-            api_version = self._config.api_version or "preview"
+        if base_url and "/openai/v1/" in base_url:
+            # v1 GA API: api-version not required, provides automatic access to latest features
+            default_query = None
+        elif base_url and self._config.api_version:
+            # Legacy API: use api-version parameter for compatibility
+            api_version = self._config.api_version
             default_query = {"api-version": api_version}
 
         return AsyncOpenAI(api_key=api_key, base_url=base_url, default_query=default_query)
