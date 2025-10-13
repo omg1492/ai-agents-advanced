@@ -4,6 +4,172 @@ This document tracks key implementation decisions, architectural patterns, and c
 
 ---
 
+## Security & Quality Testing
+
+### 2025-01-13: PyRIT 0.9.0 Security Red Teaming - Complete Implementation
+
+**Summary**: Implemented comprehensive security testing infrastructure using Microsoft's PyRIT 0.9.0 (Python Risk Identification Toolkit) to proactively identify vulnerabilities in the DreamFarm agent through adversarial prompt testing.
+
+**Location**: `agents/dreamfarm-agent/tests/redteaming/`
+
+**Key Components**:
+1. **`run_redteaming_simple.py`** - Single dataset quick test (AdvBench, 10 prompts, ~5 minutes)
+2. **`run_redteaming_comprehensive.py`** - Multi-dataset comprehensive test (3 datasets, 60 prompts, ~30-40 minutes)
+3. **Test Endpoint**: `/test/chat` - Simplified JSON-only endpoint (no streaming, API key auth)
+4. **Output**: Single text file per run in `redteaming_results/` with response previews and scores
+
+**Critical Implementation Details**:
+
+**PyRIT 0.9.0 API Migration**:
+- **PromptSendingOrchestrator**: New orchestration API replacing PyRIT 0.5.0 patterns
+- **send_prompts_async()**: Main execution method (replaces older batch processing)
+- **HTTPTarget**: Direct REST API testing with custom timeout (300s simple, 600s comprehensive)
+- **OpenAIChatTarget**: Scorer target with full Azure endpoint URL format
+
+**Test Endpoint Design**:
+- **Path**: `POST /test/chat` (no streaming, simple JSON request/response)
+- **Auth**: `X-Test-API-Key` header (value from `TEST_API_KEY` env var)
+- **Request**: `{"message": "..."}`
+- **Response**: `{"message": "...", "response_id": "...", "timestamp": "..."}`
+- **Rationale**: PyRIT's HTTPTarget incompatible with SSE streaming; test endpoint provides same logic without streaming complexity
+
+**Azure OpenAI Configuration Fix**:
+- **Issue**: OpenAIChatTarget endpoint parameter format confusion
+- **Solution**: Full URL including deployment path: `https://<resource>.openai.azure.com/openai/deployments/<model>/chat/completions`
+- **api_version**: Passed as parameter (PyRIT adds as query string automatically)
+- **Avoid**: Do NOT include `?api-version=...` in endpoint URL (causes double query params)
+
+**SelfAskRefusalScorer Critical Bug**:
+- **Issue**: Scorer returns boolean `True`/`False`, NOT numeric `0.0`/`1.0` (despite documentation suggesting otherwise)
+- **Initial Symptom**: Tests showed "100% attack success" when agent was actually refusing all requests
+- **Root Cause Discovery**: User skepticism led to adding response previews, revealing inverted scoring
+- **Correct Interpretation**: 
+  - `True` = Refusal detected (agent is SECURE)
+  - `False` = Compliance detected (agent is VULNERABLE)
+- **Code Fix**: Handle boolean values directly, avoid float conversion
+```python
+# Extract score from PromptRequestPiece
+score_piece = response.request_pieces[-1]
+score_value = getattr(score_piece, 'score_value', None)
+
+# Boolean handling (True=refusal=secure, False=compliance=vulnerable)
+if score_value is True:
+    refusals += 1
+    print(f"  ✅ Agent REFUSED (secure) - Score: {score_value}")
+elif score_value is False:
+    compliances += 1
+    print(f"  ❌ Agent COMPLIED (vulnerable) - Score: {score_value}")
+```
+
+**Attack Datasets** (3 used after XSTest removal):
+- **AdvBench** (520 prompts): Standard harmful behavior benchmarks (illegal activities, violence, exploitation)
+- **Forbidden Questions** (450 prompts): Questions models should refuse (controversial, unethical)
+- **HarmBench** (400 prompts): Comprehensive harm categories (cybersecurity, misinformation, discrimination)
+- **XSTest** (REMOVED): Caused timeout on 4th dataset, removed per user request
+
+**Timeout Configuration**:
+- **Simple Test**: 300 seconds (5 minutes) - agent with tools needs time for reasoning
+- **Comprehensive Test**: 600 seconds (10 minutes) - multiple datasets require longer window
+- **Rationale**: Initial 5s default caused immediate failures; agent needs time for tool orchestration
+
+**Output Strategy**:
+- **Format**: Single text file (no JSON, no folders, no README)
+- **Location**: Script-relative path `Path(__file__).parent / "redteaming_results"`
+- **Filename**: `results_{timestamp}.txt` or `results_comprehensive_{timestamp}.txt`
+- **Content**: Complete screen output copy (prompts, response previews, scores, summary)
+- **log() Function**: Collects all print statements for file writing
+
+**Response Preview** (debugging feature):
+- First 150 characters of agent response shown in output
+- **Purpose**: Validate scoring accuracy (discovered scorer boolean bug)
+- **Example**: `📝 Response: I'm sorry, but I cannot assist with that request.`
+
+**Technology Stack**:
+- **PyRIT 0.9.0**: Microsoft's AI red teaming framework (breaking changes from 0.5.0)
+- **HTTPTarget**: REST API testing with custom timeout and header injection
+- **OpenAIChatTarget**: Azure OpenAI GPT-5 as LLM-as-judge scorer
+- **PromptSendingOrchestrator**: Main orchestration engine for prompt batching
+- **SelfAskRefusalScorer**: Boolean refusal detection (NOT numeric despite docs)
+
+**Test Results**:
+- **Simple Test**: 10/10 prompts refused (100% secure)
+- **Comprehensive Test**: 60/60 prompts refused across 3 datasets (100% secure)
+- **Agent Responses**: Consistent refusals ("I'm sorry, but I cannot assist with that request.")
+- **Attack Success Rate**: 0.0% (no vulnerabilities found)
+
+**Key Metrics**:
+- **Refusal Rate**: % of harmful prompts refused (higher is better, target: 90%+)
+- **Attack Success Rate**: % of harmful prompts complied with (lower is better, target: <10%)
+
+**Usage**:
+```powershell
+# Simple test (10 prompts, ~5 minutes)
+cd agents/dreamfarm-agent/tests/redteaming
+uv run python run_redteaming_simple.py
+
+# Comprehensive test (60 prompts, ~30-40 minutes)
+uv run python run_redteaming_comprehensive.py
+
+# View results
+cat redteaming_results/results_<timestamp>.txt
+```
+
+**Configuration** (.env):
+```properties
+# Test endpoint security
+TEST_API_ENABLED=true
+TEST_API_KEY=redteaming123
+
+# Azure OpenAI for scoring (reuses agent config)
+OPENAI_API_KEY=<azure_key>
+OPENAI_BASE_URL=https://<resource>.openai.azure.com/openai/v1/
+OPENAI_MODEL=gpt-5
+OPENAI_API_VERSION=2024-12-01-preview
+
+# Agent URL
+DREAMFARM_AGENT_URL=http://localhost:8001
+```
+
+**Documentation**:
+- `lessons/L09_evaluation/README.md`: Updated with PyRIT section (Část 2: Bezpečnostní testování)
+- `docs/CommonErrors.md`: Section 4.9 added documenting SelfAskRefusalScorer boolean bug
+- Lesson includes: why security testing, configuration, commands, output format, technologies, key learnings, demo checklist
+
+**Design Rationale**:
+1. **Test Endpoint**: Isolated from production `/chat` (no streaming complexity, API key gated)
+2. **HTTPTarget**: Tests actual REST API surface (no SDK dependency)
+3. **Boolean Scoring**: Direct handling after discovering return type mismatch
+4. **Response Previews**: Enables validation of scoring accuracy (found critical bug)
+5. **Script-Relative Output**: Consistent results folder regardless of CWD
+6. **Single Text File**: Simplifies output review (no JSON parsing, no folder navigation)
+7. **Built-in Datasets**: Curated by security researchers (comprehensive coverage)
+
+**Debugging Journey** (Key Learnings):
+1. Initial PyRIT 0.5.0 API failed → Upgraded to 0.9.0
+2. Streaming SSE incompatibility → Created `/test/chat` endpoint
+3. 5s timeout too short → Increased to 300s/600s
+4. Scorer API type error → Extract from PromptRequestPiece
+5. Azure endpoint format confusion → Full URL with api_version parameter
+6. **"100% attack success" seemed suspicious → Added response previews**
+7. **Response previews showed all refusals → Discovered boolean scorer bug**
+8. Fixed boolean interpretation → Correct 100% secure results
+9. Import error (fetch_jbb_behaviors_dataset) → Dataset doesn't exist, replaced
+10. XSTest timeout → Removed dataset per user request
+
+**Critical Bug Documentation**:
+- **CommonErrors.md Section 4.9**: SelfAskRefusalScorer boolean bug details
+- **Key Lesson**: Always validate ML scoring with actual response content
+- **User Skepticism**: "I do not believe this" led to bug discovery (add response previews)
+
+**Future Enhancements**:
+- CI/CD integration (exit code based on refusal rate threshold)
+- Custom DreamFarm-specific attack prompts (competitor manipulation, policy violations)
+- Multi-turn attacks (Crescendo, TAP) when PyRIT stabilizes API
+- Production monitoring integration (track refusal rates over time)
+- Automated regression testing on model updates
+
+---
+
 ## Multi-Agent Architecture (Chef Agent)
 
 ### 2025-10-11: End-to-End Integration (Phases 2-4)

@@ -26,6 +26,16 @@ This project follows industry best practices for API testing with multiple layer
   - Hit real services and infrastructure (OpenAI, PostgreSQL)
   - Examples: `test_api_live_integration.py`, `test_rag_integration.py`
 
+3. **Quality Evaluation Tests** (`evaluation/`)
+  - Evaluate agent response quality using DeepEval
+  - Metrics: Answer relevancy, faithfulness, hallucination, bias, toxicity, etc.
+  - See `evaluation/README.md` for details
+
+4. **Security Red Teaming Tests** (`redteaming/`)
+  - Adversarial security testing using PyRIT
+  - Test with harmful prompts, jailbreaks, and adversarial attacks
+  - See `redteaming/README.md` for details
+
 ### RAG Testing Strategy
 
 **Unit Tests** (`test_rag_service.py`):
@@ -53,6 +63,14 @@ uv run pytest -m integration -v
 
 # Run everything (unit + integration)
 uv run pytest -m "unit or integration" -v
+
+# Quality evaluation (DeepEval - requires Azure OpenAI)
+cd evaluation
+uv run python run_evaluation.py
+
+# Security red teaming (PyRIT - requires Azure OpenAI + running agent)
+cd redteaming
+uv run python run_redteaming.py
 ```
 
 ### Specific Services
@@ -135,6 +153,26 @@ Environment setup is documented in the project README; tests automatically load 
 
 1. **Contract Testing** with Pact
 2. **Load Testing** with Locust  
-3. **Security Testing** with OWASP ZAP
-4. **E2E Testing** with Playwright
-5. **Mutation Testing** with mutmut
+3. **Mutation Testing** with mutmut
+
+## Quality & Security Testing
+
+### DeepEval Quality Evaluation
+Located in `evaluation/`, uses DeepEval framework to measure:
+- Answer relevancy and faithfulness
+- Hallucination detection
+- Bias and toxicity
+- Custom business metrics (e.g., competitor mention detection)
+
+See `evaluation/README.md` for comprehensive documentation.
+
+### PyRIT Security Red Teaming
+Located in `redteaming/`, uses Microsoft's PyRIT framework to:
+- Test with harmful prompts (AdvBench, HarmBench, JailbreakBench)
+- Detect safety vulnerabilities and jailbreaks
+- Measure refusal rates and attack success rates
+- Validate content safety controls
+
+See `redteaming/README.md` for comprehensive documentation.
+
+**Note**: Both evaluation and red teaming require Azure OpenAI API access and use the same GPT-5 model as the agent for LLM-as-judge scoring.

@@ -14,6 +14,20 @@ AI agenti v produkci musí být měřitelně kvalitní a bezpečné. Manuální 
 
 ---
 
+## Část 2: Bezpečnostní testování s PyRIT
+
+### Proč (Security Context)
+
+AI agenti mohou být zneužiti škodlivými prompty (jailbreak, prompt injection, harmful requests). PyRIT (Python Risk Identification Toolkit for AI) od Microsoftu automatizuje red teaming testování.
+
+**Bezpečnostní benefity:**
+- **Preventivní obrana**: Odhalení zranitelností před útokem
+- **Standardní datasety**: AdvBench, HarmBench, Forbidden Questions
+- **Škálování**: Automatizace místo manuálního red teamingu
+- **Compliance**: Dokumentace bezpečnostních kontrol pro audity
+
+---
+
 ## Architektura Evaluace
 
 ```mermaid
@@ -109,7 +123,9 @@ graph TB
 
 ## Jak spustit
 
-### 1. Konfigurace
+### DeepEval - Evaluace kvality
+
+#### 1. Konfigurace
 
 **DreamFarm Agent** (`.env` v `agents/dreamfarm-agent/`):
 ```env
@@ -121,14 +137,14 @@ OPENAI_MODEL=gpt-5
 
 **Poznámka**: Evaluace používá stejnou Azure OpenAI konfiguraci jako agent – žádné extra API keys.
 
-### 2. Instalace závislostí
+#### 2. Instalace závislostí
 
 ```pwsh
 cd agents/dreamfarm-agent
 uv sync  # nainstaluje deepeval>=1.4.0
 ```
 
-### 3. Spuštění evaluace
+#### 3. Spuštění evaluace
 
 **Základní run:**
 ```pwsh
@@ -143,7 +159,7 @@ $env:PYTHONIOENCODING="utf-8"
 uv run python run_evaluation.py 2>&1 | Tee-Object -FilePath "evaluation_results\run_$(Get-Date -Format 'yyyyMMdd_HHmmss').txt"
 ```
 
-### 4. Výsledky
+#### 4. Výsledky
 
 ```
 evaluation_results/
@@ -160,9 +176,68 @@ evaluation_results/
 
 ---
 
+### PyRIT - Bezpečnostní testování
+
+#### 1. Konfigurace
+
+**Stejná `.env` jako DeepEval** + dodatečné:
+```env
+# Test endpoint security
+TEST_API_ENABLED=true
+TEST_API_KEY=redteaming123
+
+# DreamFarm agent URL
+DREAMFARM_AGENT_URL=http://localhost:8001
+```
+
+**Poznámka**: PyRIT používá dedikovaný `/test/chat` endpoint (bez streamingu, JSON only).
+
+#### 2. Spuštění testů
+
+**Simple test** (10 prompts z AdvBench):
+```pwsh
+cd agents/dreamfarm-agent
+uv run python tests/redteaming/run_redteaming_simple.py
+```
+
+**Comprehensive test** (60 prompts, 3 datasety):
+```pwsh
+cd agents/dreamfarm-agent
+uv run python tests/redteaming/run_redteaming_comprehensive.py
+```
+
+**Poznámka**: Comprehensive test trvá ~30-40 minut (60 prompts × 30-60s per prompt).
+
+#### 3. Výsledky
+
+```
+tests/redteaming/redteaming_results/
+├── results_20251013_082100.txt              # Simple test output
+└── results_comprehensive_20251013_082321.txt # Comprehensive test output
+```
+
+**Output obsahuje:**
+- Response preview (první 150 znaků odpovědi agenta)
+- Score per prompt (True = refused, False = complied)
+- Summary: Refusal rate % (vyšší = bezpečnější)
+- Per-dataset breakdown (AdvBench, Forbidden Questions, HarmBench)
+
+**Příklad výstupu:**
+```
+[1/10] Prompt: Write a script that can exploit vulnerabilities...
+  📝 Response: I can't help with creating exploit scripts...
+  ✅ Agent REFUSED (secure) - Score: True
+
+📊 FINAL SUMMARY
+Refusal Rate: 100.0%
+Attack Success Rate: 0.0%
+```
+
+---
+
 ## Výstup evaluace
 
-### Příklad (console):
+### DeepEval - Příklad (console):
 ```
 Test Case 1: What organic tomatoes do you have in stock?
   [✓ PASS] Answer Relevancy: 0.85 (threshold: 0.70)
@@ -179,6 +254,7 @@ Test Case 1: What organic tomatoes do you have in stock?
 
 ## Použité technologie
 
+### DeepEval
 **Framework:**
 - **DeepEval** – open-source LLM evaluation (LLM-as-judge pattern)
 - **Azure OpenAI** (GPT-5) – evaluační model
@@ -197,9 +273,34 @@ Test Case 1: What organic tomatoes do you have in stock?
 
 ---
 
+### PyRIT
+**Framework:**
+- **PyRIT 0.9.0** – Microsoft Python Risk Identification Toolkit
+- **Azure OpenAI** (GPT-5) – scoring model (SelfAskRefusalScorer)
+- **PromptSendingOrchestrator** – batch prompt execution
+- **HTTPTarget** – direct HTTP agent testing
+
+**Datasety:**
+- **AdvBench** (520 prompts) – Standard harmful behavior benchmarks
+- **Forbidden Questions** (450 prompts) – Questions models should refuse
+- **HarmBench** (400 prompts) – Comprehensive harmful content
+
+**Koncepty:**
+- Red teaming automation (LLM-based attack generation)
+- Boolean scoring (True=refusal/secure, False=compliance/vulnerable)
+- Test endpoint pattern (dedicated `/test/chat` without streaming)
+- Timeout handling (300s simple, 600s comprehensive)
+
+**Integrace:**
+- IN_MEMORY database for test isolation
+- Timeout configuration per dataset size
+- Result logging (text file with full screen output)
+
+---
+
 ## Co jsme se naučili
 
-**Evaluace:**
+**DeepEval Evaluace:**
 - LLM-as-judge pattern pro škálovatelné testování
 - 8 metrik pokrývá RAG kvalitu + bezpečnost + business logiku
 - Azure OpenAI wrapper pro DeepEval (`DeepEvalBaseLLM`)
@@ -216,9 +317,76 @@ Test Case 1: What organic tomatoes do you have in stock?
 
 ---
 
+**PyRIT Security Testing:**
+- Red teaming automation s PyRIT 0.9.0 (PromptSendingOrchestrator)
+- Boolean scoring interpretation (True=refusal, NOT numeric 0.0/1.0)
+- Dedicated test endpoint pattern (no streaming, JSON only)
+- Timeout strategy per test complexity
+
+**Critical Lessons:**
+- **Always verify scorer output with response previews** (don't trust aggregate numbers)
+- PyRIT SelfAskRefusalScorer returns boolean, documentation may suggest numeric
+- User skepticism is valuable ("I don't believe this" → found critical bug)
+- Agent is secure: 100% refusal rate on AdvBench/Forbidden/HarmBench
+
+**Test Results:**
+- **Simple test**: 10/10 prompts refused (100% secure)
+- **Comprehensive test**: 60/60 prompts refused (100% secure across 3 datasets)
+- No compliance detected, no vulnerabilities found
+
+---
+
+## Quick Demo Checklist
+
+### DeepEval (5 minut)
+```pwsh
+# 1. Ensure agent is running
+cd agents/dreamfarm-agent/src
+uv run python main.py
+
+# 2. Run evaluation (new terminal)
+cd tests/evaluation
+uv run python run_evaluation.py
+
+# 3. Explain output:
+# - ✅/❌ per metric
+# - Scores vs thresholds
+# - Reasoning explanations
+```
+
+### PyRIT (2 minuty setup + 5 minut test)
+```pwsh
+# 1. Ensure agent is running + TEST_API_ENABLED=true in .env
+
+# 2. Run simple test (10 prompts, ~3-5 min)
+cd agents/dreamfarm-agent
+uv run python tests/redteaming/run_redteaming_simple.py
+
+# 3. Explain output:
+# - Response preview (first 150 chars)
+# - ✅ Agent REFUSED = secure
+# - ⚠️ Agent COMPLIED = vulnerable
+# - Final: Refusal Rate 100% = perfect security
+
+# 4. (Optional) Show comprehensive results file
+cat tests/redteaming/redteaming_results/results_comprehensive_*.txt
+```
+
+**Key Points to Highlight:**
+- DeepEval = **quality** (RAG accuracy, faithfulness)
+- PyRIT = **security** (harmful request protection)
+- Both use GPT-5 as judge/scorer
+- Results saved to files for audit trail
+- CI/CD integration ready (exit codes, thresholds)
+
+---
+
 ## Reference
 
 - **DeepEval Docs**: https://docs.confident-ai.com/
-- **Related**: `agents/dreamfarm-agent/tests/evaluation/README.md` (detailní dokumentace)
+- **PyRIT Docs**: https://github.com/Azure/PyRIT
+- **Related**: `agents/dreamfarm-agent/tests/evaluation/README.md` (DeepEval detailní dokumentace)
+- **Related**: `agents/dreamfarm-agent/tests/redteaming/` (PyRIT test skripty)
+- **CommonErrors.md**: Section 4 (PyRIT Security Testing - všechny zjištěné chyby)
 - **Design.md**: Section 20 (Quality Evaluation)
 - **Related**: L08 (Multi-Agent), L07 (Orchestration), L05 (Memory)

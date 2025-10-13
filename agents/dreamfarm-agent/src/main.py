@@ -552,6 +552,125 @@ async def get_html_artifact(
     return HTMLResponse(content=html, status_code=200)
 
 
+# ============================================================================
+# Test API Endpoint (for PyRIT / Security Testing)
+# ============================================================================
+
+# Conditionally register test endpoints only if TEST_API_ENABLED=true
+if os.getenv("TEST_API_ENABLED", "").lower() == "true":
+    @app.post("/test/chat")
+    async def test_chat(chat_request: ChatRequest, request: Request):
+        """Simple non-streaming chat endpoint for automated security testing.
+        
+        **IMPORTANT**: This endpoint uses the SAME system prompt, tools, and safety
+        guardrails as the production /chat endpoint. This ensures security testing
+        validates the actual production behavior, not a simplified mock.
+        
+        Differences from production /chat:
+        - ✅ SAME: System prompt with safety guardrails
+        - ✅ SAME: All tools enabled (Chef, Farmer, Stock, MCP, etc.)
+        - ✅ SAME: RAG context if enabled
+        - ❌ DIFFERENT: No streaming (returns simple JSON response)
+        - ❌ DIFFERENT: Simple API key auth (not OAuth/JWT)
+        - ❌ DIFFERENT: No conversation history/threads (stateless)
+        - ❌ DIFFERENT: No semantic cache
+        - ❌ DIFFERENT: No user profile personalization
+        
+        This design ensures PyRIT and other security testing tools can validate:
+        - System prompt prevents harmful outputs
+        - Tools don't enable malicious actions
+        - Content filters work correctly
+        - Jailbreak attempts are blocked
+        
+        Requires TEST_API_KEY environment variable and X-Test-API-Key header.
+        """
+        # Require API key authentication
+        test_api_key = os.getenv("TEST_API_KEY")
+        if not test_api_key:
+            raise HTTPException(
+                status_code=500,
+                detail="TEST_API_KEY not configured on server"
+            )
+        
+        provided_key = request.headers.get("x-test-api-key")
+        if not provided_key or provided_key != test_api_key:
+            raise HTTPException(
+                status_code=401,
+                detail="Invalid or missing X-Test-API-Key header"
+            )
+        
+        logger.info(f"/test/chat message_length={len(chat_request.message)}")
+        
+        try:
+            # Build SAME system prompt as production /chat endpoint
+            # This ensures we're testing the actual system prompt with all safety guardrails
+            rag_context = None
+            if 'rag_service' in globals() and rag_service is not None and getattr(rag_service, 'enabled', False):
+                try:
+                    rag_context = await rag_service.get_relevant_context(chat_request.message)
+                except Exception as re:
+                    logger.warning(f"RAG context fetch failed in test endpoint: {re}")
+            
+            # Use static test user profile (no personalization in tests)
+            user_profile_json = ""
+            
+            # Render the SAME system prompt template as production
+            system_prompt = template_service.render_template(
+                "system_prompt.j2",
+                {
+                    "user_location": None,
+                    "seasonal_products": [],
+                    "user_preferences": [],
+                    "simple_rag": rag_context or "",
+                    "user_profile": user_profile_json,
+                    "user_id": "test-user",
+                    "config": config_service.config,
+                    "memory_write_profile_enabled": False,
+                },
+            )
+            logger.debug(f"Test endpoint system prompt:\n{system_prompt}")
+            
+            # Call generate_response with SAME parameters as production
+            # This includes all tools (Chef, Farmer, Stock, etc.) and safety guardrails
+            text, response_id = await openai_service.generate_response(
+                user_text=chat_request.message,
+                system_prompt=system_prompt,
+                previous_response_id=None,  # No conversation continuity in tests
+                user_is_vip=False,
+                user_id="test-user",
+            )
+            
+            # Extract just the text response (same as production /chat)
+            logger.info(f"/test/chat completed response_length={len(text)}")
+            
+            return ChatResponse(
+                response_id=response_id,
+                message=text,
+                timestamp=datetime.now(timezone.utc).isoformat(),
+            )
+        
+        except Exception as e:
+            logger.error(f"/test/chat failed: {e}", exc_info=True)
+            raise HTTPException(
+                status_code=500,
+                detail=f"Chat processing failed: {str(e)}"
+            )
+
+
+    @app.get("/test/health")
+    async def test_health():
+        """Health check for test API (no authentication required)."""
+        return {"status": "healthy", "endpoint": "test"}
+    
+    logger.info("Test API enabled (/test/chat and /test/health endpoints registered)")
+else:
+    logger.info("Test API disabled (TEST_API_ENABLED not set to 'true')")
+
+
+# ============================================================================
+# Production Chat Endpoints
+# ============================================================================
+
 @app.post("/chat", response_model=ChatResponse)
 async def chat(request: ChatRequest, user_ctx: tuple[str, bool, dict] = Depends(_require_user)):
     """Single endpoint chat using server-side conversation state.

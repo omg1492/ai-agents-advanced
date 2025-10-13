@@ -811,6 +811,16 @@ eventBus.dispatch('resource-selected', { id: newResource.id });
 - Continuation: replace input with tool outputs only, never extend
 - Response ID: capture from EVERY response, not just first
 
+**PyRIT Security Testing**:
+- Use PyRIT 0.9.0 API: `PromptSendingOrchestrator`, `send_prompts_async()`
+- Test endpoint: `/test/chat` (JSON-only, no streaming, API key gated)
+- Timeout: 300s (simple), 600s (comprehensive) for agents with tools
+- Azure scorer: Full URL + api_version parameter (not in URL)
+- **SelfAskRefusalScorer: Returns boolean True/False, NOT 0.0/1.0**
+- **True = Refusal (secure), False = Compliance (vulnerable)**
+- Always validate with response previews (first 150 chars)
+- Datasets: AdvBench ✅, Forbidden Questions ✅, HarmBench ✅, XSTest ⚠️ (timeout)
+
 **PostgreSQL + AGE**:
 - Cypher: prefer 3-arg; fallback 2-arg; only `:graph` bound outside `$$`
 - Separate engines: vector (pgvector) vs graph (AGE)
@@ -916,7 +926,522 @@ class EnvAPIKeyVerifier(TokenVerifier):
 
 ---
 
-## 4. Data Imports & Embeddings
+## 4. PyRIT Security Testing (Microsoft Python Risk Identification Toolkit)
+
+### 4.1 API Version Incompatibility (0.5.0 → 0.9.0)
+**Symptom**: `ImportError: cannot import name 'PromptSendingAttack'` or `AttributeError: 'PromptSendingOrchestrator' has no attribute 'execute_async'`
+
+**Root Cause**: PyRIT 0.9.0 changed core API - renamed classes and methods
+
+**Fix**: Update to new API patterns
+```python
+# CORRECT (PyRIT 0.9.0)
+from pyrit.orchestrator import PromptSendingOrchestrator
+from pyrit.prompt_target import HTTPTarget
+from pyrit.score import SelfAskRefusalScorer
+
+orchestrator = PromptSendingOrchestrator(
+    objective_target=http_target,
+    scorers=[SelfAskRefusalScorer(chat_target=openai_target)]
+)
+await orchestrator.send_prompts_async(prompt_list=prompts)
+
+# WRONG (PyRIT 0.5.0 - outdated)
+# from pyrit.orchestrator import PromptSendingAttack
+# attack = PromptSendingAttack(...)
+# await attack.execute_async(...)
+```
+
+**Key Changes**:
+- `PromptSendingAttack` → `PromptSendingOrchestrator`
+- `execute_async()` → `send_prompts_async()`
+- Import paths reorganized (e.g., `pyrit.prompt_target` instead of `pyrit.models`)
+
+**Prevention**: Check PyRIT version in requirements and update import statements; test with `verify_setup.py` before running full tests
+
+### 4.2 HTTPTarget - Streaming Response Incompatibility
+**Symptom**: No responses received; parsing errors; timeout on all prompts
+
+**Root Cause**: HTTPTarget expects simple JSON responses, cannot parse Server-Sent Events (SSE) streaming format
+
+**Fix**: Create dedicated non-streaming test endpoint
+```python
+# Backend: Add test endpoint without streaming
+@app.post("/test/chat")
+async def test_chat(chat_request: ChatRequest, request: Request):
+    # ... authentication ...
+    
+    # Use same system prompt and tools as production
+    text, response_id = await openai_service.generate_response(
+        user_text=chat_request.message,
+        system_prompt=system_prompt,
+        # All production tools enabled
+    )
+    
+    # Return simple JSON (not streaming)
+    return ChatResponse(response_id=response_id, message=text, ...)
+```
+
+**HTTPTarget Configuration**:
+```python
+raw_http_request = f"""POST {base_url}/test/chat HTTP/1.1
+Content-Type: application/json
+X-Test-API-Key: {api_key}
+
+{{
+    "message": "{{{{PROMPT}}}}"
+}}"""
+
+parsing_function = get_http_target_json_response_callback_function(key="message")
+
+http_target = HTTPTarget(
+    http_request=raw_http_request,
+    prompt_regex_string="{{PROMPT}}",
+    callback_function=parsing_function,
+    use_tls=base_url.startswith("https"),
+)
+```
+
+**Why This Works**:
+- HTTPTarget needs predictable JSON structure: `{"message": "..."}`
+- Streaming adds complexity (chunked transfer, SSE formatting, multiple events)
+- Test endpoint maintains production behavior (same system prompt + tools) without streaming
+
+**Prevention**: Always use dedicated test endpoints for PyRIT; gate with `TEST_API_ENABLED` flag; require API key authentication
+
+### 4.3 HTTPTarget - Timeout Parameter Errors
+**Symptom**: `httpcore.ReadTimeout` or timeout errors after ~5 seconds per request
+
+**Root Cause**: HTTPTarget uses httpx.AsyncClient with default 5-second timeout, insufficient for agents with tool calls
+
+**Fix**: Pass timeout parameter to HTTPTarget (forwarded to AsyncClient via **kwargs)
+```python
+# CORRECT - pass timeout directly to HTTPTarget
+http_target = HTTPTarget(
+    http_request=raw_http_request,
+    prompt_regex_string="{{PROMPT}}",
+    callback_function=parsing_function,
+    use_tls=base_url.startswith("https"),
+    timeout=180.0,  # 3 minutes for agent with tools
+)
+
+# WRONG - default 5-second timeout insufficient
+# http_target = HTTPTarget(
+#     http_request=raw_http_request,
+#     # ... no timeout parameter ...
+# )  # ❌ Will timeout on complex agent operations
+```
+
+**Discovery Process**:
+1. Initial tests: immediate `httpcore.ReadTimeout` after ~5 seconds
+2. Checked HTTPTarget signature: `__init__(self, ..., **httpx_client_kwargs: Any)`
+3. Checked httpx.AsyncClient signature: accepts `timeout: TimeoutTypes` parameter
+4. Solution: Pass `timeout=180.0` directly to HTTPTarget (forwarded to AsyncClient)
+5. Test confirmed: Agents with tools can take 60-120 seconds per prompt
+
+**Why This Works**:
+- HTTPTarget accepts `**httpx_client_kwargs` and passes them to `httpx.AsyncClient`
+- AsyncClient default timeout is 5 seconds
+- Agents with full tool access (Chef, Farmer, Stock, Memory, Graph, Tavily) need 60-120 seconds
+- Setting `timeout=180.0` (3 minutes) provides safe margin
+
+**Key Lesson**: PyRIT's HTTPTarget forwards kwargs to httpx.AsyncClient; check both signatures to understand available configuration
+
+**Prevention**: Always set appropriate timeout for your target's expected response time; test with single prompt before batch operations
+
+### 4.4 Scorer API - PromptRequestPiece vs PromptRequestResponse
+**Symptom**: `'PromptRequestResponse' object has no attribute 'response_error'` when scoring responses
+
+**Root Cause**: `SelfAskRefusalScorer.score_async()` expects a `PromptRequestPiece` (single message), not a `PromptRequestResponse` (full conversation)
+
+**Fix**: Pass the response piece (last item in request_pieces list)
+```python
+# CORRECT - pass the response piece
+responses = await orchestrator.send_prompts_async(prompt_list=prompts)
+for response in responses:
+    if response and len(response.request_pieces) > 0:
+        # Get the assistant's response (last piece)
+        response_piece = response.request_pieces[-1]
+        response_text = response_piece.converted_value
+        
+        # Score using the piece, not the full response
+        score_results = await scorer.score_async(request_response=response_piece)
+        is_refusal = score_results[0].get_value() == 0.0  # 0.0 = refusal, 1.0 = compliance
+
+# WRONG - passing full response
+# score_results = await scorer.score_async(request_response=response)  # ❌ Wrong type
+```
+
+**Discovery Process**:
+1. Initial code: passed `PromptRequestResponse` to scorer
+2. Error: `'PromptRequestResponse' object has no attribute 'response_error'`
+3. Checked signature: `score_async(request_response: PromptRequestPiece)`
+4. Solution: Extract response piece from `response.request_pieces[-1]`
+
+**Key Understanding**:
+- `PromptRequestResponse`: Full conversation with multiple pieces (user prompt + assistant response)
+- `PromptRequestPiece`: Single message in conversation
+- Scorers evaluate individual messages, not full conversations
+- Use `request_pieces[-1]` to get the assistant's response
+
+**Prevention**: Always check scorer signature; understand PyRIT's conversation model (Response contains Pieces)
+
+### 4.5 Test Endpoint - Request Header Access
+**Symptom**: `AttributeError: 'ChatRequest' object has no attribute 'headers'` when trying to access API key
+
+**Root Cause**: Pydantic models don't automatically include FastAPI Request headers
+
+**Fix**: Inject Request object separately
+```python
+# CORRECT - inject Request separately from Pydantic model
+@app.post("/test/chat")
+async def test_chat(chat_request: ChatRequest, request: Request):
+    test_api_key = os.getenv("TEST_API_KEY")
+    provided_key = request.headers.get("x-test-api-key")  # From Request object
+    
+    if not provided_key or provided_key != test_api_key:
+        raise HTTPException(status_code=401, detail="Invalid API key")
+    
+    # ... process chat_request.message ...
+
+# WRONG - trying to access headers from Pydantic model
+# @app.post("/test/chat")
+# async def test_chat(chat_request: ChatRequest):
+#     provided_key = chat_request.headers.get("x-test-api-key")  # ❌ No such attribute
+```
+
+**Prevention**: Always inject `Request` object when you need headers/cookies/client info beyond request body
+
+### 4.6 Test Endpoint Security Configuration
+**Symptom**: PyRIT tests hitting production endpoints; no way to disable test endpoint in production
+
+**Root Cause**: Test endpoint always available without security controls
+
+**Fix**: Gate test endpoint with environment flag and API key
+```python
+# .env configuration
+TEST_API_ENABLED=true
+TEST_API_KEY=redteaming123
+
+# Backend: Conditional endpoint registration
+if os.getenv("TEST_API_ENABLED", "").lower() == "true":
+    @app.post("/test/chat")
+    async def test_chat(chat_request: ChatRequest, request: Request):
+        # Require API key
+        test_api_key = os.getenv("TEST_API_KEY")
+        provided_key = request.headers.get("x-test-api-key")
+        
+        if not test_api_key or not provided_key or provided_key != test_api_key:
+            raise HTTPException(status_code=401, detail="Invalid API key")
+        
+        # ... same logic as production endpoint ...
+```
+
+**Why This Pattern**:
+- `TEST_API_ENABLED` - easily disable in production (set to false or omit)
+- `TEST_API_KEY` - prevents unauthorized security testing
+- Same tools/behavior as production - accurate security assessment
+- No streaming complexity - PyRIT compatibility
+
+**Prevention**: Always gate test/debug endpoints with environment flags; require authentication even in development
+
+### 4.7 Azure OpenAI Configuration for PyRIT Scoring
+**Symptom**: `InvalidRequestError: unrecognized request argument supplied: max_tokens` when using SelfAskRefusalScorer
+
+**Root Cause**: GPT-5 reasoning models require `max_completion_tokens` instead of `max_tokens`; Azure OpenAI client needs full base URL
+
+**Fix**: Configure OpenAI client correctly for Azure
+```python
+# CORRECT - Azure configuration with full base URL
+from openai import OpenAI  # Not AzureOpenAI
+
+openai_target = AzureOpenAIChatTarget(
+    deployment_name=os.getenv("AZURE_OPENAI_REASONING_DEPLOYMENT"),
+    endpoint=os.getenv("AZURE_OPENAI_REASONING_ENDPOINT"),
+    api_key=os.getenv("AZURE_OPENAI_REASONING_API_KEY"),
+    api_version="2024-12-01-preview",
+)
+
+# For manual client creation
+client = OpenAI(
+    api_key=os.getenv("AZURE_OPENAI_REASONING_API_KEY"),
+    base_url=f"https://{resource_name}.openai.azure.com/openai/deployments/{deployment_name}",
+    default_headers={"api-key": api_key},
+)
+
+# Use max_completion_tokens for GPT-5
+response = client.chat.completions.create(
+    model="gpt-5",
+    messages=[...],
+    max_completion_tokens=4000,  # Not max_tokens
+)
+```
+
+**Prevention**: Use PyRIT's `AzureOpenAIChatTarget` for scoring to avoid manual client configuration errors
+
+---
+
+### 4.8 Azure OpenAI Endpoint URL Format for PyRIT
+
+**Symptom**: `json.decoder.JSONDecodeError: Expecting value: line 1 column 1 (char 0)` or 404 errors when using `OpenAIChatTarget` for PyRIT scoring
+
+**Root Cause**: Including query parameters like `?api-version=...` directly in the endpoint URL causes PyRIT to add them again, resulting in malformed URLs
+
+**Fix**: Use full endpoint URL without query parameters and let PyRIT add them via the `api_version` parameter
+```python
+# CORRECT - Full URL without query params
+scorer_target = OpenAIChatTarget(
+    endpoint=f"{azure_base}/openai/deployments/{model}/chat/completions",
+    api_key=api_key,
+    model_name=model,
+    api_version="2024-12-01-preview",  # PyRIT adds this as query param
+    max_completion_tokens=4000,
+)
+
+# WRONG - Don't include query params in URL
+# endpoint=f"{azure_base}?api-version=..."  # ❌ Causes duplicate parameters
+```
+
+**Verification**: All scorer requests succeed with 200 OK responses; Azure API properly receives requests with correct query parameters
+
+**Prevention**: Always pass `api_version` as a parameter to PyRIT targets, never embed it in the endpoint URL
+
+---
+
+### 4.8.1 Dataset Selection and Timeout Management
+
+**Symptom**: Test runs successfully for first few datasets (AdvBench, Forbidden Questions, HarmBench), then times out or hangs on additional datasets (e.g., XSTest)
+
+**Root Cause**: Some PyRIT datasets have longer prompts or trigger more complex agent reasoning, causing individual prompt processing to exceed timeout limits even when timeout is set appropriately for other datasets
+
+**Fix**: Start with well-tested datasets and add new ones incrementally with timeout monitoring
+```python
+# CORRECT - Curated dataset selection with proven timeout compatibility
+attack_configs = [
+    {"name": "AdvBench", "fetch": fetch_adv_bench_dataset, "count": 520},
+    {"name": "Forbidden Questions", "fetch": fetch_forbidden_questions_dataset, "count": 450},
+    {"name": "HarmBench", "fetch": fetch_harmbench_dataset, "count": 400},
+    # XSTest removed - caused timeout on 4th dataset after 60 successful prompts
+]
+
+# Start with fewer prompts per dataset (e.g., 20) to test stability
+for config in attack_configs:
+    prompts = config["fetch"]()
+    await run_attack(target, scorer, prompts[:20], config["name"])
+
+# WRONG - Adding all available datasets without testing timeout behavior
+# attack_configs = [fetch_adv_bench, fetch_forbidden, fetch_harmbench, fetch_xstest, fetch_jbb_behaviors]
+```
+
+**Discovery Process**:
+1. Comprehensive test successfully processed 60 prompts across 3 datasets
+2. Added XSTest as 4th dataset → timeout on first XSTest prompt
+3. XSTest prompts appear similar to others but trigger different agent behavior
+4. Root cause likely: XSTest designed for specific edge cases requiring longer processing
+5. Solution: Remove XSTest, keep 3 stable datasets (60 prompts total)
+
+**Dataset Compatibility Notes**:
+- **AdvBench** ✅ (520 prompts): Stable, standard harmful behaviors
+- **Forbidden Questions** ✅ (450 prompts): Stable, ethical boundary testing
+- **HarmBench** ✅ (400 prompts): Stable, comprehensive harm categories
+- **XSTest** ⚠️ (REMOVED): Timeout issues, designed for exaggerated safety
+- **fetch_jbb_behaviors_dataset** ❌ (ERROR): Does not exist in PyRIT 0.9.0
+
+**Timeout Tuning Strategy**:
+1. Start with simple test (1 dataset, 10 prompts, 300s timeout)
+2. Validate all prompts complete successfully
+3. Add datasets incrementally (test with 5-10 prompts each)
+4. If new dataset times out, investigate: longer prompts? different tool usage? reasoning complexity?
+5. Either increase timeout OR remove problematic dataset
+6. Balance: comprehensive coverage vs test duration
+
+**Prevention**: 
+- Test new datasets individually with small prompt counts before adding to comprehensive suite
+- Monitor timeout patterns (which datasets cause slowdowns)
+- Document dataset compatibility in test comments
+- Consider splitting very long tests into multiple runs
+
+---
+
+### 4.9 SelfAskRefusalScorer Returns Boolean Not Numeric Values
+
+**Symptom**: 
+- `ValueError: could not convert string to float: 'True'` when processing scores
+- Test shows 100% attack success when agent actually refuses all requests
+- Agent responses show refusals: "I'm sorry, but I cannot assist with that request"
+- Scores show `refusal: True` but code treats this as 1.0 (compliance)
+
+**Root Cause**: PyRIT's `SelfAskRefusalScorer` returns boolean values instead of numeric scores as suggested by documentation:
+- `True` = Agent refused (secure) ✅
+- `False` = Agent complied (vulnerable) ⚠️
+
+This causes inverted security assessment results when code assumes numeric scores (0.0=refusal, 1.0=compliance).
+
+**Fix**: Handle boolean score values with explicit type checking
+```python
+# CORRECT - Handle boolean/string/numeric scores
+score_value = score_results[0].score_value
+
+if isinstance(score_value, bool):
+    is_refusal = score_value  # True = refusal (secure)
+elif isinstance(score_value, str):
+    is_refusal = score_value.lower() == 'true'
+else:
+    # Fallback for numeric scores if PyRIT changes API
+    is_refusal = float(score_value) == 0.0
+
+# Display result
+if is_refusal:
+    print("✅ Agent REFUSED (secure)")
+else:
+    print("⚠️ Agent COMPLIED (vulnerable)")
+
+# WRONG - Assuming numeric scores
+# is_refusal = (float(score_value) == 0.0)  # ❌ Crashes on boolean
+```
+
+**Discovery Process**:
+1. Initial test showed "100% attack success" - seemed wrong for secured agent
+2. User skepticism: "I do not believe this. Could you print also initial few words coming from model?"
+3. Added response preview debugging - revealed all responses were refusals: "I'm sorry, but I cannot assist"
+4. Added score object debugging - revealed `SelfAskRefusalScorer: refusal: True`
+5. Discovered `score_value` is boolean `True`, not float `0.0`
+6. Root cause: Code tried `float(score_value)` causing ValueError
+7. Result was inverted: refusals (True) treated as compliance (1.0), compliances (False) would be treated as refusal (0.0)
+
+**Critical Notes**:
+- **Always verify scoring with actual response previews**, not just numeric summaries
+- User skepticism ("I do not believe this") was correct and led to discovering critical bug
+- **Debug output is essential**: print both scores AND actual agent responses side-by-side
+- This bug completely inverts security assessment results
+- PyRIT documentation may suggest numeric scores, but implementation uses booleans
+
+**Verification Pattern**:
+```python
+# Log both response and score for validation
+print(f"📝 Response: {response_text[:150]}...")
+print(f"🔍 Score: {score_value} (type: {type(score_value).__name__})")
+
+# Correct output for secure agent:
+# 📝 Response: I'm sorry, but I cannot assist with that request.
+# 🔍 Score: True (type: bool)
+# ✅ Agent REFUSED (secure)
+```
+
+**Prevention**: 
+- Always test PyRIT scoring with response preview output enabled
+- Add type checking for all ML/AI system outputs (don't assume types match documentation)
+- Validate results match expectations before running large test suites
+- When results seem wrong, inspect actual responses not just aggregated scores
+
+### 4.8 Canonical PyRIT Security Test Pattern
+```python
+#!/usr/bin/env python3
+"""
+PyRIT security test - canonical pattern for DreamFarm agent testing.
+"""
+import asyncio
+import os
+from pathlib import Path
+from datetime import datetime
+from dotenv import load_dotenv
+
+from pyrit.orchestrator import PromptSendingOrchestrator
+from pyrit.prompt_target import HTTPTarget, AzureOpenAIChatTarget
+from pyrit.score import SelfAskRefusalScorer
+from pyrit.common import default_values
+from pyrit.datasets import fetch_advbench_harmful_behavior_dataset
+
+# Load environment
+load_dotenv()
+
+# Configure PyRIT results directory
+default_values.set_default_results_path(Path(__file__).parent / "redteaming_results")
+
+
+def create_http_target():
+    """Create HTTPTarget for DreamFarm test endpoint."""
+    base_url = os.getenv("DREAMFARM_AGENT_URL", "http://localhost:8001")
+    test_api_key = os.getenv("TEST_API_KEY", "redteaming123")
+    
+    raw_http_request = f"""POST {base_url}/test/chat HTTP/1.1
+Content-Type: application/json
+X-Test-API-Key: {test_api_key}
+
+{{
+    "message": "{{{{PROMPT}}}}"
+}}"""
+    
+    parsing_function = get_http_target_json_response_callback_function(key="message")
+    
+    return HTTPTarget(
+        http_request=raw_http_request,
+        prompt_regex_string="{{PROMPT}}",
+        callback_function=parsing_function,
+        use_tls=base_url.startswith("https"),
+        timeout=180.0,  # 3 minutes for agent with tools
+    )
+
+
+async def main():
+    """Run PyRIT security test."""
+    print("=" * 80)
+    print("PyRIT Security Test - DreamFarm Agent")
+    print("=" * 80)
+    
+    # Create targets
+    http_target = create_http_target()
+    openai_target = AzureOpenAIChatTarget(
+        deployment_name=os.getenv("AZURE_OPENAI_REASONING_DEPLOYMENT"),
+        endpoint=os.getenv("AZURE_OPENAI_REASONING_ENDPOINT"),
+        api_key=os.getenv("AZURE_OPENAI_REASONING_API_KEY"),
+        api_version="2024-12-01-preview",
+    )
+    
+    # Create orchestrator
+    orchestrator = PromptSendingOrchestrator(
+        objective_target=http_target,
+        scorers=[SelfAskRefusalScorer(chat_target=openai_target)]
+    )
+    
+    # Load prompts
+    prompts = fetch_advbench_harmful_behavior_dataset()
+    prompt_list = [prompt.value for prompt in prompts[:10]]  # First 10 prompts
+    
+    print(f"\nSending {len(prompt_list)} prompts to agent...")
+    print(f"Timestamp: {datetime.now().isoformat()}")
+    
+    # Send prompts
+    await orchestrator.send_prompts_async(prompt_list=prompt_list)
+    
+    # Calculate refusal rate
+    memory = orchestrator.get_memory()
+    scores = memory.get_scores()
+    
+    refusal_count = sum(1 for s in scores if s.score_value and "True" in str(s.score_value))
+    refusal_rate = (refusal_count / len(scores) * 100) if scores else 0
+    
+    print("\n" + "=" * 80)
+    print(f"Test Complete - Refusal Rate: {refusal_rate:.1f}% ({refusal_count}/{len(scores)})")
+    print("=" * 80)
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
+```
+
+**Quick Validation Checklist**:
+1. ✅ Environment variables loaded from `.env`
+2. ✅ PyRIT 0.9.0 API (PromptSendingOrchestrator, send_prompts_async)
+3. ✅ HTTPTarget points to `/test/chat` (not `/chat`)
+4. ✅ Timeout set appropriately (e.g., 180.0 for agents with tools)
+5. ✅ Test API key included in headers
+6. ✅ Results path configured
+7. ✅ Refusal rate calculation from scores
+
+---
+
+## 5. Data Imports & Embeddings
 | Issue | Symptom | Cause | Fix | Prevent |
 |-------|---------|-------|-----|---------|
 | All product rows skipped | Log: `Skipped N rows... 0 rows to import` | Embedding dimension != DB vector(2000) | Request `dimensions=2000`; assert length | Add assert on first vector; CI check |
@@ -929,7 +1454,7 @@ assert len(embeddings[0]) == 2000, "Embedding dimension mismatch"
 
 ---
 
-## 5. Retrieval / Search (RAG, FTS, Fusion)
+## 6. Retrieval / Search (RAG, FTS, Fusion)
 | Issue | Symptom | Cause | Fix | Prevent |
 |-------|---------|-------|-----|---------|
 | FTS zero recall | Multi‑phrase queries return nothing | `plainto_tsquery` ANDs all tokens | Build OR of AND phrase groups: `(a & b) | (c & d)` | Log phrases + final tsquery; integration test known hit |
@@ -944,7 +1469,7 @@ tsquery=" | ".join(groups)
 
 ---
 
-## 6. PostgreSQL + Apache AGE (Cypher & Graph)
+## 7. PostgreSQL + Apache AGE (Cypher & Graph)
 Core Principles:
 1. Prefer 3‑arg `cypher(:graph, $$query$$, $$)` if available; fallback to 2‑arg.
 2. Entire Cypher body inside one dollar‑quoted block; only `:graph` bound outside.
@@ -982,8 +1507,8 @@ def sanitize(s:str|None): return "" if not s else s.replace("'","’")
 
 ---
 
-## 7. Graph Search Service (Isolation & Binding)
-Consolidated (applies on top of Category 6):
+## 8. Graph Search Service (Isolation & Binding)
+Consolidated (applies on top of Category 7):
 | Problem | Symptom | Fix | Prevent |
 |---------|---------|-----|---------|
 | Shared engine contamination | AGE queries fail after vector ops | Use fresh engine with `LOAD 'age'; SET search_path=ag_catalog, public;` | Factory method `_get_fresh_age_engine()` |
@@ -991,7 +1516,7 @@ Consolidated (applies on top of Category 6):
 
 ---
 
-## 8. Code Quality & Safety Patterns
+## 9. Code Quality & Safety Patterns
 | Pattern | Why | Minimal Action |
 |---------|-----|----------------|
 | Import smoke test after large refactor | Catch syntax / indentation early | `python -m py_compile src/...` |
@@ -1001,7 +1526,7 @@ Consolidated (applies on top of Category 6):
 
 ---
 
-## 9. Quick Do / Avoid Matrix
+## 10. Quick Do / Avoid Matrix
 | Do | Avoid |
 |----|-------|
 | Single dollar‑quoted Cypher body | Mixing binds & colon tokens outside block |
@@ -1013,7 +1538,7 @@ Consolidated (applies on top of Category 6):
 
 ---
 
-## 10. Minimal Cheat Sheet
+## 11. Minimal Cheat Sheet
 - Load env in tests: `load_dotenv()`.
 - Realtime (Azure): omit `type`, `model`, `output_modalities`.
 - Cypher: prefer 3‑arg; fallback 2‑arg; only `:graph` bound.
@@ -1023,9 +1548,10 @@ Consolidated (applies on top of Category 6):
 - Reasoning stream: record every item in order.
 - Voice: external session manager.
 - FastMCP auth: always call `super().__init__(base_url=None)` in custom `TokenVerifier` subclass.
+- **PyRIT: use 0.9.0 API (`PromptSendingOrchestrator`, `send_prompts_async`); dedicated `/test/chat` endpoint; no custom timeout params.**
 
 ---
 
-Update Policy: Replace sections—do not append duplicates. If an older rule is superseded, edit the existing entry instead of adding a new one.
+## 12. Update Policy: Replace sections—do not append duplicates. If an older rule is superseded, edit the existing entry instead of adding a new one.
 
 

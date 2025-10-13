@@ -1,0 +1,12 @@
+# PyRIT artifacts
+.pyrit/
+pyrit.db
+
+# Results
+redteaming_results/*
+!redteaming_results/.gitkeep
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
