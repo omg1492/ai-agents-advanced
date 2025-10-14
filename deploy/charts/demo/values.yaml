@@ -16,6 +16,14 @@ imagePullPolicy: Always
 # Log level for all services
 logLevel: INFO
 
+# Gateway API configuration (optional, set by Terraform)
+gateway:
+  enabled: false
+  name: eg
+  loadBalancerIP: ""
+  resourceGroup: ""
+  fqdn: ""
+
 # MCP configuration
 mcpApiKey: ""  # Set via Terraform (randomly generated)
 mcpCorsOrigins: "*"

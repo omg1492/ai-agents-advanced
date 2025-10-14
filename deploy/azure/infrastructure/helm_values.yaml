@@ -7,18 +7,26 @@ imagePullPolicy: Always
 # Log level for all services
 logLevel: INFO
 
-# MCP configuration (set by Terraform)
-# mcpApiKey: set via terraform set
-# mcpCorsOrigins: set via terraform set
+# MCP configuration
+# mcpApiKey: set via terraform set (sensitive, dynamically generated)
+mcpCorsOrigins: "*"
 
-# OpenAI configuration (set by Terraform for visualization generator)
+# OpenAI configuration (for visualization generator)
 openai:
   enabled: true
-  # apiKey: set via terraform set
-  # model: set via terraform set
-  # baseUrl: set via terraform set
-  # apiVersion: set via terraform set
+  # apiKey: set via terraform set (sensitive, from Azure Cognitive Services)
+  model: gpt-5
+  # baseUrl: set via terraform set (computed from Azure endpoint)
+  apiVersion: preview
   reasoningEffort: low
+
+# Gateway API configuration
+gateway:
+  enabled: true
+  name: eg
+  # loadBalancerIP: set via terraform set (from azurerm_public_ip)
+  # resourceGroup: set via terraform set (node resource group)
+  # fqdn: set via terraform set (from azurerm_public_ip)
 
 # Replica configuration
 replicaCount: 2
@@ -41,19 +49,24 @@ resources:
 
 # Service configuration - add or remove services here
 # All services use port 8000 (configured via PORT env variable)
+# Set external: true to expose service via Gateway API
 services:
   - name: api-stock
     image: api-stock
     tag: latest
+    external: false
     
   - name: mcp-chef-services
     image: mcp-chef-services
     tag: latest
+    external: true
     
   - name: mcp-public-farmer-tools
     image: mcp-public-farmer-tools
     tag: latest
+    external: true
     
   - name: mcp-visualization-generator
     image: mcp-visualization-generator
     tag: latest
+    external: true
