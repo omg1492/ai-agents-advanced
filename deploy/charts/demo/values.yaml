@@ -1,0 +1,64 @@
+# Default values for demo chart
+# 
+# NOTE: When deployed via Terraform, the services list is defined in
+# deploy/azure/infrastructure/helm_values.yaml, not here.
+# This file provides defaults for manual/local deployments only.
+
+# Container registry configuration
+registry: rdapps3f1i.azurecr.io
+
+# Default image tag for all services
+imageTag: latest
+
+# Default image pull policy
+imagePullPolicy: Always
+
+# Log level for all services
+logLevel: INFO
+
+# MCP configuration
+mcpApiKey: ""  # Set via Terraform (randomly generated)
+mcpCorsOrigins: "*"
+
+# OpenAI configuration (for mcp-visualization-generator)
+openai:
+  enabled: false
+  apiKey: ""  # Set via Terraform
+  model: "gpt-5"
+  baseUrl: ""  # Set via Terraform
+  apiVersion: "preview"
+  reasoningEffort: "low"
+
+# Replica configuration
+replicaCount: 2
+
+# Horizontal Pod Autoscaler configuration
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 128Mi
+
+# Service configuration - add or remove services here
+# All services use port 8000 (configured via PORT env variable)
+services:
+  - name: api-stock
+    image: api-stock
+    
+  - name: mcp-chef-services
+    image: mcp-chef-services
+    
+  - name: mcp-public-farmer-tools
+    image: mcp-public-farmer-tools
+    
+  - name: mcp-visualization-generator
+    image: mcp-visualization-generator

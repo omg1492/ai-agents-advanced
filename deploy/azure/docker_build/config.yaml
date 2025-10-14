@@ -1,0 +1,31 @@
+# Azure Container Registry Build Configuration
+# 
+# This file defines which services to build and push to ACR.
+# The registry name is managed by Terraform.
+
+# Azure Container Registry name (managed by Terraform)
+registry: "rdapps3f1i"
+
+# Services to build and push
+# Add your services here following this structure:
+# services:
+#   - name: service-name
+#     path: ../../../tools/service_directory
+#     tag: latest
+
+services:
+  - name: api-stock
+    path: ../../../tools/api_stock
+    tag: latest
+
+  - name: mcp-chef-services
+    path: ../../../tools/mcp_chef_services
+    tag: latest
+
+  - name: mcp-public-farmer-tools
+    path: ../../../tools/mcp_public_farmer_tools
+    tag: latest
+
+  - name: mcp-visualization-generator
+    path: ../../../tools/mcp_visualization_generator
+    tag: latest

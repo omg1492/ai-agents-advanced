@@ -1,0 +1,59 @@
+# Helm values for demo microservices
+# This file is managed by Terraform and overrides chart defaults
+
+# Default image pull policy
+imagePullPolicy: Always
+
+# Log level for all services
+logLevel: INFO
+
+# MCP configuration (set by Terraform)
+# mcpApiKey: set via terraform set
+# mcpCorsOrigins: set via terraform set
+
+# OpenAI configuration (set by Terraform for visualization generator)
+openai:
+  enabled: true
+  # apiKey: set via terraform set
+  # model: set via terraform set
+  # baseUrl: set via terraform set
+  # apiVersion: set via terraform set
+  reasoningEffort: low
+
+# Replica configuration
+replicaCount: 2
+
+# Horizontal Pod Autoscaler configuration
+hpa:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 5
+  targetCPUUtilizationPercentage: 70
+
+# Resource limits and requests
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 100m
+    memory: 64Mi
+
+# Service configuration - add or remove services here
+# All services use port 8000 (configured via PORT env variable)
+services:
+  - name: api-stock
+    image: api-stock
+    tag: latest
+    
+  - name: mcp-chef-services
+    image: mcp-chef-services
+    tag: latest
+    
+  - name: mcp-public-farmer-tools
+    image: mcp-public-farmer-tools
+    tag: latest
+    
+  - name: mcp-visualization-generator
+    image: mcp-visualization-generator
+    tag: latest

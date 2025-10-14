@@ -1,0 +1,78 @@
+{{- range .Values.services }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .name }}
+  labels:
+    app: {{ .name }}
+spec:
+  replicas: {{ $.Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .name }}
+    spec:
+      containers:
+      - name: {{ .name }}
+        image: {{ $.Values.registry }}/{{ .image }}:{{ .tag | default $.Values.imageTag | default "latest" }}
+        imagePullPolicy: {{ $.Values.imagePullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        env:
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8000"
+        - name: LOG_LEVEL
+          value: {{ $.Values.logLevel | quote }}
+        - name: PYTHONUNBUFFERED
+          value: "1"
+        {{- if $.Values.mcpApiKey }}
+        - name: MCP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mcp-credentials
+              key: api-key
+        - name: MCP_CORS_ORIGINS
+          value: {{ $.Values.mcpCorsOrigins | quote }}
+        {{- end }}
+        {{- if and (eq .name "mcp-visualization-generator") $.Values.openai.enabled }}
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-credentials
+              key: api-key
+        - name: OPENAI_MODEL
+          value: {{ $.Values.openai.model | quote }}
+        - name: OPENAI_BASE_URL
+          value: {{ $.Values.openai.baseUrl | quote }}
+        - name: OPENAI_API_VERSION
+          value: {{ $.Values.openai.apiVersion | quote }}
+        - name: REASONING_EFFORT
+          value: {{ $.Values.openai.reasoningEffort | quote }}
+        {{- end }}
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          {{- toYaml $.Values.resources | nindent 10 }}
+{{- end }}

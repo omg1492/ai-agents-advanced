@@ -32,4 +32,5 @@ ENV PORT=8011 \
     RELOAD=false \
     LOG_LEVEL=INFO
 
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8011"]
+# Use main.py entrypoint which reads PORT env variable
+CMD ["uv", "run", "python", "main.py"]

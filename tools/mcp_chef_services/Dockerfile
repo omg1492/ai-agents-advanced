@@ -32,5 +32,5 @@ ENV LOG_LEVEL=INFO \
 
 EXPOSE 8013
 
-# Run ASGI app via uvicorn in streamable HTTP mode
-CMD ["uv", "run", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8013"]
+# Use main.py entrypoint which reads PORT env variable
+CMD ["uv", "run", "python", "main.py"]
