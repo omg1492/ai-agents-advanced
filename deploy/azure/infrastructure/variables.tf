@@ -25,3 +25,15 @@ variable "prefix" {
     error_message = "Prefix must be 3-10 characters, containing only lowercase letters and numbers."
   }
 }
+
+variable "tavily_api_key" {
+  description = <<-EOT
+    API key for Tavily search service.
+    Used by the dreamfarm-agent for agentic search capabilities.
+    This is a sensitive value and should be provided via environment variable
+    or secure parameter file. Do not commit this to version control.
+    Obtain your API key from: https://tavily.com
+  EOT
+  type      = string
+  sensitive = true
+}

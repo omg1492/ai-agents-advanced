@@ -6,6 +6,74 @@ This document tracks key implementation decisions, architectural patterns, and c
 
 ## Kubernetes Deployment & Networking
 
+### 2025-01-15: Dreamfarm Agent and Keycloak Deployment
+
+**Summary**: Deployed main application agent (dreamfarm-agent) and Keycloak identity provider to complete the microservices architecture.
+
+**Implementation**:
+
+1. **Dreamfarm Agent Deployment**:
+   - Created comprehensive deployment with 40+ environment variables
+   - Configured OpenAI integration (gpt-5 model with reasoning effort)
+   - Enabled all features: memory, voice, code interpreter, RAG, semantic cache, agentic search, graph search
+   - Integrated PostgreSQL for conversation storage and embeddings
+   - Connected external MCP tools: farmer tools, Tavily (web search), visualization generator
+   - Connected internal services: api-stock, chef-agent
+   - Configured Keycloak authentication (realm: dreamfarm, audience: account)
+   - Static IP allocation for LoadBalancer service (port 80 → 8001)
+   - HPA autoscaling: 1-5 replicas based on 80% CPU
+
+2. **Keycloak Deployment**:
+   - Deployed quay.io/keycloak/keycloak:25.0
+   - Connected to Azure Database for PostgreSQL
+   - Admin credentials stored in Kubernetes secret
+   - Environment: KC_DB=postgres, KC_PROXY=edge, KC_HTTP_ENABLED=true
+   - Health probes: /health/live and /health/ready
+   - Static IP allocation for LoadBalancer service (port 80 → 8080)
+   - HPA autoscaling: 1-3 replicas based on 80% CPU
+
+3. **Terraform Configuration**:
+   - Added `tavily_api_key` variable for web search API
+   - Generated `random_password.keycloak_admin` for Keycloak admin
+   - Added 2 more static IPs (dreamfarm_agent, keycloak) - total 5 IPs
+   - Added Helm set blocks for postgres, keycloak, tavily, dreamfarmAgent configuration
+   - Updated test .env generation with all service IPs and credentials
+
+4. **Kubernetes Secrets**:
+   - Created postgres-credentials (database password)
+   - Created keycloak-credentials (admin password)
+   - Created tavily-credentials (API key)
+   - All using secretKeyRef pattern for secure value injection
+
+**Architecture**:
+```
+External Clients
+       ↓
+Dreamfarm Agent (LoadBalancer, static IP) ← Main application entry point
+       ↓
+       ├─→ Keycloak (LoadBalancer, static IP) ← Authentication
+       ├─→ PostgreSQL (Azure managed) ← Storage
+       ├─→ Azure OpenAI (gpt-5) ← AI capabilities
+       ├─→ MCP Chef Services (LoadBalancer, static IP) ← Chef agent MCP
+       ├─→ MCP Public Farmer Tools (LoadBalancer, static IP) ← Farmer tools MCP
+       ├─→ MCP Visualization Generator (LoadBalancer, static IP) ← Visualization MCP
+       ├─→ Tavily API ← Web search
+       ├─→ API Stock (ClusterIP, internal) ← Stock data
+       └─→ Chef Agent (ClusterIP, internal) ← Chef functionality
+```
+
+**Key Patterns**:
+- Service-specific templates (no generic templates)
+- All sensitive values via Kubernetes secrets (secretKeyRef)
+- Static IP pre-allocation in Terraform
+- Comprehensive test environment automation (Terraform-generated .env)
+- Terraform controls all dynamic values (IPs, credentials, endpoints)
+- Hardcoded static configuration in Helm templates
+
+**Status**: Complete - ready for build and deployment
+
+---
+
 ### 2025-01-15: Map-Based Services Structure for Stable Terraform Overrides
 
 **Summary**: Converted Helm chart services from array to map structure to enable stable, order-independent Terraform configuration overrides.

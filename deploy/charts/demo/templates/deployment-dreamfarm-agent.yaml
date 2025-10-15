@@ -1,0 +1,172 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: dreamfarm-agent
+  labels:
+    app: dreamfarm-agent
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: dreamfarm-agent
+  template:
+    metadata:
+      labels:
+        app: dreamfarm-agent
+    spec:
+      containers:
+      - name: dreamfarm-agent
+        image: {{ .Values.registry }}/dreamfarm-agent:{{ .Values.imageTag | default "latest" }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8001
+          protocol: TCP
+        env:
+        # OpenAI Configuration
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-credentials
+              key: api-key
+        - name: OPENAI_MODEL
+          value: "gpt-5"
+        - name: OPENAI_BASE_URL
+          value: {{ .Values.openai.baseUrl | quote }}
+        - name: REASONING_EFFORT
+          value: "low"
+        # Voice Model (separate deployment)
+        - name: VOICE_MODEL
+          value: "gpt-realtime"
+        # CORS Configuration
+        - name: CORS_ORIGINS
+          value: "*"
+        # Logging
+        - name: LOG_LEVEL
+          value: "INFO"
+        # Memory Features
+        - name: CONVERSATION_STORE_ENABLED
+          value: "true"
+        - name: MEMORY_SEARCH_ENABLED
+          value: "true"
+        - name: USER_PROFILE_ENABLED
+          value: "true"
+        # Voice/Realtime API
+        - name: VOICE_ENABLED
+          value: "true"
+        # Code Interpreter
+        - name: ENABLE_CODE_INTERPRETER
+          value: "true"
+        - name: CODE_INTERPRETER_CONTAINER_TYPE
+          value: "auto"
+        # RAG Configuration
+        - name: ENABLE_RAG
+          value: "false"
+        - name: RAG_SIMILARITY_THRESHOLD
+          value: "0.3"
+        - name: RAG_MAX_RESULTS
+          value: "3"
+        # Semantic Cache
+        - name: SEMANTIC_CACHE_ENABLED
+          value: "true"
+        - name: SEMANTIC_CACHE_SIMILARITY_THRESHOLD
+          value: "0.8"
+        # Agentic Search
+        - name: AGENTIC_SEARCH_ENABLED
+          value: "true"
+        - name: AGENTIC_SEARCH_MAX_RESULTS
+          value: "10"
+        # PostgreSQL Database
+        - name: PGHOST
+          value: {{ .Values.postgres.host | quote }}
+        - name: PGPORT
+          value: {{ .Values.postgres.port | quote }}
+        - name: PGDATABASE
+          value: {{ .Values.postgres.database | quote }}
+        - name: PGUSER
+          value: {{ .Values.postgres.username | quote }}
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        # Embeddings
+        - name: OPENAI_EMBEDDING_MODEL
+          value: "text-embedding-3-large"
+        # Remote MCP Tools - Farmer Tools
+        - name: FARMER_TOOLS_ENABLED
+          value: "true"
+        - name: FARMER_TOOLS_MCP_URL
+          value: {{ .Values.dreamfarmAgent.farmerToolsUrl | quote }}
+        - name: FARMER_TOOLS_MCP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mcp-credentials
+              key: api-key
+        # Remote MCP Tools - Tavily Search
+        - name: TAVILY_ENABLED
+          value: "true"
+        - name: TAVILY_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: tavily-credentials
+              key: api-key
+        # Remote MCP Tools - Visualization Generator
+        - name: VISUALIZATION_MCP_ENABLED
+          value: "true"
+        - name: VISUALIZATION_MCP_URL
+          value: {{ .Values.dreamfarmAgent.visualizationUrl | quote }}
+        - name: VISUALIZATION_MCP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mcp-credentials
+              key: api-key
+        # Local Stock Tool (internal service)
+        - name: STOCK_TOOL_ENABLED
+          value: "true"
+        - name: STOCK_API_URL
+          value: "http://api-stock"
+        # Authentication - Keycloak
+        - name: AUTH_ENABLED
+          value: "true"
+        - name: KEYCLOAK_URL
+          value: {{ .Values.dreamfarmAgent.keycloakUrl | quote }}
+        - name: KEYCLOAK_REALM
+          value: "dreamfarm"
+        - name: KEYCLOAK_AUDIENCE
+          value: "account"
+        # Graph Search (Apache AGE)
+        - name: GRAPH_SEARCH_ENABLED
+          value: "true"
+        - name: AGE_GRAPH_NAME
+          value: "dreamfarm"
+        - name: GRAPH_DFS_MAX_RESULTS
+          value: "10"
+        # Chef Agent Integration (internal service)
+        - name: CHEF_AGENT_ENABLED
+          value: "true"
+        - name: CHEF_AGENT_URL
+          value: "http://chef-agent"
+        # Security Testing API
+        - name: TEST_API_ENABLED
+          value: "false"
+        - name: TEST_API_KEY
+          value: ""
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

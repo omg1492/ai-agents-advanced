@@ -31,7 +31,7 @@ resource "azurerm_postgresql_flexible_server_firewall_rule" "allow_azure_service
 }
 
 resource "azurerm_postgresql_flexible_server_database" "main" {
-  name      = "appdb"
+  name      = "aidb"
   server_id = azurerm_postgresql_flexible_server.main.id
   collation = "en_US.utf8"
   charset   = "UTF8"

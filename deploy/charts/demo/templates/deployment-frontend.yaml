@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  labels:
+    app: frontend
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+      - name: frontend
+        image: {{ .Values.registry }}/frontend:latest
+        imagePullPolicy: Always
+        ports:
+        - name: http
+          containerPort: 80
+          protocol: TCP
+        env:
+        - name: REACT_APP_BACKEND_URL
+          value: {{ .Values.frontend.backendUrl | quote }}
+        - name: REACT_APP_API_VERSION
+          value: "v1"
+        - name: REACT_APP_KEYCLOAK_URL
+          value: {{ .Values.frontend.keycloakUrl | quote }}
+        - name: REACT_APP_KEYCLOAK_REALM
+          value: "dreamfarm"
+        - name: REACT_APP_KEYCLOAK_CLIENT_ID
+          value: "dreamfarm-frontend"
+        - name: REACT_APP_KEYCLOAK_REDIRECT_URI
+          value: {{ .Values.frontend.redirectUri | quote }}
+        livenessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        resources:
+          limits:
+            cpu: 500m
+            memory: 512Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi

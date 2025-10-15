@@ -8,6 +8,12 @@ resource "random_password" "mcp_api_key" {
   special = false
 }
 
+# Generate random Keycloak admin password
+resource "random_password" "keycloak_admin" {
+  length  = 20
+  special = true
+}
+
 # Get AKS admin credentials
 data "azapi_resource_action" "aks_creds" {
   type        = "Microsoft.ContainerService/managedClusters@2025-07-02-preview"
@@ -76,10 +82,90 @@ resource "helm_release" "demo" {
     value = local.openai_base_url
   }
 
+  # PostgreSQL configuration (Azure Database for PostgreSQL Flexible Server)
+  set {
+    name  = "postgres.host"
+    value = azurerm_postgresql_flexible_server.main.fqdn
+  }
+
+  set {
+    name  = "postgres.port"
+    value = "5432"
+  }
+
+  set {
+    name  = "postgres.database"
+    value = azurerm_postgresql_flexible_server_database.main.name
+  }
+
+  set {
+    name  = "postgres.username"
+    value = azurerm_postgresql_flexible_server.main.administrator_login
+  }
+
+  set_sensitive {
+    name  = "postgres.password"
+    value = azurerm_postgresql_flexible_server.main.administrator_password
+  }
+
+  set {
+    name  = "postgres.jdbcUrl"
+    value = "jdbc:postgresql://${azurerm_postgresql_flexible_server.main.fqdn}:5432/${azurerm_postgresql_flexible_server_database.main.name}"
+  }
+
+  # Keycloak configuration
+  set_sensitive {
+    name  = "keycloak.adminPassword"
+    value = random_password.keycloak_admin.result
+  }
+
+  set {
+    name  = "keycloak.hostname"
+    value = azurerm_public_ip.keycloak.fqdn
+  }
+
+  # Tavily API key (you'll need to provide this)
+  set_sensitive {
+    name  = "tavily.apiKey"
+    value = var.tavily_api_key
+  }
+
   # Chef agent MCP URL (uses static IP)
   set {
     name  = "chefAgent.mcpUrl"
     value = "http://${azurerm_public_ip.mcp_chef_services.ip_address}/mcp"
+  }
+
+  # Dreamfarm agent URLs
+  set {
+    name  = "dreamfarmAgent.farmerToolsUrl"
+    value = "http://${azurerm_public_ip.mcp_public_farmer_tools.ip_address}/mcp"
+  }
+
+  set {
+    name  = "dreamfarmAgent.visualizationUrl"
+    value = "http://${azurerm_public_ip.mcp_visualization_generator.ip_address}/mcp"
+  }
+
+  set {
+    name  = "dreamfarmAgent.keycloakUrl"
+    value = "http://${azurerm_public_ip.keycloak.ip_address}"
+  }
+
+  # Frontend configuration
+  set {
+    name  = "frontend.backendUrl"
+    value = "http://${azurerm_public_ip.dreamfarm_agent.ip_address}"
+  }
+
+  set {
+    name  = "frontend.keycloakUrl"
+    value = "http://${azurerm_public_ip.keycloak.ip_address}"
+  }
+
+  set {
+    name  = "frontend.redirectUri"
+    value = "http://${azurerm_public_ip.frontend.ip_address}/"
   }
 
   # Static IP configuration
@@ -103,14 +189,33 @@ resource "helm_release" "demo" {
     value = azurerm_public_ip.mcp_visualization_generator.name
   }
 
+  set {
+    name  = "staticIPNames.dreamfarmAgent"
+    value = azurerm_public_ip.dreamfarm_agent.name
+  }
+
+  set {
+    name  = "staticIPNames.keycloak"
+    value = azurerm_public_ip.keycloak.name
+  }
+
+  set {
+    name  = "staticIPNames.frontend"
+    value = azurerm_public_ip.frontend.name
+  }
+
   # Wait for AKS to be ready, ACR permissions, and static IPs to be created
   depends_on = [
     azapi_resource.aks,
     azurerm_role_assignment.aks_acr_pull,
     azurerm_cognitive_account.ai_services,
+    azurerm_postgresql_flexible_server.main,
     azurerm_public_ip.mcp_chef_services,
     azurerm_public_ip.mcp_public_farmer_tools,
-    azurerm_public_ip.mcp_visualization_generator
+    azurerm_public_ip.mcp_visualization_generator,
+    azurerm_public_ip.dreamfarm_agent,
+    azurerm_public_ip.keycloak,
+    azurerm_public_ip.frontend
   ]
 }
 
@@ -142,14 +247,39 @@ resource "local_file" "test_env" {
     # MCP API Key for authentication
     MCP_API_KEY=${random_password.mcp_api_key.result}
 
+    # OpenAI Configuration
+    OPENAI_API_KEY=${data.azurerm_cognitive_account.ai_services.primary_access_key}
+    OPENAI_BASE_URL=${local.openai_base_url}
+
+    # PostgreSQL Configuration (Azure Database for PostgreSQL)
+    POSTGRES_HOST=${azurerm_postgresql_flexible_server.main.fqdn}
+    POSTGRES_PORT=5432
+    POSTGRES_DATABASE=${azurerm_postgresql_flexible_server_database.main.name}
+    POSTGRES_USER=${azurerm_postgresql_flexible_server.main.administrator_login}
+    POSTGRES_PASSWORD=${azurerm_postgresql_flexible_server.main.administrator_password}
+
+    # Keycloak Configuration
+    KEYCLOAK_ADMIN_PASSWORD=${random_password.keycloak_admin.result}
+    KEYCLOAK_URL=http://${azurerm_public_ip.keycloak.ip_address}
+
+    # Tavily API Key
+    TAVILY_API_KEY=${var.tavily_api_key}
+
     # Service IPs (LoadBalancer external IPs)
-    MCP_VISUALIZATION_IP=${azurerm_public_ip.mcp_visualization_generator.ip_address}
-    MCP_PUBLIC_FARMER_IP=${azurerm_public_ip.mcp_public_farmer_tools.ip_address}
     MCP_CHEF_SERVICES_IP=${azurerm_public_ip.mcp_chef_services.ip_address}
+    MCP_PUBLIC_FARMER_IP=${azurerm_public_ip.mcp_public_farmer_tools.ip_address}
+    MCP_VISUALIZATION_IP=${azurerm_public_ip.mcp_visualization_generator.ip_address}
+    DREAMFARM_AGENT_IP=${azurerm_public_ip.dreamfarm_agent.ip_address}
+    KEYCLOAK_IP=${azurerm_public_ip.keycloak.ip_address}
+    FRONTEND_IP=${azurerm_public_ip.frontend.ip_address}
+
+    # Frontend URL
+    FRONTEND_URL=http://${azurerm_public_ip.frontend.ip_address}
 
     # API Services (ClusterIP - for internal access only)
-    # Note: API Stock is internal only, use kubectl port-forward to access
-    API_STOCK_IP=10.0.0.1
+    # Note: API Stock and Chef Agent are internal only, use kubectl port-forward to access
+    # API_STOCK_URL=http://api-stock
+    # CHEF_AGENT_URL=http://chef-agent
   EOT
 
   # Only create after deployment is complete

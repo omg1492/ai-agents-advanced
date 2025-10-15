@@ -1,5 +1,5 @@
 # Build stage
-FROM node:18-alpine AS build
+FROM node:22-alpine AS build
 
 WORKDIR /app
 
@@ -12,8 +12,8 @@ RUN npm ci
 # Copy source code
 COPY . .
 
-# Build the application
-RUN npm run build
+# Build the application (using npx to ensure proper execution)
+RUN npx tsc && npx vite build
 
 # Production stage
 FROM nginx:alpine
@@ -37,6 +37,10 @@ RUN chmod +x /usr/local/bin/generate-config.sh
 # Set default environment variables
 ENV REACT_APP_BACKEND_URL=http://localhost:8001
 ENV REACT_APP_API_VERSION=v1
+ENV REACT_APP_KEYCLOAK_URL=http://localhost:8080
+ENV REACT_APP_KEYCLOAK_REALM=dreamfarm
+ENV REACT_APP_KEYCLOAK_CLIENT_ID=dreamfarm-frontend
+ENV REACT_APP_KEYCLOAK_REDIRECT_URI=http://localhost:3000/
 
 # Expose port
 EXPOSE 80

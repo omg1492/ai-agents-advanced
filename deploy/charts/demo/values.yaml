@@ -29,9 +29,39 @@ openai:
   apiKey: "changeme"
   baseUrl: ""
 
+# PostgreSQL configuration (Azure Database for PostgreSQL)
+postgres:
+  host: ""  # Set via Terraform
+  port: "5432"
+  database: "aidb"
+  username: ""  # Set via Terraform
+  password: ""  # Set via Terraform (sensitive)
+  jdbcUrl: ""  # Set via Terraform (jdbc:postgresql://host:port/database)
+
+# Keycloak configuration
+keycloak:
+  adminPassword: ""  # Set via Terraform (sensitive)
+  hostname: ""  # Set via Terraform (external LoadBalancer IP or DNS)
+
+# Tavily API configuration
+tavily:
+  apiKey: ""  # Set via Terraform (sensitive)
+
 # Chef agent specific configuration
 chefAgent:
   mcpUrl: ""  # Set via Terraform to http://<static-ip>/mcp
+
+# Dreamfarm agent specific configuration
+dreamfarmAgent:
+  farmerToolsUrl: ""  # Set via Terraform to http://<static-ip>/mcp
+  visualizationUrl: ""  # Set via Terraform to http://<static-ip>/mcp
+  keycloakUrl: ""  # Set via Terraform to http://<static-ip>
+
+# Frontend configuration
+frontend:
+  backendUrl: ""  # Set via Terraform to http://<dreamfarm-agent-ip>
+  keycloakUrl: ""  # Set via Terraform to http://<keycloak-ip>
+  redirectUri: ""  # Set via Terraform to http://<frontend-ip>/
 
 # Static IP configuration for LoadBalancer services
 staticIPResourceGroup: ""  # Set via Terraform to main resource group
@@ -39,3 +69,6 @@ staticIPNames:
   mcpChefServices: ""  # Set via Terraform
   mcpPublicFarmerTools: ""  # Set via Terraform
   mcpVisualizationGenerator: ""  # Set via Terraform
+  dreamfarmAgent: ""  # Set via Terraform
+  keycloak: ""  # Set via Terraform
+  frontend: ""  # Set via Terraform
