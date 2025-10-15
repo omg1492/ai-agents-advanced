@@ -4,6 +4,143 @@ This document tracks key implementation decisions, architectural patterns, and c
 
 ---
 
+## Kubernetes Deployment & Networking
+
+### 2025-01-15: Map-Based Services Structure for Stable Terraform Overrides
+
+**Summary**: Converted Helm chart services from array to map structure to enable stable, order-independent Terraform configuration overrides.
+
+**Problem**: Array-based services required Terraform to reference by index (e.g., `services[4].env[8].value`), which was fragile:
+- Breaks if service order changes
+- Breaks if new services added before existing ones
+- Breaks if environment variables reordered
+- Error-prone manual index counting
+- Not maintainable or scalable
+
+**Solution**: Convert services to map keyed by service name, enabling stable references like `services.chef-agent.chefServicesMcpUrl`.
+
+**Key Changes**:
+
+1. **Restructured `values.yaml`**:
+   ```yaml
+   # Before: Array structure
+   services:
+     - name: api-stock
+       image: api-stock
+       env: [...]
+   
+   # After: Map structure
+   services:
+     api-stock:
+       image: api-stock
+       env: [...]
+   ```
+   - Removed `name` field (now the map key)
+   - Added `chefServicesMcpUrl` field to chef-agent for clean override
+
+2. **Updated `deployment.yaml` template**:
+   - Changed iteration: `{{- range $name, $service := .Values.services }}`
+   - Updated references: `.name` → `$name`, `.image` → `$service.image`
+   - Added override logic for CHEF_SERVICES_MCP_URL env var:
+     ```helm
+     {{- if eq $envVar.name "CHEF_SERVICES_MCP_URL" }}
+     {{- if $service.chefServicesMcpUrl }}
+     value: {{ $service.chefServicesMcpUrl | quote }}
+     ```
+
+3. **Updated `service.yaml` template**:
+   - Changed iteration: `{{- range $name, $service := .Values.services }}`
+   - Updated all references to use `$name` and `$service`
+   - Static IP lookup already used map pattern
+
+4. **Updated `helm.tf`**:
+   ```hcl
+   # Before: Fragile array indexing
+   set {
+     name  = "services[4].env[8].value"
+     value = "http://..."
+   }
+   
+   # After: Stable map key
+   set {
+     name  = "services.chef-agent.chefServicesMcpUrl"
+     value = "http://..."
+   }
+   ```
+
+**Benefits**:
+- **Order-Independent**: Service order irrelevant
+- **Predictable**: Reference by name, not position
+- **Maintainable**: Adding/removing services safe
+- **Consistent**: Follows staticIPNames map pattern
+- **Extensible**: Pattern documented for future services
+
+**Documentation**: See `deploy/azure/infrastructure/MAP_BASED_SERVICES_MIGRATION.md` for complete migration guide and future patterns.
+
+---
+
+### 2025-01-15: Static IP Pre-Allocation for LoadBalancer Services
+
+**Summary**: Implemented Terraform-managed static Azure Public IPs for external LoadBalancer services to eliminate two-deployment workflow and provide deterministic network configuration.
+
+**Problem**: Chef-agent service needed external URL for `mcp-chef-services` LoadBalancer to configure OpenAI Responses API. However, LoadBalancer IPs are assigned asynchronously after service creation, creating a chicken-and-egg problem:
+1. First deployment: Helm `lookup` function couldn't find IP (not assigned yet), used internal fallback URL
+2. Wait 30-90 seconds for Azure to assign IP
+3. Second deployment: `lookup` succeeded, got external IP, updated configuration
+
+This two-step process was manual, not CI/CD friendly, and unnecessarily complex.
+
+**Solution**: Pre-allocate Azure Public IPs via Terraform before Helm deployment. Services bind to these known IPs using Azure-specific annotations.
+
+**Key Changes**:
+
+1. **Created `static_ips.tf`**:
+   - Three `azurerm_public_ip` resources (chef, farmer, visualization)
+   - Static allocation, Standard SKU (AKS requirement)
+   - DNS labels for optional FQDN access
+   - Outputs for IP addresses and FQDNs
+
+2. **Updated `helm.tf`**:
+   - Added `set` blocks passing static IPs to Helm chart
+   - Added `set` blocks passing Public IP resource names
+   - Added dependencies on static IP resources
+
+3. **Updated `service.yaml` template**:
+   - Added `service.beta.kubernetes.io/azure-pip-name` annotation
+   - Conditional logic per service name to bind correct IP
+
+4. **Simplified `deployment.yaml` template**:
+   - Removed complex `lookup` function logic
+   - Direct reference to `staticIPs.mcpChefServices` value
+   - Fallback to internal URL if static IP not provided
+
+5. **Updated `values.yaml` and `helm_values.yaml`**:
+   - Added `staticIPs` structure with IP addresses and resource names
+   - Updated chef-agent CHEF_SERVICES_MCP_URL comment
+
+**Benefits**:
+- **Single deployment**: No waiting or redeployment needed
+- **Deterministic**: IP known before deployment for firewall rules, documentation
+- **Production pattern**: Standard enterprise Kubernetes practice
+- **CI/CD friendly**: Automated pipelines work in single pass
+- **Cost**: ~$3-4/month per IP (negligible vs cluster costs)
+- **DNS included**: Each IP gets FQDN (e.g., `mcp-chef-dreamfarmxxxx.region.cloudapp.azure.com`)
+
+**Cost**: Three static IPs = approximately $10-12/month additional Azure cost.
+
+**Documentation**: See `deploy/azure/infrastructure/STATIC_IP_IMPLEMENTATION.md` for detailed architecture, testing, and rollback procedures.
+
+**Alternative Approaches Considered**:
+1. Init container with wait logic - adds pod startup delay, more complex
+2. Helm post-install hooks - still requires config reload logic
+3. DNS with external-dns - high complexity, additional component
+4. Service mesh egress gateway - massive overkill for this use case
+5. Keep two-deployment workflow - rejected as not production-ready
+
+**Testing**: Terraform validates successfully. Full deployment test pending infrastructure apply.
+
+---
+
 ## API Configuration & Compatibility
 
 ### 2025-01-13: Azure OpenAI v1 API Migration - API Version Elimination

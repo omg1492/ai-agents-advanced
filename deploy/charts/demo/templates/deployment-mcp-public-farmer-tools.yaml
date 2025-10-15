@@ -1,0 +1,56 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-public-farmer-tools
+  labels:
+    app: mcp-public-farmer-tools
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: mcp-public-farmer-tools
+  template:
+    metadata:
+      labels:
+        app: mcp-public-farmer-tools
+    spec:
+      containers:
+      - name: mcp-public-farmer-tools
+        image: {{ .Values.registry }}/mcp-public-farmer-tools:{{ .Values.imageTag | default "latest" }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        env:
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8000"
+        - name: MCP_DEFER_DELETE_SECONDS
+          value: "60"
+        - name: MCP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mcp-credentials
+              key: api-key
+        - name: MCP_CORS_ORIGINS
+          value: "*"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

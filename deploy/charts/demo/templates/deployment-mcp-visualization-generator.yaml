@@ -1,0 +1,69 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-visualization-generator
+  labels:
+    app: mcp-visualization-generator
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: mcp-visualization-generator
+  template:
+    metadata:
+      labels:
+        app: mcp-visualization-generator
+    spec:
+      containers:
+      - name: mcp-visualization-generator
+        image: {{ .Values.registry }}/mcp-visualization-generator:{{ .Values.imageTag | default "latest" }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        env:
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8000"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: MCP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mcp-credentials
+              key: api-key
+        - name: MCP_CORS_ORIGINS
+          value: "*"
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-credentials
+              key: api-key
+        - name: OPENAI_MODEL
+          value: "gpt-5"
+        - name: OPENAI_BASE_URL
+          value: {{ .Values.openai.baseUrl | quote }}
+        - name: OPENAI_API_VERSION
+          value: "preview"
+        - name: REASONING_EFFORT
+          value: "low"
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}

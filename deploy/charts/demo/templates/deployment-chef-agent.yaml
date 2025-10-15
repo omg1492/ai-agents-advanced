@@ -1,0 +1,71 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chef-agent
+  labels:
+    app: chef-agent
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: chef-agent
+  template:
+    metadata:
+      labels:
+        app: chef-agent
+    spec:
+      containers:
+      - name: chef-agent
+        image: {{ .Values.registry }}/chef-agent:{{ .Values.imageTag | default "latest" }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        ports:
+        - name: http
+          containerPort: 8000
+          protocol: TCP
+        env:
+        - name: HOST
+          value: "0.0.0.0"
+        - name: PORT
+          value: "8000"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: CORS_ORIGINS
+          value: "*"
+        - name: OPENAI_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: openai-credentials
+              key: api-key
+        - name: OPENAI_MODEL
+          value: "gpt-5"
+        - name: OPENAI_BASE_URL
+          value: {{ .Values.openai.baseUrl | quote }}
+        - name: OPENAI_API_VERSION
+          value: "preview"
+        - name: REASONING_EFFORT
+          value: "low"
+        - name: CHEF_SERVICES_MCP_URL
+          value: {{ .Values.chefAgent.mcpUrl | quote }}
+        - name: CHEF_SERVICES_MCP_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: mcp-credentials
+              key: api-key
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 5
+          timeoutSeconds: 3
+          failureThreshold: 3
+        resources:
+          {{- toYaml .Values.resources | nindent 10 }}
