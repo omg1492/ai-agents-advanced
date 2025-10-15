@@ -6,11 +6,15 @@ metadata:
   name: {{ .name }}
   labels:
     app: {{ .name }}
+  {{- if .external }}
+  annotations:
+    service.beta.kubernetes.io/azure-load-balancer-resource-group: "{{ $.Values.loadBalancerResourceGroup }}"
+  {{- end }}
 spec:
-  type: ClusterIP
+  type: {{ if .external }}LoadBalancer{{ else }}ClusterIP{{ end }}
   ports:
-    - port: 8000
-      targetPort: http
+    - port: 80
+      targetPort: 8000
       protocol: TCP
       name: http
   selector:

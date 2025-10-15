@@ -20,21 +20,13 @@ openai:
   apiVersion: preview
   reasoningEffort: low
 
-# Gateway API configuration
-gateway:
-  enabled: true
-  name: eg
-  # loadBalancerIP: set via terraform set (from azurerm_public_ip)
-  # resourceGroup: set via terraform set (node resource group)
-  # fqdn: set via terraform set (from azurerm_public_ip)
-
 # Replica configuration
-replicaCount: 2
+replicaCount: 1
 
 # Horizontal Pod Autoscaler configuration
 hpa:
   enabled: true
-  minReplicas: 2
+  minReplicas: 1
   maxReplicas: 5
   targetCPUUtilizationPercentage: 70
 
@@ -49,24 +41,85 @@ resources:
 
 # Service configuration - add or remove services here
 # All services use port 8000 (configured via PORT env variable)
-# Set external: true to expose service via Gateway API
+# Set external: true to expose service via LoadBalancer, false for ClusterIP
+#
+# Each service declares exactly which environment variables it needs.
+# Note: OPENAI_BASE_URL is set via Terraform helm_release.set_sensitive
 services:
   - name: api-stock
     image: api-stock
     tag: latest
     external: false
+    env:
+      - name: PORT
+        value: "8000"
+      - name: LOG_LEVEL
+        value: "INFO"
     
   - name: mcp-chef-services
     image: mcp-chef-services
     tag: latest
     external: true
+    env:
+      - name: HOST
+        value: "0.0.0.0"
+      - name: PORT
+        value: "8000"
+      - name: MCP_DEFER_DELETE_SECONDS
+        value: "60"
+      - name: MCP_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: mcp-credentials
+            key: api-key
+      - name: MCP_CORS_ORIGINS
+        value: "*"
     
   - name: mcp-public-farmer-tools
     image: mcp-public-farmer-tools
     tag: latest
     external: true
+    env:
+      - name: HOST
+        value: "0.0.0.0"
+      - name: PORT
+        value: "8000"
+      - name: MCP_DEFER_DELETE_SECONDS
+        value: "60"
+      - name: MCP_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: mcp-credentials
+            key: api-key
+      - name: MCP_CORS_ORIGINS
+        value: "*"
     
   - name: mcp-visualization-generator
     image: mcp-visualization-generator
     tag: latest
     external: true
+    env:
+      - name: HOST
+        value: "0.0.0.0"
+      - name: PORT
+        value: "8000"
+      - name: LOG_LEVEL
+        value: "INFO"
+      - name: MCP_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: mcp-credentials
+            key: api-key
+      - name: MCP_CORS_ORIGINS
+        value: "*"
+      - name: OPENAI_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: openai-credentials
+            key: api-key
+      - name: OPENAI_MODEL
+        value: "gpt-5"
+      - name: OPENAI_API_VERSION
+        value: "preview"
+      - name: REASONING_EFFORT
+        value: "low"

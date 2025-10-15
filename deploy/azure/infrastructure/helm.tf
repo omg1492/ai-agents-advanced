@@ -32,7 +32,7 @@ locals {
   # OpenAI configuration
   openai_endpoint = azurerm_cognitive_account.ai_services.endpoint
   openai_base_url = "${local.openai_endpoint}openai/v1/"
-  
+
   # Node resource group follows Azure's naming convention: MC_<rg>_<cluster>_<location>
   node_resource_group = "MC_${azurerm_resource_group.main.name}_${azapi_resource.aks.name}_${azurerm_resource_group.main.location}"
 }
@@ -45,34 +45,6 @@ provider "helm" {
     client_key             = base64decode(local.kubeconfig.users[0].user["client-key-data"])
     cluster_ca_certificate = base64decode(local.kubeconfig.clusters[0].cluster["certificate-authority-data"])
   }
-}
-
-# Create static public IP for the Gateway LoadBalancer
-resource "azurerm_public_ip" "gateway" {
-  name                = "pip-gateway-${local.base_name}"
-  location            = azurerm_resource_group.main.location
-  resource_group_name = local.node_resource_group
-  allocation_method   = "Static"
-  sku                 = "Standard"
-  domain_name_label   = "gateway-${local.base_name_nodash}"
-
-  # Ensure AKS is created first so we have the node resource group
-  depends_on = [azapi_resource.aks]
-}
-
-# Deploy Envoy Gateway using Helm
-resource "helm_release" "envoy_gateway" {
-  name             = "eg"
-  repository       = "oci://docker.io/envoyproxy"
-  chart            = "gateway-helm"
-  version          = "v1.5.3"
-  namespace        = "envoy-gateway-system"
-  create_namespace = true
-
-  depends_on = [
-    azapi_resource.aks,
-    azurerm_role_assignment.aks_acr_pull
-  ]
 }
 
 # Deploy demo microservices chart
@@ -109,29 +81,17 @@ resource "helm_release" "demo" {
     value = local.openai_base_url
   }
 
-  # Gateway API configuration - dynamic values only (enabled, name in helm_values.yaml)
+  # Load Balancer resource group configuration
   set {
-    name  = "gateway.loadBalancerIP"
-    value = azurerm_public_ip.gateway.ip_address
-  }
-
-  set {
-    name  = "gateway.resourceGroup"
+    name  = "loadBalancerResourceGroup"
     value = local.node_resource_group
-  }
-
-  set {
-    name  = "gateway.fqdn"
-    value = azurerm_public_ip.gateway.fqdn
   }
 
   # Wait for AKS to be ready and ACR permissions to be set
   depends_on = [
     azapi_resource.aks,
     azurerm_role_assignment.aks_acr_pull,
-    azurerm_cognitive_account.ai_services,
-    helm_release.envoy_gateway,
-    azurerm_public_ip.gateway
+    azurerm_cognitive_account.ai_services
   ]
 }
 
@@ -150,14 +110,4 @@ output "mcp_api_key" {
   description = "MCP API key for authentication (sensitive)"
   value       = random_password.mcp_api_key.result
   sensitive   = true
-}
-
-output "gateway_ip" {
-  description = "Gateway public IP address"
-  value       = azurerm_public_ip.gateway.ip_address
-}
-
-output "gateway_fqdn" {
-  description = "Gateway fully qualified domain name"
-  value       = azurerm_public_ip.gateway.fqdn
 }

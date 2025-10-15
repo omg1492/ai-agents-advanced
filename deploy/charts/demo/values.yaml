@@ -16,13 +16,8 @@ imagePullPolicy: Always
 # Log level for all services
 logLevel: INFO
 
-# Gateway API configuration (optional, set by Terraform)
-gateway:
-  enabled: false
-  name: eg
-  loadBalancerIP: ""
-  resourceGroup: ""
-  fqdn: ""
+# Load Balancer resource group (set by Terraform for external services)
+loadBalancerResourceGroup: ""
 
 # MCP configuration
 mcpApiKey: ""  # Set via Terraform (randomly generated)
@@ -58,15 +53,103 @@ resources:
 
 # Service configuration - add or remove services here
 # All services use port 8000 (configured via PORT env variable)
+# Set external: true to expose service via LoadBalancer, false for ClusterIP
+#
+# Each service declares exactly which environment variables it needs.
+# For sensitive values like API keys, always reference the appropriate secret:
+#   - MCP_API_KEY: Use secretKeyRef to 'mcp-credentials' secret
+#   - OPENAI_API_KEY: Use secretKeyRef to 'openai-credentials' secret
+#
 services:
   - name: api-stock
     image: api-stock
+    external: false
+    env:
+      - name: PORT
+        value: "8000"
+      - name: LOG_LEVEL
+        value: "INFO"
+      # PostgreSQL connection (set via Terraform or manually)
+      # - name: PGHOST
+      #   value: "postgresql.default.svc.cluster.local"
+      # - name: PGPORT
+      #   value: "5432"
+      # - name: PGDATABASE
+      #   value: "aidb"
+      # - name: PGUSER
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: postgres-credentials
+      #       key: username
+      # - name: PGPASSWORD
+      #   valueFrom:
+      #     secretKeyRef:
+      #       name: postgres-credentials
+      #       key: password
     
   - name: mcp-chef-services
     image: mcp-chef-services
+    external: true
+    env:
+      - name: HOST
+        value: "0.0.0.0"
+      - name: PORT
+        value: "8000"
+      - name: MCP_DEFER_DELETE_SECONDS
+        value: "60"
+      - name: MCP_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: mcp-credentials
+            key: api-key
+      - name: MCP_CORS_ORIGINS
+        value: "*"
     
   - name: mcp-public-farmer-tools
     image: mcp-public-farmer-tools
+    external: true
+    env:
+      - name: HOST
+        value: "0.0.0.0"
+      - name: PORT
+        value: "8000"
+      - name: MCP_DEFER_DELETE_SECONDS
+        value: "60"
+      - name: MCP_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: mcp-credentials
+            key: api-key
+      - name: MCP_CORS_ORIGINS
+        value: "*"
     
   - name: mcp-visualization-generator
     image: mcp-visualization-generator
+    external: true
+    env:
+      - name: HOST
+        value: "0.0.0.0"
+      - name: PORT
+        value: "8000"
+      - name: LOG_LEVEL
+        value: "INFO"
+      - name: MCP_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: mcp-credentials
+            key: api-key
+      - name: MCP_CORS_ORIGINS
+        value: "*"
+      - name: OPENAI_API_KEY
+        valueFrom:
+          secretKeyRef:
+            name: openai-credentials
+            key: api-key
+      - name: OPENAI_MODEL
+        value: "gpt-5"
+      - name: OPENAI_BASE_URL
+        value: ""  # Set via Terraform
+      - name: OPENAI_API_VERSION
+        value: "preview"
+      - name: REASONING_EFFORT
+        value: "low"

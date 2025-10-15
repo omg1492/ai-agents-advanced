@@ -25,37 +25,16 @@ spec:
           containerPort: 8000
           protocol: TCP
         env:
-        - name: HOST
-          value: "0.0.0.0"
-        - name: PORT
-          value: "8000"
-        - name: LOG_LEVEL
-          value: {{ $.Values.logLevel | quote }}
-        - name: PYTHONUNBUFFERED
-          value: "1"
-        {{- if $.Values.mcpApiKey }}
-        - name: MCP_API_KEY
+        {{- if .env }}
+        {{- range .env }}
+        - name: {{ .name }}
+          {{- if .value }}
+          value: {{ .value | quote }}
+          {{- else if .valueFrom }}
           valueFrom:
-            secretKeyRef:
-              name: mcp-credentials
-              key: api-key
-        - name: MCP_CORS_ORIGINS
-          value: {{ $.Values.mcpCorsOrigins | quote }}
+            {{- toYaml .valueFrom | nindent 12 }}
+          {{- end }}
         {{- end }}
-        {{- if and (eq .name "mcp-visualization-generator") $.Values.openai.enabled }}
-        - name: OPENAI_API_KEY
-          valueFrom:
-            secretKeyRef:
-              name: openai-credentials
-              key: api-key
-        - name: OPENAI_MODEL
-          value: {{ $.Values.openai.model | quote }}
-        - name: OPENAI_BASE_URL
-          value: {{ $.Values.openai.baseUrl | quote }}
-        - name: OPENAI_API_VERSION
-          value: {{ $.Values.openai.apiVersion | quote }}
-        - name: REASONING_EFFORT
-          value: {{ $.Values.openai.reasoningEffort | quote }}
         {{- end }}
         livenessProbe:
           httpGet:

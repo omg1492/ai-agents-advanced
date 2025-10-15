@@ -52,33 +52,11 @@ resource "azapi_resource" "aks" {
         loadBalancerSku   = "standard"
         serviceCidr       = "10.0.0.0/16"
         dnsServiceIP      = "10.0.0.10"
-
-        advancedNetworking = {
-          enabled = true
-          observability = {
-            enabled = true
-          }
-        }
-      }
-
-      ingressProfile = {
-        webAppRouting = {
-          enabled = true
-        }
       }
 
       nodeProvisioningProfile = {
         mode = "Auto"
       }
-
-      #   autoScalerProfile = {
-      #     expander                        = "priority"
-      #     "scale-down-delay-after-add"    = "10m"
-      #     "scale-down-unneeded-time"      = "10m"
-      #     "max-node-provision-time"       = "15m"
-      #     "skip-nodes-with-local-storage" = "false"
-      #     "skip-nodes-with-system-pods"   = "true"
-      #   }
 
       agentPoolProfiles = [
         {
@@ -91,6 +69,7 @@ resource "azapi_resource" "aks" {
           osType       = "Linux"
           osSKU        = "AzureLinux"
           type         = "VirtualMachineScaleSets"
+          vnetSubnetID = azurerm_subnet.aks.id
         }
       ]
 
@@ -124,6 +103,7 @@ resource "azapi_resource" "aks" {
   depends_on = [
     azurerm_role_assignment.aks_acr_pull,
     azurerm_role_assignment.aks_network_contributor,
-    azurerm_role_assignment.aks_managed_identity_operator
+    azurerm_role_assignment.aks_managed_identity_operator,
+    azurerm_subnet_network_security_group_association.aks
   ]
 }

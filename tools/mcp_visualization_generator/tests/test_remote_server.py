@@ -1,7 +1,7 @@
 """
 Integration test for remote MCP server deployment.
 
-This test connects to a deployed MCP server via HTTP transport and validates
+This test connects to a deployed MCP server via FastMCP HTTP client and validates
 the generate_infographic tool with real API calls.
 
 Usage:
@@ -9,8 +9,8 @@ Usage:
 
 Example:
     python test_remote_server.py \
-        --url https://ca-mcp-viz-gen.grayisland-3e7e5fd0.swedencentral.azurecontainerapps.io/mcp \
-        --api-key advancedaiapps2025
+        --url http://mcp-visualization-generator.4.223.98.178.nip.io/mcp \
+        --api-key xizswsf2DCMXeOdSL31xcXcAtc33ZdgB
 """
 
 import asyncio
@@ -24,7 +24,7 @@ async def test_health_check(base_url: str):
     """Test the health endpoint."""
     import httpx
     
-    health_url = base_url.replace("/mcp", "/health")
+    health_url = base_url.rstrip("/mcp") + "/health"
     print(f"\n🔍 Testing health endpoint: {health_url}")
     
     async with httpx.AsyncClient() as client:
@@ -34,17 +34,26 @@ async def test_health_check(base_url: str):
 
 
 async def test_generate_visualization(server_url: str, api_key: str):
-    """Test the generate_infographic tool via HTTP transport."""
+    """Test the generate_infographic tool via FastMCP HTTP client."""
     
     print(f"\n🔍 Connecting to remote MCP server: {server_url}")
     
-    # Configure HTTP transport with authentication (bearer token)
-    async with Client(server_url, auth=api_key) as client:
+    # Initialize FastMCP client with StreamableHttpTransport
+    # The server is running with streamable-http transport on /mcp path
+    from fastmcp.client.transports import StreamableHttpTransport
+    
+    transport = StreamableHttpTransport(
+        url=server_url,
+        headers={"Authorization": f"Bearer {api_key}"}
+    )
+    
+    async with Client(transport) as client:
+        # Client automatically initializes when entering context manager
         print("✓ Connected to remote MCP server")
         
         # List available tools
-        tools = await client.list_tools()
-        tool_names = [tool.name for tool in tools]
+        tools_result = await client.list_tools()
+        tool_names = [tool.name for tool in tools_result]
         print(f"✓ Available tools: {tool_names}")
         
         assert "generate_infographic" in tool_names, "generate_infographic tool not found"
@@ -89,7 +98,14 @@ async def test_with_data(server_url: str, api_key: str):
     
     print("\n🔍 Testing generation with structured data...")
     
-    async with Client(server_url, auth=api_key) as client:
+    from fastmcp.client.transports import StreamableHttpTransport
+    
+    transport = StreamableHttpTransport(
+        url=server_url,
+        headers={"Authorization": f"Bearer {api_key}"}
+    )
+    
+    async with Client(transport) as client:
         result = await client.call_tool(
             "generate_infographic",
             {
@@ -123,7 +139,15 @@ async def test_error_handling(server_url: str, api_key: str):
     
     print("\n🔍 Testing error handling...")
     
-    async with Client(server_url, auth=api_key) as client:
+    from fastmcp.client.transports import StreamableHttpTransport
+    
+    transport = StreamableHttpTransport(
+        url=server_url,
+        headers={"Authorization": f"Bearer {api_key}"}
+    )
+    
+    async with Client(transport) as client:
+        
         # Test with empty description
         try:
             result = await client.call_tool(

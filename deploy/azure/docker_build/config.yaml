@@ -4,7 +4,7 @@
 # The registry name is managed by Terraform.
 
 # Azure Container Registry name (managed by Terraform)
-registry: "rdapps3f1i"
+registry: "rdappsa2tj"
 
 # Services to build and push
 # Add your services here following this structure:
