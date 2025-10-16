@@ -9,6 +9,7 @@ import logging
 import re
 from typing import List, Optional, Dict, Sequence
 from dataclasses import dataclass
+from urllib.parse import quote_plus
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -76,9 +77,10 @@ class RAGService:
         database = self._config.db.database
         user = self._config.db.user
         password = self._config.db.password
+        sslmode = self._config.db.sslmode
         if not all([host, database, user, password]):
             raise ValueError("Database configuration is incomplete (host, database, user, password)")
-        url = f"postgresql://{user}:{password}@{host}:{port}/{database}"
+        url = f"postgresql://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{database}?sslmode={sslmode}"
         return create_engine(url, echo=False)
 
     def _create_openai_client(self) -> OpenAI:

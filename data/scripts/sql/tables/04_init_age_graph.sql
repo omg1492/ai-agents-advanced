@@ -1,8 +1,20 @@
 -- Initialize Apache AGE graph for DreamFarm
 -- Requires AGE extension to be installed (see extensions/02_install_age.sql)
 
--- Ensure AGE is loaded for this session only
-LOAD 'age';
+-- Try to load AGE library for the session
+-- This is required for local PostgreSQL but will fail gracefully in Azure
+-- where AGE must be preloaded via shared_preload_libraries
+DO $$
+BEGIN
+    -- Attempt to load the AGE library
+    LOAD 'age';
+    RAISE NOTICE 'AGE library loaded successfully';
+EXCEPTION
+    WHEN OTHERS THEN
+        -- If loading fails (e.g., in Azure where it's preloaded), just continue
+        RAISE NOTICE 'AGE library already loaded or preloaded: %', SQLERRM;
+END
+$$;
 
 -- Recreate the graph for idempotent development runs
 DO $$

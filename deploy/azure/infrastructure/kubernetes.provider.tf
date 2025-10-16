@@ -35,8 +35,9 @@ locals {
   kubeconfig_raw = base64decode(data.azapi_resource_action.aks_creds.output.kubeconfigs[0].value)
   kubeconfig     = yamldecode(local.kubeconfig_raw)
 
-  # OpenAI configuration
-  openai_endpoint = azurerm_cognitive_account.ai_services.endpoint
+  # OpenAI configuration - use resource-specific endpoint format
+  # Format: https://<resource-name>.openai.azure.com/openai/v1/
+  openai_endpoint = "https://${azurerm_cognitive_account.ai_services.name}.openai.azure.com/"
   openai_base_url = "${local.openai_endpoint}openai/v1/"
 
   # Node resource group follows Azure's naming convention: MC_<rg>_<cluster>_<location>

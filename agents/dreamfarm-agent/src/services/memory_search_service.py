@@ -20,6 +20,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from typing import List, Dict, Any
+from urllib.parse import quote_plus
 import logging
 import json
 
@@ -53,7 +54,7 @@ class MemorySearchService:
             logger.info("Memory search disabled via configuration")
             return
         db = self._app_config.db
-        url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+        url = f"postgresql://{quote_plus(db.user)}:{quote_plus(db.password)}@{db.host}:{db.port}/{db.database}?sslmode={db.sslmode}"
         self.engine: Engine = create_engine(url, echo=False)
         base_url = self._app_config.openai.base_url
         default_query = {"api-version": self._app_config.openai.api_version or "preview"} if base_url else None

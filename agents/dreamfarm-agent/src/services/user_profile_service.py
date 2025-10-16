@@ -11,6 +11,7 @@ Design notes:
 from __future__ import annotations
 
 from typing import Any, Optional
+from urllib.parse import quote_plus
 import json
 import logging
 from sqlalchemy import create_engine, text
@@ -46,7 +47,7 @@ class UserProfileService:
         cfg_service = ConfigService()
         self._app_config: AppConfig = app_config or cfg_service.config
         db = self._app_config.db
-        url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+        url = f"postgresql://{quote_plus(db.user)}:{quote_plus(db.password)}@{db.host}:{db.port}/{db.database}?sslmode={db.sslmode}"
         self.engine: Engine = create_engine(url, echo=False, pool_pre_ping=True)
         logger.info("Initialized UserProfileService")
 

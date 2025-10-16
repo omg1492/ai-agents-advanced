@@ -74,7 +74,17 @@ def _escape(s: str) -> str:
 def _ensure_graph(conn: PGConnection) -> None:
     cur = conn.cursor()
     try:
-        cur.execute("LOAD 'age';")
+        # Try to load AGE extension for this session
+        # This is required for local PostgreSQL but will fail gracefully in Azure
+        # where AGE must be preloaded via shared_preload_libraries
+        try:
+            cur.execute("LOAD 'age';")
+            logger.debug("AGE library loaded successfully")
+        except Exception as e:
+            # If loading fails (e.g., in Azure where it's preloaded), rollback and continue
+            logger.debug("AGE library already loaded or preloaded: %s", e)
+            conn.rollback()
+        
         cur.execute("SET search_path = ag_catalog, public;")
         cur.execute("SELECT 1 FROM ag_catalog.ag_graph WHERE name=%s;", (GRAPH_NAME,))
         if cur.fetchone() is None:

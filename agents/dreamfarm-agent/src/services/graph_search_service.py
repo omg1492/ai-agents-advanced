@@ -25,6 +25,7 @@ Implementation Notes:
 from __future__ import annotations
 
 from typing import Any, Dict, List, Tuple
+from urllib.parse import quote_plus
 import logging
 
 from sqlalchemy import text, create_engine, event
@@ -53,7 +54,7 @@ class GraphSearchService:  # pragma: no cover - exercised via integration tests
         self.graph_name: str = self._cfg.graph_name  # type: ignore[assignment]
         self.dfs_max_results: int = int(self._cfg.dfs_max_results)  # type: ignore[assignment]
         db = self._app_config.db
-        url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+        url = f"postgresql://{quote_plus(db.user)}:{quote_plus(db.password)}@{db.host}:{db.port}/{db.database}?sslmode={db.sslmode}"
         self.engine: Engine = create_engine(url, echo=False)
 
         # Ensure every new DB-API connection has AGE loaded & search_path set
@@ -174,7 +175,7 @@ class GraphSearchService:  # pragma: no cover - exercised via integration tests
         try:
             # Use separate connection for PostgreSQL lookup to avoid AGE interference
             db = self._app_config.db
-            pg_url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+            pg_url = f"postgresql://{quote_plus(db.user)}:{quote_plus(db.password)}@{db.host}:{db.port}/{db.database}?sslmode={db.sslmode}"
             pg_engine = create_engine(pg_url, echo=False)
             
             with pg_engine.connect() as conn:
@@ -275,7 +276,7 @@ class GraphSearchService:  # pragma: no cover - exercised via integration tests
         try:
             # Use a separate connection for vector operations to avoid AGE interference
             db = self._app_config.db
-            vector_url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+            vector_url = f"postgresql://{quote_plus(db.user)}:{quote_plus(db.password)}@{db.host}:{db.port}/{db.database}?sslmode={db.sslmode}"
             vector_engine = create_engine(vector_url, echo=False)
             
             with vector_engine.connect() as conn:
@@ -290,7 +291,7 @@ class GraphSearchService:  # pragma: no cover - exercised via integration tests
     def _get_fresh_age_engine(self):
         """Create a fresh engine with AGE setup for each operation to avoid vector interference."""
         db = self._app_config.db
-        url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+        url = f"postgresql://{quote_plus(db.user)}:{quote_plus(db.password)}@{db.host}:{db.port}/{db.database}?sslmode={db.sslmode}"
         age_engine = create_engine(url, echo=False)
         
         @event.listens_for(age_engine, "connect")
@@ -433,7 +434,7 @@ class GraphSearchService:  # pragma: no cover - exercised via integration tests
         try:
             # Use separate connection for PostgreSQL lookup to avoid AGE interference
             db = self._app_config.db
-            pg_url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+            pg_url = f"postgresql://{quote_plus(db.user)}:{quote_plus(db.password)}@{db.host}:{db.port}/{db.database}?sslmode={db.sslmode}"
             pg_engine = create_engine(pg_url, echo=False)
             
             with pg_engine.connect() as conn:

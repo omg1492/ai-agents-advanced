@@ -37,6 +37,7 @@ class DatabaseConfig:
     database: str
     user: str
     password: str
+    sslmode: str = "prefer"  # prefer, require, disable, allow, verify-ca, verify-full
 
 
 @dataclass
@@ -254,12 +255,18 @@ class ConfigService:
         cors_origins = [origin.strip() for origin in cors_origins]
 
         # Database configuration
+        db_host = os.getenv("PGHOST", "")
+        # Auto-detect SSL requirement: Azure PostgreSQL requires SSL, local Docker doesn't
+        # PGSSLMODE follows standard PostgreSQL values: disable, allow, prefer, require, verify-ca, verify-full
+        # Default to 'require' for Azure, 'prefer' for others (tries SSL but falls back if unavailable)
+        default_sslmode = "require" if "azure.com" in db_host.lower() else "prefer"
         db_config = DatabaseConfig(
-            host=os.getenv("PGHOST", ""),
+            host=db_host,
             port=int(os.getenv("PGPORT", "5432")),
             database=os.getenv("PGDATABASE", ""),
             user=os.getenv("PGUSER", ""),
             password=os.getenv("PGPASSWORD", ""),
+            sslmode=os.getenv("PGSSLMODE", default_sslmode),
         )
 
         # RAG configuration

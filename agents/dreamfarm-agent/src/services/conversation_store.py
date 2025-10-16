@@ -27,6 +27,7 @@ import json
 import logging
 from datetime import datetime, timezone
 from typing import List, Dict, Any
+from urllib.parse import quote_plus
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -43,7 +44,7 @@ class ConversationStore:
         cfg_service = ConfigService()
         self._config = config or cfg_service.config
         db = self._config.db
-        url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+        url = f"postgresql://{quote_plus(db.user)}:{quote_plus(db.password)}@{db.host}:{db.port}/{db.database}?sslmode={db.sslmode}"
         self.engine: Engine = create_engine(url, echo=False, pool_pre_ping=True)
         logger.info("ConversationStore initialized (db=%s)", db.database)
 

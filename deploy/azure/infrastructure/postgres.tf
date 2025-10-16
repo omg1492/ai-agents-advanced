@@ -36,3 +36,15 @@ resource "azurerm_postgresql_flexible_server_database" "main" {
   collation = "en_US.utf8"
   charset   = "UTF8"
 }
+
+resource "azurerm_postgresql_flexible_server_configuration" "extensions" {
+  name      = "azure.extensions"
+  server_id = azurerm_postgresql_flexible_server.main.id
+  value     = "VECTOR,AGE,UNACCENT,PGCRYPTO"
+}
+
+resource "azurerm_postgresql_flexible_server_configuration" "shared_preload_libraries" {
+  name      = "shared_preload_libraries"
+  server_id = azurerm_postgresql_flexible_server.main.id
+  value     = "pg_cron,pg_stat_statements,age"
+}

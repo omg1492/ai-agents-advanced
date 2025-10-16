@@ -44,30 +44,76 @@ Folder `tests` contains test artifacts:
 
 1. **Prerequisites**:
    - Terraform installed
-   - Azure CLI authenticated
+   - Azure CLI authenticated (`az login`)
    - Tavily API key obtained from https://tavily.com
+   - Python with `uv` package manager installed
 
-2. **Build Docker Images**:
-   ```powershell
-   cd docker_build
-   # Run build script (builds chef-agent, dreamfarm-agent, and other services)
-   python build_and_push.py
-   ```
-
-3. **Deploy Infrastructure**:
+2. **Deploy Infrastructure**:
    ```powershell
    cd infrastructure
    # Set Tavily API key
    $env:TF_VAR_tavily_api_key="your-tavily-api-key"
    
-   # Deploy
+   # Deploy (creates ACR, AKS, PostgreSQL, AI Services, etc.)
    terraform init
    terraform plan
    terraform apply
    ```
+   
+   This step creates:
+   - Azure Container Registry (ACR) for Docker images
+   - Azure Database for PostgreSQL with extensions (pgvector, AGE, unaccent, pgcrypto)
+   - AKS cluster with pre-allocated static IPs
+   - Azure AI Foundry with gpt-5 model
+   - Generates `tests/.env` with all credentials and endpoints
 
-4. **Test Environment**:
-   After deployment, Terraform generates `tests/.env` with:
+3. **Build and Push Docker Images**:
+   ```powershell
+   cd ../docker_build
+   # Build and push all service images to ACR
+   uv run .\build_and_push.py
+   ```
+   
+   Builds and pushes images for:
+   - chef-agent
+   - dreamfarm-agent
+   - api-stock
+   - mcp-chef-services
+   - mcp-public-farmer-tools
+   - mcp-visualization-generator
+
+4. **Configure Identity Provider**:
+   ```powershell
+   cd ../../identity
+   # Create Keycloak realms, clients, and test users
+   uv run .\provision_keycloak.py
+   ```
+   
+   This creates:
+   - `dreamfarm` realm
+   - Application clients with proper redirect URIs
+   - Test users (Alice, Bob, Charlie) with passwords
+
+5. **Initialize Database Schema and Data**:
+   ```powershell
+   cd ../data/scripts
+   # Install PostgreSQL extensions and create tables
+   uv run .\configure_postgresql.py
+   
+   # Import all data (products, taxonomy, embeddings, etc.)
+   uv run .\import_all.py
+   ```
+   
+   This performs:
+   - Extension installation (pgvector, AGE, unaccent, pgcrypto)
+   - Table creation (products, stock, conversations, graph)
+   - AGE graph initialization (dreamfarm)
+   - Data import from JSON sources
+   - Embedding generation and import
+   - Taxonomy and relationship setup
+
+6. **Test Environment**:
+   After deployment, check `tests/.env` which contains:
    - All service IPs (5 LoadBalancer IPs)
    - MCP API key
    - OpenAI configuration
@@ -75,7 +121,7 @@ Folder `tests` contains test artifacts:
    - Keycloak admin password
    - Tavily API key
 
-5. **Access Services**:
+7. **Access Services**:
    - Dreamfarm Agent: `http://<dreamfarm-agent-ip>:80`
    - Keycloak: `http://<keycloak-ip>:80`
    - MCP Services: `http://<mcp-service-ip>/mcp`

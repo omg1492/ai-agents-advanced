@@ -88,14 +88,20 @@ def _escape(s: str) -> str:
 def _ensure_graph(conn: PGConnection, reset: bool) -> None:
     cur = conn.cursor()
     try:
-        # Ensure AGE extension is loaded for this session so cypher() is available
+        # Try to load AGE extension for this session
+        # This is required for local PostgreSQL but will fail gracefully in Azure
+        # where AGE must be preloaded via shared_preload_libraries
         try:
             cur.execute("LOAD 'age';")
-            # Ensure ag_catalog is on search_path for simpler function resolution
-            cur.execute("SET search_path = ag_catalog, public;")
-        except Exception:
-            logger.exception("Failed to LOAD 'age' extension. Ensure AGE is installed (see sql/extensions/02_install_age.sql).")
-            raise
+            logger.debug("AGE library loaded successfully")
+        except Exception as e:
+            # If loading fails (e.g., in Azure where it's preloaded), rollback and continue
+            logger.debug("AGE library already loaded or preloaded: %s", e)
+            conn.rollback()
+        
+        # Ensure ag_catalog is on search_path for simpler function resolution
+        cur.execute("SET search_path = ag_catalog, public;")
+        
         if reset:
             logger.warning('Dropping & recreating graph %s (reset requested)', GRAPH_NAME)
             cur.execute("SELECT ag_catalog.drop_graph(%s, true) FROM ag_catalog.ag_graph WHERE name=%s;", (GRAPH_NAME, GRAPH_NAME))

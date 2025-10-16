@@ -1739,7 +1739,12 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                 logger.info(f"Continuing reasoning loop with {len(pending_outputs)} tool output(s)")
                 
             except Exception as e:
-                logger.error(f"Streaming loop failed: {e}")
+                logger.error(f"Streaming loop failed: {e}", exc_info=True)
+                # Try to extract more details from OpenAI API errors
+                if hasattr(e, 'response') and hasattr(e.response, 'text'):
+                    logger.error(f"API response body: {e.response.text}")
+                elif hasattr(e, 'body'):
+                    logger.error(f"Error body: {e.body}")
                 break
         
         # Auto-fallback if model produced no text but we have graph products

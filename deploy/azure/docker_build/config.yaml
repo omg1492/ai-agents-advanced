@@ -18,13 +18,13 @@ services:
   #   path: ../../../agents/chef-agent
   #   tag: latest
 
-  # - name: dreamfarm-agent
-  #   path: ../../../agents/dreamfarm-agent
-  #   tag: latest
-
-  - name: frontend
-    path: ../../../frontend
+  - name: dreamfarm-agent
+    path: ../../../agents/dreamfarm-agent
     tag: latest
+
+  # - name: frontend
+  #   path: ../../../frontend
+  #   tag: latest
 
   # - name: api-stock
   #   path: ../../../tools/api_stock

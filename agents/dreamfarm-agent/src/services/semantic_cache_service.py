@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import logging
 from typing import Optional, List
+from urllib.parse import quote_plus
 
 from sqlalchemy import create_engine, text
 from sqlalchemy.engine import Engine
@@ -71,7 +72,7 @@ class SemanticCacheService:
 
     def _create_db_engine(self) -> Engine:
         db = self._app_config.db
-        url = f"postgresql://{db.user}:{db.password}@{db.host}:{db.port}/{db.database}"
+        url = f"postgresql://{quote_plus(db.user)}:{quote_plus(db.password)}@{db.host}:{db.port}/{db.database}?sslmode={db.sslmode}"
         return create_engine(url, echo=False)
 
     def _create_openai_client(self) -> OpenAI:
