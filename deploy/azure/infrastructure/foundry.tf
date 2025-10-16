@@ -39,3 +39,19 @@ resource "azurerm_cognitive_deployment" "text-embedding-3-large" {
     capacity = 50
   }
 }
+
+resource "azurerm_cognitive_deployment" "gpt-realtime" {
+  name                 = "gpt-realtime"
+  cognitive_account_id = azurerm_cognitive_account.ai_services.id
+
+  model {
+    format  = "OpenAI"
+    name    = "gpt-realtime"
+    version = "2025-08-28"
+  }
+
+  sku {
+    name     = "GlobalStandard"
+    capacity = 2
+  }
+}
