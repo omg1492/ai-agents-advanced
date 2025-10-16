@@ -4,11 +4,8 @@ metadata:
   name: mcp-visualization-generator
   labels:
     app: mcp-visualization-generator
-  annotations:
-    service.beta.kubernetes.io/azure-load-balancer-resource-group: {{ .Values.staticIPResourceGroup | quote }}
-    service.beta.kubernetes.io/azure-pip-name: {{ .Values.staticIPNames.mcpVisualizationGenerator | quote }}
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   ports:
     - port: 80
       targetPort: 8000

@@ -1,0 +1,22 @@
+# Let's Encrypt ClusterIssuer for automatic TLS certificate management
+# Uses HTTP-01 challenge which works with NGINX Ingress Controller
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: letsencrypt-prod
+spec:
+  acme:
+    # Let's Encrypt production server
+    server: https://acme-v02.api.letsencrypt.org/directory
+    email: admin@{{ .Values.domain }}
+    
+    # Store account key in a Kubernetes secret
+    privateKeySecretRef:
+      name: letsencrypt-prod-account-key
+    
+    # HTTP-01 challenge configuration
+    # Works with NGINX Ingress Controller
+    solvers:
+    - http01:
+        ingress:
+          class: nginx

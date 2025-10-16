@@ -4,11 +4,8 @@ metadata:
   name: dreamfarm-agent
   labels:
     app: dreamfarm-agent
-  annotations:
-    service.beta.kubernetes.io/azure-load-balancer-resource-group: {{ .Values.staticIPResourceGroup | quote }}
-    service.beta.kubernetes.io/azure-pip-name: {{ .Values.staticIPNames.dreamfarmAgent | quote }}
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   ports:
     - port: 80
       targetPort: 8001

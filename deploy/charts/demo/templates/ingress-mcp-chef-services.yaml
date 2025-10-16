@@ -1,0 +1,25 @@
+# Ingress for MCP Chef Services
+# Runs on mcp-chef-services.domain (e.g., mcp-chef-services.dreamfarm.tomasdemo.org)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mcp-chef-services
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+  - hosts:
+    - mcp-chef-services.{{ .Values.domain }}
+    secretName: mcp-chef-services-tls
+  rules:
+  - host: mcp-chef-services.{{ .Values.domain }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mcp-chef-services
+            port:
+              number: 80

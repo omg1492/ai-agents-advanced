@@ -1,0 +1,25 @@
+# Ingress for Dreamfarm Agent
+# Runs on dreamfarm-agent.domain (e.g., dreamfarm-agent.dreamfarm.tomasdemo.org)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: dreamfarm-agent
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+  - hosts:
+    - dreamfarm-agent.{{ .Values.domain }}
+    secretName: dreamfarm-agent-tls
+  rules:
+  - host: dreamfarm-agent.{{ .Values.domain }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: dreamfarm-agent
+            port:
+              number: 80

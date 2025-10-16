@@ -1,0 +1,25 @@
+# Ingress for MCP Visualization Generator
+# Runs on mcp-visualization-generator.domain (e.g., mcp-visualization-generator.dreamfarm.tomasdemo.org)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mcp-visualization-generator
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+  - hosts:
+    - mcp-visualization-generator.{{ .Values.domain }}
+    secretName: mcp-visualization-generator-tls
+  rules:
+  - host: mcp-visualization-generator.{{ .Values.domain }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mcp-visualization-generator
+            port:
+              number: 80

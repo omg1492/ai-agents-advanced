@@ -37,3 +37,31 @@ variable "tavily_api_key" {
   type      = string
   sensitive = true
 }
+
+variable "domain" {
+  description = <<-EOT
+    Domain name for the application.
+    All services will be exposed as subdomains under this domain.
+    Frontend will be at the apex (e.g., dreamfarm.tomasdemo.org)
+    Services will be at servicename.domain (e.g., keycloak.dreamfarm.tomasdemo.org)
+    
+    DNS Setup Required:
+    1. Create CNAME for domain pointing to the ingress FQDN
+    2. Create CNAME for *.domain pointing to the ingress FQDN
+    
+    Example with Azure DNS:
+    - dreamfarm.tomasdemo.org -> ingress-rdappsa2tj.swedencentral.cloudapp.azure.com
+    - *.dreamfarm.tomasdemo.org -> ingress-rdappsa2tj.swedencentral.cloudapp.azure.com
+  EOT
+  type        = string
+  default     = "dreamfarm.tomasdemo.org"
+}
+
+variable "environment" {
+  description = <<-EOT
+    Environment identifier for tagging and naming.
+    Used to differentiate between dev, staging, and production deployments.
+  EOT
+  type        = string
+  default     = "production"
+}

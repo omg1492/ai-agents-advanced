@@ -4,11 +4,8 @@ metadata:
   name: keycloak
   labels:
     app: keycloak
-  annotations:
-    service.beta.kubernetes.io/azure-load-balancer-resource-group: {{ .Values.staticIPResourceGroup | quote }}
-    service.beta.kubernetes.io/azure-pip-name: {{ .Values.staticIPNames.keycloak | quote }}
 spec:
-  type: LoadBalancer
+  type: ClusterIP
   ports:
     - port: 80
       targetPort: 8080

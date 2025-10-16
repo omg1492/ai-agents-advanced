@@ -12,6 +12,9 @@ imagePullPolicy: Always
 # Image tag (set via Terraform or defaults to latest)
 imageTag: latest
 
+# Domain configuration (set via Terraform)
+domain: "dreamfarm.tomasdemo.org"
+
 # Resources for all containers
 resources:
   limits:
@@ -41,7 +44,7 @@ postgres:
 # Keycloak configuration
 keycloak:
   adminPassword: ""  # Set via Terraform (sensitive)
-  hostname: ""  # Set via Terraform (external LoadBalancer IP or DNS)
+  hostname: ""  # Set via Terraform (e.g., keycloak.dreamfarm.tomasdemo.org)
 
 # Tavily API configuration
 tavily:
@@ -49,26 +52,28 @@ tavily:
 
 # Chef agent specific configuration
 chefAgent:
-  mcpUrl: ""  # Set via Terraform to http://<static-ip>/mcp
+  mcpUrl: ""  # Set via Terraform to https://mcp-chef-services.domain/mcp
 
 # Dreamfarm agent specific configuration
 dreamfarmAgent:
-  farmerToolsUrl: ""  # Set via Terraform to http://<static-ip>/mcp
-  visualizationUrl: ""  # Set via Terraform to http://<static-ip>/mcp
-  keycloakUrl: ""  # Set via Terraform to http://<static-ip>
+  farmerToolsUrl: ""  # Set via Terraform to https://mcp-public-farmer-tools.domain/mcp
+  visualizationUrl: ""  # Set via Terraform to https://mcp-visualization-generator.domain/mcp
+  keycloakUrl: ""  # Set via Terraform to https://keycloak.domain
 
 # Frontend configuration
 frontend:
-  backendUrl: ""  # Set via Terraform to http://<dreamfarm-agent-ip>
-  keycloakUrl: ""  # Set via Terraform to http://<keycloak-ip>
-  redirectUri: ""  # Set via Terraform to http://<frontend-ip>/
+  backendUrl: ""  # Set via Terraform to https://dreamfarm-agent.domain
+  keycloakUrl: ""  # Set via Terraform to https://keycloak.domain
+  redirectUri: ""  # Set via Terraform to https://domain/
 
-# Static IP configuration for LoadBalancer services
-staticIPResourceGroup: ""  # Set via Terraform to main resource group
-staticIPNames:
-  mcpChefServices: ""  # Set via Terraform
-  mcpPublicFarmerTools: ""  # Set via Terraform
-  mcpVisualizationGenerator: ""  # Set via Terraform
-  dreamfarmAgent: ""  # Set via Terraform
-  keycloak: ""  # Set via Terraform
-  frontend: ""  # Set via Terraform
+# Ingress configuration
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    # SSE/Streaming support for MCP servers
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+    nginx.ingress.kubernetes.io/proxy-request-buffering: "off"

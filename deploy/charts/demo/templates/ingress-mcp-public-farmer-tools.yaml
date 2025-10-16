@@ -1,0 +1,25 @@
+# Ingress for MCP Public Farmer Tools
+# Runs on mcp-public-farmer-tools.domain (e.g., mcp-public-farmer-tools.dreamfarm.tomasdemo.org)
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mcp-public-farmer-tools
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  tls:
+  - hosts:
+    - mcp-public-farmer-tools.{{ .Values.domain }}
+    secretName: mcp-public-farmer-tools-tls
+  rules:
+  - host: mcp-public-farmer-tools.{{ .Values.domain }}
+    http:
+      paths:
+      - path: /
+        pathType: Prefix
+        backend:
+          service:
+            name: mcp-public-farmer-tools
+            port:
+              number: 80
