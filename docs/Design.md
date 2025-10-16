@@ -37,7 +37,8 @@ This document describes the **overall architecture** of the Dream Farm AI platfo
   - [32. Security Considerations](#32-security-considerations)
   - [33. Future Enhancements](#33-future-enhancements)
   - [34. Code Execution \& Dynamic UI Generation](#34-code-execution--dynamic-ui-generation)
-  - [35. Evaluation \& Safety Framework](#35-evaluation--safety-framework)
+  - [35. Observability \& Tracing](#35-observability--tracing)
+  - [36. Evaluation \& Safety Framework](#36-evaluation--safety-framework)
 
 
 ---
@@ -418,6 +419,38 @@ Logs: single-line structured key=value for graph & memory pipelines. Future: met
 - Local: Docker Compose (agent, frontend, postgres+extensions, keycloak, tools)
 - Production (future): Kubernetes (ingress/nginx), scaling per component, secrets via env/secret store, persistent volumes for DB.
 - Image build: pinned dependencies via `pyproject.toml` + `uv.lock` for Python, `package.json` for frontend.
+
+### 17.1. Kubernetes Deployment (Azure)
+The platform is production‑deployed on Azure Kubernetes Service (AKS) via Terraform infrastructure‑as‑code and Helm charts.
+
+**Infrastructure Components (Terraform):**
+- **AKS Cluster**: Managed Kubernetes with CNI networking, system + user node pools
+- **Azure Container Registry (ACR)**: Private registry for all container images with AKS pull permissions
+- **Azure Database for PostgreSQL Flexible Server**: Managed database with pgvector + Apache AGE extensions
+- **Azure AI Services**: OpenAI‑compatible endpoint for LLM + embeddings
+- **Static Public IP + DNS**: Ingress‑bound IP with Azure DNS zone integration
+- **Nginx Ingress Controller**: TLS termination via cert‑manager + Let's Encrypt
+- **Secrets Management**: Kubernetes secrets provisioned via Terraform (DB credentials, API keys, MCP tokens)
+
+**Deployed Microservices (Helm Chart):**
+1. **frontend** – React SPA served via Nginx (ingress: `https://domain/`)
+2. **dreamfarm-agent** – Main FastAPI backend (ingress: `https://dreamfarm-agent.domain`)
+3. **chef-agent** – Specialized culinary agent (ClusterIP, agent‑as‑tool pattern)
+4. **api-stock** – Internal stock REST API (ClusterIP only)
+5. **keycloak** – OIDC identity provider (ingress: `https://keycloak.domain`)
+6. **mcp-chef-services** – MCP server for chef utilities (ingress: `https://mcp-chef-services.domain/mcp`)
+7. **mcp-public-farmer-tools** – MCP server for public farmer data (ingress: `https://mcp-public-farmer-tools.domain/mcp`)
+8. **mcp-visualization-generator** – MCP server for dynamic visualizations (ingress: `https://mcp-visualization-generator.domain/mcp`)
+
+**Key Configuration:**
+- All services share a single Helm chart (`deploy/charts/demo`) with centralized `values.yaml`
+- Terraform passes runtime config (DB connection strings, OpenAI keys, domain, registry) via `helm_release` resource
+- Ingress annotations enable SSE/streaming (long‑lived connections for chat + MCP servers)
+- HorizontalPodAutoscalers defined for all services (CPU‑based scaling)
+- Services use liveness/readiness probes for rolling updates
+
+**Build & Push Pipeline:**
+Automated Python script (`deploy/azure/docker_build/build_and_push.py`) builds all images from `config.yaml` manifest, tags with commit SHA, and pushes to ACR. Terraform references ACR login server for image pull.
 
 ---
 
@@ -3107,7 +3140,148 @@ DF_META {
 
 ---
 
-## 35. Evaluation & Safety Framework
+## 35. Observability & Tracing
+
+The platform implements comprehensive distributed tracing using OpenTelemetry to provide end-to-end visibility across all application components, LLM interactions, and infrastructure layers.
+
+### 35.1. Application Instrumentation (OpenLLMetry)
+
+All backend services (DreamFarm Agent, Chef Agent, MCP servers, orchestration workflows) are instrumented with **OpenLLMetry** — an OpenTelemetry-native library for LLM observability that automatically captures:
+- LLM request/response spans (prompts, completions, token counts, latency)
+- Tool call execution traces
+- Retrieval operations (RAG, graph, memory searches)
+- Agent-to-agent communication flows
+- Error propagation and retry logic
+
+### 35.2. Business Dimensions
+
+Custom span attributes inject business context for filtering and analysis:
+
+| Attribute | Source | Purpose |
+|-----------|--------|---------|
+| `user_id` | JWT claims (authenticated user ID) | Per-user performance tracking, quota enforcement |
+| `is_vip` | JWT role claims | VIP experience monitoring, fencing validation |
+| `experiment` | Static configuration (e.g., "production") | A/B test segmentation, canary analysis (currently set to "production" for all requests) |
+| `thread_id` | Conversation session identifier | Multi-turn conversation tracing |
+| `agent_type` | Service label (dreamfarm/chef/orchestration) | Domain-specific performance analysis |
+
+These dimensions are propagated through all spans within a trace, enabling queries like:
+- "Show me all LLM calls for VIP users in the last hour"
+- "Compare latency between experiment groups"
+- "Trace a single conversation across multiple agents"
+
+### 35.3. Infrastructure Telemetry
+
+**NGINX Ingress Controller** (Kubernetes-deployed) has OpenTelemetry enabled with:
+- HTTP request/response tracing (status codes, latency, upstream timing)
+- Correlation with application spans via trace context propagation (W3C Trace Context headers)
+- TLS handshake metrics
+- Error rate monitoring
+
+### 35.4. OpenTelemetry Collector
+
+A centralized **OpenTelemetry Collector** pod runs in the Kubernetes cluster, serving as the aggregation and routing layer:
+- **Receivers**: OTLP gRPC endpoint for all application and infrastructure spans
+- **Processors**: Batch processing, attribute enrichment, sampling (if needed)
+- **Exporters**: Dual backend configuration for comprehensive observability
+
+Architecture:
+```
+[Apps + NGINX] --OTLP--> [OTel Collector] --+--> [SigNoz]
+                                            |
+                                            +--> [Langfuse]
+```
+
+### 35.5. Dual Backend Strategy
+
+The collector exports traces to two complementary backends (both deployed as simple Kubernetes pods without persistence for demo purposes):
+
+#### SigNoz (General APM)
+- **Purpose**: Traditional application performance monitoring
+- **Strengths**: Service maps, latency histograms, error rates, infrastructure correlation
+- **Use Cases**: DevOps troubleshooting, performance regression detection, SLA monitoring
+- **Deployment**: Single-container pod with in-memory storage (ephemeral)
+
+#### Langfuse (LLM-Focused Observability)
+- **Purpose**: LLM-specific analytics and quality monitoring
+- **Strengths**: Prompt/completion inspection, token cost tracking, model comparison, user feedback correlation
+- **Use Cases**: LLM quality analysis, prompt engineering, cost optimization, user experience debugging
+- **Integration**: Consumes OpenTelemetry spans **without requiring Langfuse SDK** in application code (OTLP-native)
+- **Deployment**: Single-container pod (ephemeral)
+
+**Rationale for Dual Backends**:
+- **Separation of Concerns**: SigNoz for traditional system health; Langfuse for LLM-specific insights
+- **Unified Instrumentation**: Applications only depend on OpenTelemetry/OpenLLMetry (no vendor lock-in)
+- **Complementary Views**: Correlate infrastructure issues (SigNoz) with LLM behavior anomalies (Langfuse)
+
+### 35.6. Configuration Example
+
+**Application (Environment Variables)**:
+```bash
+# OpenTelemetry Core
+OTEL_SERVICE_NAME=dreamfarm-agent
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+
+# Business Dimensions (injected into all spans)
+OTEL_RESOURCE_ATTRIBUTES=experiment=production
+
+# OpenLLMetry (auto-instrumentation for LLM libraries)
+TRACELOOP_BASE_URL=http://otel-collector:4317
+```
+
+**Collector Configuration** (simplified):
+```yaml
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  batch:
+    timeout: 10s
+
+exporters:
+  otlp/signoz:
+    endpoint: signoz:4317
+  otlp/langfuse:
+    endpoint: langfuse:4317
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp/signoz, otlp/langfuse]
+```
+
+### 35.7. Key Observability Queries
+
+Representative use cases enabled by this architecture:
+
+| Query | Backend | Purpose |
+|-------|---------|---------|
+| "95th percentile latency for semantic_search tool by VIP status" | SigNoz | Performance SLA validation |
+| "All failed LLM calls for user_id=abc123 in conversation thread xyz" | SigNoz | User-specific troubleshooting |
+| "Token consumption trend for Chef Agent over last 7 days" | Langfuse | Cost monitoring |
+| "Prompt versions with highest error rates" | Langfuse | Prompt quality regression detection |
+| "Trace path for multi-agent delegation (DreamFarm → Chef)" | SigNoz | Multi-service flow visualization |
+| "VIP users experiencing >5s response times" | SigNoz | User experience alerting |
+
+### 35.8. Future Enhancements
+
+Planned observability extensions:
+- **Sampling Strategies**: Intelligent trace sampling (100% errors, 10% success, 100% VIP users)
+- **Custom Metrics**: Token cost metrics, cache hit rates, tool execution counts
+- **Alerting**: Threshold-based alerts (error rate spikes, latency degradation)
+- **Persistent Storage**: Migrate SigNoz/Langfuse to production-grade persistence (PostgreSQL, ClickHouse)
+- **User Feedback Loop**: Correlate explicit user ratings with trace data in Langfuse
+- **Sensitive Data Redaction**: Processor rules to scrub PII from prompts/responses in exported traces
+
+---
+
+## 36. Evaluation & Safety Framework
 
 Manual/on-demand evaluation layer providing early quality + safety assurance using **DeepEval** (LLM-as-judge metrics) and **PyRIT** (red teaming). CI gates and runtime sampling are intentionally deferred to keep initial complexity low.
 
