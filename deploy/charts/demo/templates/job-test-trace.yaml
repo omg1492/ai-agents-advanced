@@ -1,0 +1,113 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: test-trace-sender
+  labels:
+    app: test-trace-sender
+spec:
+  ttlSecondsAfterFinished: 300  # Clean up after 5 minutes
+  template:
+    metadata:
+      labels:
+        app: test-trace-sender
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: trace-sender
+        image: python:3.11-slim
+        command:
+        - /bin/sh
+        - -c
+        - |
+          pip install opentelemetry-api opentelemetry-sdk opentelemetry-exporter-otlp-proto-grpc
+          python /app/send_trace.py
+        volumeMounts:
+        - name: script
+          mountPath: /app
+        env:
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector:4317"
+        - name: OTEL_SERVICE_NAME
+          value: "test-trace-service"
+      volumes:
+      - name: script
+        configMap:
+          name: test-trace-script
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: test-trace-script
+  labels:
+    app: test-trace-sender
+data:
+  send_trace.py: |
+    import time
+    from opentelemetry import trace
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk.resources import Resource
+    
+    # Configure the tracer provider
+    resource = Resource.create({
+        "service.name": "test-trace-service",
+        "environment": "kubernetes",
+        "test.type": "manual"
+    })
+    
+    provider = TracerProvider(resource=resource)
+    
+    # Configure OTLP exporter
+    otlp_exporter = OTLPSpanExporter(
+        endpoint="http://otel-collector:4317",
+        insecure=True
+    )
+    
+    # Add the exporter to the provider
+    provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+    
+    # Set the tracer provider
+    trace.set_tracer_provider(provider)
+    
+    # Get a tracer
+    tracer = trace.get_tracer(__name__)
+    
+    print("Sending test trace...")
+    
+    # Create a trace with multiple spans
+    with tracer.start_as_current_span("test-operation") as parent_span:
+        parent_span.set_attribute("operation.type", "test")
+        parent_span.set_attribute("test.id", "k8s-trace-test-001")
+        parent_span.add_event("Test operation started")
+        
+        time.sleep(0.1)
+        
+        # Create a child span
+        with tracer.start_as_current_span("database-query") as child_span:
+            child_span.set_attribute("db.system", "postgresql")
+            child_span.set_attribute("db.statement", "SELECT * FROM test_table")
+            time.sleep(0.05)
+            child_span.add_event("Query executed successfully")
+        
+        time.sleep(0.1)
+        
+        # Create another child span
+        with tracer.start_as_current_span("api-call") as child_span:
+            child_span.set_attribute("http.method", "POST")
+            child_span.set_attribute("http.url", "https://api.example.com/test")
+            child_span.set_attribute("http.status_code", 200)
+            time.sleep(0.05)
+            child_span.add_event("API call completed")
+        
+        parent_span.add_event("Test operation completed")
+    
+    print(f"Test trace sent successfully!")
+    print(f"Trace ID: {parent_span.get_span_context().trace_id:032x}")
+    print(f"Span ID: {parent_span.get_span_context().span_id:016x}")
+    
+    # Force flush to ensure all spans are sent
+    provider.force_flush()
+    time.sleep(2)  # Give some time for the export to complete
+    
+    print("Export completed. Check Grafana Tempo for the trace.")

@@ -3,24 +3,26 @@
 ## Implementation Checklist
 
 ### 1. OpenTelemetry Collector Deployment (Foundation)
-- [ ] Create Kubernetes deployment for OTel Collector (single replica)
-- [ ] Configure collector config map with OTLP receiver (port 4317), batch processor, console exporter initially
-- [ ] Expose collector service as ClusterIP on port 4317
-- **Test**: `kubectl logs -f <otel-collector-pod>` → should show "Collector started"
-- **Test**: `kubectl exec -it <any-pod> -- curl http://otel-collector:4317` → connection should succeed
+- [x] Create Kubernetes deployment for OTel Collector (single replica)
+- [x] Configure collector config map with OTLP receiver (port 4317), batch processor, console exporter initially
+- [x] Expose collector service as ClusterIP on port 4317
+- **Test**: `kubectl logs -f <otel-collector-pod>` → should show "Collector started" ✅
+- **Test**: `kubectl exec -it <any-pod> -- curl http://otel-collector:4317` → connection should succeed ✅
 
 ### 2. SigNoz Backend Deployment
-- [ ] Deploy SigNoz single-container pod (ephemeral, no persistence)
-- [ ] Expose SigNoz UI via Kubernetes service (LoadBalancer or port-forward for demo)
-- [ ] Configure OTLP receiver endpoint (port 4317)
-- **Test**: Access SigNoz UI (`kubectl port-forward svc/signoz 3301:3301`) → UI should load
-- **Test**: Check SigNoz readiness endpoint
+- [x] Deploy SigNoz single-container pod (ephemeral, no persistence)
+- [x] Expose SigNoz UI via Kubernetes service (LoadBalancer or port-forward for demo)
+- [x] Configure OTLP receiver endpoint (port 4317)
+- **Test**: Access SigNoz UI (`kubectl port-forward svc/signoz 3301:8080`) → UI should load ✅
+- **Test**: Check SigNoz readiness endpoint ✅
 
-### 3. Wire Collector → SigNoz
-- [ ] Update collector ConfigMap: add `otlp/signoz` exporter, update pipeline
-- [ ] Restart collector pod
-- **Test**: `kubectl logs -f <otel-collector-pod>` → should show successful connection to SigNoz
-- **Test**: Send manual test span via `curl` OTLP JSON to collector → verify appears in SigNoz UI
+### 3. Wire Collector → Tempo/Grafana (Replaced SigNoz)
+- [x] Deployed Grafana Tempo as distributed tracing backend
+- [x] Update collector ConfigMap: add `otlp/tempo` exporter pointing to tempo-distributor:4317
+- [x] Fixed Tempo replication_factor=1 for single-instance deployment
+- [x] Fixed Grafana datasource URL to point to tempo-query-frontend:3200
+- [x] **Test**: Send manual test span via job → ✅ trace visible in Grafana UI (span ID: e48578b317e1ca90dd67636048a9d646)
+- [x] **Test**: Verified OTel Collector → Tempo pipeline working without errors ✅
 
 ### 4. DreamFarm Agent Instrumentation (First App)
 - [ ] Add OpenLLMetry dependencies to `agents/dreamfarm-agent/pyproject.toml`

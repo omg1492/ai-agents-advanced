@@ -124,9 +124,15 @@ Deployment (local dev): Docker Compose runs: frontend, agent, PostgreSQL(+extens
 - VIP fencing at SQL query layer only (never trusting LLM filtering)
 
 ### 4.6. Observability
-- Streaming meta events
+- Streaming meta events (DF_META)
 - Structured INFO logs for retrieval/graph/memory metrics
-- Future: OpenTelemetry tracing; optional runtime drift / quality sampling service (post manual DeepEval phase)
+- **OpenTelemetry distributed tracing** with dual backends:
+  - **Grafana Tempo**: Distributed tracing backend with object storage (MinIO for demo)
+  - **Grafana**: Visualization, query interface, service graphs
+  - **Langfuse**: LLM-specific observability (prompts, tokens, quality)
+- Business dimensions (user_id, is_vip, experiment) propagated through all spans
+- NGINX ingress instrumentation for HTTP request tracing
+- Future: optional runtime drift / quality sampling service (post manual DeepEval phase)
 
 ---
 
@@ -3187,20 +3193,22 @@ A centralized **OpenTelemetry Collector** pod runs in the Kubernetes cluster, se
 
 Architecture:
 ```
-[Apps + NGINX] --OTLP--> [OTel Collector] --+--> [SigNoz]
+[Apps + NGINX] --OTLP--> [OTel Collector] --+--> [Grafana Tempo]
                                             |
                                             +--> [Langfuse]
 ```
 
 ### 35.5. Dual Backend Strategy
 
-The collector exports traces to two complementary backends (both deployed as simple Kubernetes pods without persistence for demo purposes):
+The collector exports traces to two complementary backends:
 
-#### SigNoz (General APM)
-- **Purpose**: Traditional application performance monitoring
-- **Strengths**: Service maps, latency histograms, error rates, infrastructure correlation
-- **Use Cases**: DevOps troubleshooting, performance regression detection, SLA monitoring
-- **Deployment**: Single-container pod with in-memory storage (ephemeral)
+#### Grafana Tempo (General APM - Distributed Tracing)
+- **Purpose**: High-scale distributed tracing backend for application performance monitoring
+- **Strengths**: Cost-efficient object storage (no indexing overhead), native OpenTelemetry support, seamless Grafana integration, mature ecosystem
+- **Use Cases**: DevOps troubleshooting, performance regression detection, service dependency mapping, trace search via Grafana UI
+- **Storage**: MinIO (S3-compatible) for demo; production can use Azure Blob, AWS S3, or GCS
+- **Architecture**: Distributed components (distributor, ingester, querier, compactor) for scalability
+- **Visualization**: Grafana provides query interface, service graphs, and trace exploration
 
 #### Langfuse (LLM-Focused Observability)
 - **Purpose**: LLM-specific analytics and quality monitoring
@@ -3210,9 +3218,10 @@ The collector exports traces to two complementary backends (both deployed as sim
 - **Deployment**: Single-container pod (ephemeral)
 
 **Rationale for Dual Backends**:
-- **Separation of Concerns**: SigNoz for traditional system health; Langfuse for LLM-specific insights
+- **Separation of Concerns**: Grafana Tempo for traditional system health & trace exploration; Langfuse for LLM-specific insights
 - **Unified Instrumentation**: Applications only depend on OpenTelemetry/OpenLLMetry (no vendor lock-in)
-- **Complementary Views**: Correlate infrastructure issues (SigNoz) with LLM behavior anomalies (Langfuse)
+- **Complementary Views**: Correlate infrastructure issues (Grafana/Tempo) with LLM behavior anomalies (Langfuse)
+- **Cloud-Agnostic**: Tempo with MinIO provides full demo without external cloud dependencies
 
 ### 35.6. Configuration Example
 
@@ -3243,8 +3252,10 @@ processors:
     timeout: 10s
 
 exporters:
-  otlp/signoz:
-    endpoint: signoz:4317
+  otlp/tempo:
+    endpoint: tempo-distributed-distributor:4317
+    tls:
+      insecure: true
   otlp/langfuse:
     endpoint: langfuse:4317
 
@@ -3253,7 +3264,7 @@ service:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp/signoz, otlp/langfuse]
+      exporters: [otlp/tempo, otlp/langfuse]
 ```
 
 ### 35.7. Key Observability Queries
@@ -3262,20 +3273,22 @@ Representative use cases enabled by this architecture:
 
 | Query | Backend | Purpose |
 |-------|---------|---------|
-| "95th percentile latency for semantic_search tool by VIP status" | SigNoz | Performance SLA validation |
-| "All failed LLM calls for user_id=abc123 in conversation thread xyz" | SigNoz | User-specific troubleshooting |
+| "95th percentile latency for semantic_search tool by VIP status" | Grafana/Tempo | Performance SLA validation |
+| "All failed LLM calls for user_id=abc123 in conversation thread xyz" | Grafana/Tempo | User-specific troubleshooting |
 | "Token consumption trend for Chef Agent over last 7 days" | Langfuse | Cost monitoring |
 | "Prompt versions with highest error rates" | Langfuse | Prompt quality regression detection |
-| "Trace path for multi-agent delegation (DreamFarm → Chef)" | SigNoz | Multi-service flow visualization |
-| "VIP users experiencing >5s response times" | SigNoz | User experience alerting |
+| "Trace path for multi-agent delegation (DreamFarm → Chef)" | Grafana/Tempo | Multi-service flow visualization |
+| "VIP users experiencing >5s response times" | Grafana/Tempo | User experience alerting |
 
 ### 35.8. Future Enhancements
 
 Planned observability extensions:
 - **Sampling Strategies**: Intelligent trace sampling (100% errors, 10% success, 100% VIP users)
-- **Custom Metrics**: Token cost metrics, cache hit rates, tool execution counts
-- **Alerting**: Threshold-based alerts (error rate spikes, latency degradation)
-- **Persistent Storage**: Migrate SigNoz/Langfuse to production-grade persistence (PostgreSQL, ClickHouse)
+- **Custom Metrics**: Token cost metrics, cache hit rates, tool execution counts (export to Prometheus/Mimir)
+- **Alerting**: Threshold-based alerts via Grafana Alerting (error rate spikes, latency degradation)
+- **Production Storage**: Migrate MinIO to Azure Blob Storage or AWS S3 for Tempo; persistent PostgreSQL for Langfuse
+- **Logs Integration**: Add Grafana Loki for log aggregation, correlate logs with traces via trace IDs
+- **Metrics Integration**: Add Grafana Mimir/Prometheus for metrics collection, complete LGTM stack
 - **User Feedback Loop**: Correlate explicit user ratings with trace data in Langfuse
 - **Sensitive Data Redaction**: Processor rules to scrub PII from prompts/responses in exported traces
 
