@@ -1570,7 +1570,108 @@ Consolidated (applies on top of Category 7):
 
 ---
 
-## 10. Quick Do / Avoid Matrix
+## 10. OpenTelemetry Instrumentation for OpenAI
+
+### 10.1 Responses API Streaming Not Emitting Traces
+
+**Symptom**: No OpenTelemetry spans appear in Grafana/Tempo when using OpenAI Responses API with streaming (`responses.create(..., stream=True)`)
+
+**Root Cause**: Standard OpenTelemetry instrumentation (`opentelemetry-instrumentation-openai`) doesn't support Responses API streaming yet ([GitHub Issue #3395](https://github.com/traceloop/openllmetry/issues/3395))
+
+**Fix**: Use OpenInference instrumentation temporarily until standard OTel fix is merged
+```python
+# Environment variable to control provider
+OTEL_INSTRUMENTATION_PROVIDER=openinference  # or "opentelemetry"
+
+# In src/main.py - conditional instrumentation
+otel_provider = os.getenv("OTEL_INSTRUMENTATION_PROVIDER", "opentelemetry").lower()
+
+if otel_provider == "openinference":
+    from openinference.instrumentation.openai import OpenAIInstrumentor
+    OpenAIInstrumentor().instrument(tracer_provider=provider)
+    print("[OK] OpenAI instrumented with OpenInference (Responses API streaming supported)")
+else:
+    from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+    OpenAIInstrumentor().instrument(tracer_provider=provider)
+    print("[OK] OpenAI instrumented with standard OpenTelemetry (awaiting Responses API streaming fix)")
+
+# In pyproject.toml - include both packages
+dependencies = [
+    "openinference-instrumentation-openai>=0.1.34",  # Supports streaming NOW
+    "opentelemetry-instrumentation-openai>=0.47.3",  # Standard conventions, awaiting fix
+]
+```
+
+**Kubernetes Deployment Configuration**:
+```yaml
+# deploy/charts/demo/templates/deployment-dreamfarm-agent.yaml
+env:
+  - name: OTEL_INSTRUMENTATION_PROVIDER
+    value: "openinference"  # Use until PR #3396 is merged
+```
+
+**Why Two Implementations**:
+- **OpenInference** (`openinference-instrumentation-openai`):
+  - ✅ Supports Responses API streaming NOW
+  - ⚠️ Uses custom semantic conventions (`llm.token_count.total` instead of `gen_ai.usage.total_tokens`)
+  - ⚠️ May not be fully compatible with Langfuse (expects standard OTel conventions)
+  
+- **Standard OTel** (`opentelemetry-instrumentation-openai`):
+  - ✅ Uses standard GenAI semantic conventions (full Langfuse compatibility)
+  - ❌ Doesn't support Responses API streaming yet (fix in [PR #3396](https://github.com/traceloop/openllmetry/pull/3396))
+  - 🔄 Switch to this once PR is merged
+
+**Semantic Convention Differences**:
+
+| Attribute | Standard OTel (GenAI) | OpenInference |
+|-----------|----------------------|---------------|
+| Input tokens | `gen_ai.usage.input_tokens` | `llm.token_count.input` |
+| Output tokens | `gen_ai.usage.output_tokens` | `llm.token_count.output` |
+| Total tokens | `gen_ai.usage.total_tokens` | `llm.token_count.total` |
+| Model name | `gen_ai.request.model` | `llm.model_name` |
+| Messages | `gen_ai.input.messages` | `llm.input_messages` |
+
+**How to Switch**:
+
+1. **Use OpenInference NOW** (Responses API streaming works):
+   ```bash
+   # .env or Kubernetes ConfigMap
+   OTEL_INSTRUMENTATION_PROVIDER=openinference
+   ```
+
+2. **Test Standard OTel** (once PR #3396 is merged):
+   ```bash
+   # .env or Kubernetes ConfigMap
+   OTEL_INSTRUMENTATION_PROVIDER=opentelemetry
+   ```
+
+3. **Verify in Grafana**:
+   - OpenInference: Look for `llm.token_count.total` attribute
+   - Standard OTel: Look for `gen_ai.usage.total_tokens` attribute
+
+**Troubleshooting**:
+- **No spans at all**: Check `OTEL_INSTRUMENTATION_PROVIDER` is set correctly
+- **Wrong attributes**: Verify which provider is actually loaded (check startup logs)
+- **Langfuse issues**: Standard OTel required for full compatibility (use after PR merge)
+
+**Migration Path**:
+1. **Current (Oct 2025)**: Use OpenInference (`OTEL_INSTRUMENTATION_PROVIDER=openinference`)
+2. **Monitor PR #3396**: https://github.com/traceloop/openllmetry/pull/3396
+3. **After Merge**: Switch to standard OTel (`OTEL_INSTRUMENTATION_PROVIDER=opentelemetry`)
+4. **Long-term**: Remove OpenInference dependency, keep only standard OTel
+
+**Prevention**: 
+- Always test observability with actual workloads before deploying
+- Monitor GitHub issues for instrumentation libraries
+- Keep both providers available during transition period
+
+**References**:
+- GitHub Issue: https://github.com/traceloop/openllmetry/issues/3395
+- Fix PR (OPEN): https://github.com/traceloop/openllmetry/pull/3396
+- OpenInference Docs: https://github.com/Arize-ai/openinference
+- OTel GenAI Conventions: https://opentelemetry.io/docs/specs/semconv/gen-ai/
+
+## 11. Quick Do / Avoid Matrix
 | Do | Avoid |
 |----|-------|
 | Single dollar‑quoted Cypher body | Mixing binds & colon tokens outside block |
@@ -1579,10 +1680,11 @@ Consolidated (applies on top of Category 7):
 | Explicit reasoning item ordering | Assuming function calls arrive self‑contained |
 | Dimension assertion on first embedding | Importing thousands then discovering mismatch |
 | Singleton manager for long‑lived browser resources | Storing sockets in transient React components |
+| **OpenInference for Responses API streaming NOW** | Waiting for standard OTel fix before observing traces |
 
 ---
 
-## 11. Minimal Cheat Sheet
+## 12. Minimal Cheat Sheet
 - Load env in tests: `load_dotenv()`.
 - Realtime (Azure): omit `type`, `model`, `output_modalities`.
 - Cypher: prefer 3‑arg; fallback 2‑arg; only `:graph` bound.
@@ -1593,9 +1695,10 @@ Consolidated (applies on top of Category 7):
 - Voice: external session manager.
 - FastMCP auth: always call `super().__init__(base_url=None)` in custom `TokenVerifier` subclass.
 - **PyRIT: use 0.9.0 API (`PromptSendingOrchestrator`, `send_prompts_async`); dedicated `/test/chat` endpoint; no custom timeout params.**
+- **OTel + OpenAI: Use `OTEL_INSTRUMENTATION_PROVIDER=openinference` until standard OTel PR #3396 merges; switch to `opentelemetry` for Langfuse compatibility.**
 
 ---
 
-## 12. Update Policy: Replace sections—do not append duplicates. If an older rule is superseded, edit the existing entry instead of adding a new one.
+## 13. Update Policy: Replace sections—do not append duplicates. If an older rule is superseded, edit the existing entry instead of adding a new one.
 
 

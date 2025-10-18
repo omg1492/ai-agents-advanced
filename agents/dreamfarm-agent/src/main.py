@@ -9,12 +9,143 @@ import json
 import secrets
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException, Request, Depends, status, Query, WebSocket, WebSocketDisconnect, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 import warnings
 
+# Load environment variables FIRST (before any other imports that might use them)
+load_dotenv()
+
+# Initialize OpenTelemetry tracing BEFORE importing any LLM libraries or services
+# This is critical for auto-instrumentation to work properly
+otel_enabled = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip() != ""
+if otel_enabled:
+    try:
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider, SpanProcessor
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.resources import Resource, SERVICE_NAME
+        from opentelemetry import context as otel_context
+        from opentelemetry.sdk.trace import ReadableSpan
+        
+        # Custom span processor to propagate context attributes to all child spans
+        class ContextAttributeSpanProcessor(SpanProcessor):
+            """Propagates context values to span attributes for all instrumentation layers."""
+            
+            def on_start(self, span: "Span", parent_context=None):
+                """Called when span starts - add context attributes."""
+                # Get custom dimensions from context and add to span
+                ctx = parent_context or otel_context.get_current()
+                
+                # Propagate user_id
+                user_id = otel_context.get_value("user_id", ctx)
+                if user_id:
+                    span.set_attribute("user_id", user_id)
+                
+                # Propagate is_vip
+                is_vip = otel_context.get_value("is_vip", ctx)
+                if is_vip is not None:
+                    span.set_attribute("is_vip", is_vip)
+                
+                # Propagate agent_type
+                agent_type = otel_context.get_value("agent_type", ctx)
+                if agent_type:
+                    span.set_attribute("agent_type", agent_type)
+                
+                # Propagate experiment
+                experiment = otel_context.get_value("experiment", ctx)
+                if experiment:
+                    span.set_attribute("experiment", experiment)
+                
+                # Propagate thread_id
+                thread_id = otel_context.get_value("thread_id", ctx)
+                if thread_id:
+                    span.set_attribute("thread_id", thread_id)
+            
+            def on_end(self, span: ReadableSpan):
+                """Called when span ends."""
+                pass
+            
+            def shutdown(self):
+                """Called on shutdown."""
+                pass
+            
+            def force_flush(self, timeout_millis: int = 30000):
+                """Called on force flush."""
+                pass
+        
+        service_name = os.getenv("OTEL_SERVICE_NAME", "dreamfarm-agent")
+        otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+        
+        # Create resource with service name
+        resource = Resource(attributes={
+            SERVICE_NAME: service_name
+        })
+        
+        # Configure tracer provider
+        provider = TracerProvider(resource=resource)
+        
+        # Add custom span processor to propagate context attributes
+        provider.add_span_processor(ContextAttributeSpanProcessor())
+        
+        # Add OTLP exporter with batch processor
+        otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
+        provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+        
+        # Set as global tracer provider
+        trace.set_tracer_provider(provider)
+        
+        # Instrument libraries BEFORE importing them
+        # Order matters: instrument before the library is imported
+        
+        # 1. OpenAI instrumentation (for LLM calls)
+        # Choose between OpenInference and standard OTel via environment variable
+        # Default: standard OTel (for future Langfuse compatibility)
+        # Set OTEL_INSTRUMENTATION_PROVIDER=openinference for OpenInference (works NOW with Responses API streaming)
+        otel_provider = os.getenv("OTEL_INSTRUMENTATION_PROVIDER", "opentelemetry").lower()
+        
+        if otel_provider == "openinference":
+            # OpenInference: Custom semantic conventions (llm.token_count.total, llm.model_name)
+            # ✅ Supports Responses API streaming NOW
+            # ⚠️ Non-standard conventions may not be fully compatible with Langfuse
+            from openinference.instrumentation.openai import OpenAIInstrumentor
+            OpenAIInstrumentor().instrument(tracer_provider=provider)
+            print("[OK] OpenAI instrumented with OpenInference (custom conventions, Responses API streaming supported)")
+        else:
+            # Standard OpenTelemetry: GenAI semantic conventions (gen_ai.usage.input_tokens, gen_ai.request.model)
+            # ✅ Standard conventions compatible with Langfuse and observability platforms
+            # ⚠️ Responses API streaming support pending (PR #3396: https://github.com/traceloop/openllmetry/pull/3396)
+            from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+            OpenAIInstrumentor().instrument(tracer_provider=provider)
+            print("[OK] OpenAI instrumented with standard OpenTelemetry (GenAI conventions, awaiting Responses API streaming fix)")
+        
+        print(f"[INFO] OTEL_INSTRUMENTATION_PROVIDER={otel_provider}")
+        
+        # 2. PostgreSQL instrumentation (for database queries)
+        # This must be done before psycopg2 connections are created
+        from opentelemetry.instrumentation.psycopg2 import Psycopg2Instrumentor
+        Psycopg2Instrumentor().instrument()
+        print("[OK] PostgreSQL (psycopg2) instrumented for database tracing")
+        
+        # 3. SQLAlchemy instrumentation (for ORM operations)
+        from opentelemetry.instrumentation.sqlalchemy import SQLAlchemyInstrumentor
+        SQLAlchemyInstrumentor().instrument()
+        print("[OK] SQLAlchemy instrumented for ORM tracing")
+        
+        print(f"[OK] OpenTelemetry initialized: service={service_name} endpoint={otlp_endpoint}")
+    except Exception as e:
+        print(f"[WARNING] OpenTelemetry initialization failed: {e}")
+        otel_enabled = False
+else:
+    print("[INFO] OpenTelemetry disabled (OTEL_EXPORTER_OTLP_ENDPOINT not set)")
+
+# NOW import FastAPI and other libraries AFTER Traceloop.init()
+# This ensures auto-instrumentation works for OpenAI, Anthropic, etc.
+from fastapi import FastAPI, HTTPException, Request, Depends, status, Query, WebSocket, WebSocketDisconnect, UploadFile, File
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+
+# Import models
 from src.models.health import HealthResponse
 from src.models.chat import ChatRequest, ChatResponse
 from src.models.file import FileUploadResponse
@@ -28,6 +159,8 @@ from src.models.thread import (
     Message as MessageModel,
     ThreadRenameRequest,
 )
+
+# Import services (these may import OpenAI, Anthropic, etc. - auto-instrumented now)
 from src.services.openai_service import OpenAIService
 from src.services.config_service import ConfigService
 from src.services.rag_service import RAGService
@@ -40,10 +173,6 @@ from src.services.conversation_store import ConversationStore
 from src.services.memory_search_service import MemorySearchService
 from src.services.user_profile_service import UserProfileService
 from src.services.voice_service import VoiceService
-
-
-# Load environment variables
-load_dotenv()
 
 # Suppress noisy Pydantic serializer warnings emitted by OpenAI SDK when streaming
 # MCP/tool events that don't match strict unions. These are benign and clutter logs.
@@ -308,6 +437,19 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Instrument FastAPI with OpenTelemetry (after app creation)
+if otel_enabled:
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        # Exclude health check endpoint from tracing (reduces noise)
+        FastAPIInstrumentor.instrument_app(
+            app,
+            excluded_urls="/health"  # Don't create spans for health checks
+        )
+        print("[OK] FastAPI instrumented with OpenTelemetry (excluding /health)")
+    except Exception as e:
+        print(f"[WARNING] FastAPI instrumentation failed: {e}")
+
 # Configure CORS
 cors_origins = os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",")
 app.add_middleware(
@@ -317,6 +459,74 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# OpenTelemetry business dimensions middleware
+@app.middleware("http")
+async def add_business_dimensions(request: Request, call_next):
+    """Add business context attributes to OpenTelemetry spans and propagate via context."""
+    if otel_enabled:
+        from opentelemetry import trace as otel_trace
+        from opentelemetry import context as otel_context
+        
+        span = otel_trace.get_current_span()
+        if span and span.is_recording():
+            # Set static agent_type dimension
+            span.set_attribute("agent_type", "dreamfarm")
+            
+            # Set experiment dimension (static for now, could be from config)
+            experiment = os.getenv("OTEL_EXPERIMENT", "production")
+            span.set_attribute("experiment", experiment)
+            
+            # Extract user context from Authorization header if present
+            user_id = "anonymous"
+            is_vip = False
+            
+            auth_header = request.headers.get("Authorization", "")
+            if auth_header.startswith("Bearer ") and auth_service is not None:
+                try:
+                    token = auth_header.split(" ", 1)[1].strip()
+                    claims = auth_service.validate(token)
+                    user_id, is_vip = auth_service.extract_identity(claims)
+                except Exception:
+                    pass  # Keep defaults
+            
+            # Set user dimensions on span
+            span.set_attribute("user_id", user_id)
+            span.set_attribute("is_vip", is_vip)
+            
+            # Propagate custom dimensions via OpenTelemetry context
+            # This makes them available to child spans (database, OpenAI, etc.)
+            ctx = otel_context.get_current()
+            ctx = otel_context.set_value("user_id", user_id, ctx)
+            ctx = otel_context.set_value("is_vip", is_vip, ctx)
+            ctx = otel_context.set_value("agent_type", "dreamfarm", ctx)
+            ctx = otel_context.set_value("experiment", experiment, ctx)
+            
+            # Extract thread_id from path if present (for /threads/{thread_id} endpoints)
+            path = request.url.path
+            if "/threads/" in path:
+                # Parse thread_id from path like /threads/{thread_id}/messages
+                parts = path.split("/")
+                if len(parts) > 2 and parts[1] == "threads":
+                    thread_id = parts[2]
+                    if thread_id:  # Not empty
+                        span.set_attribute("thread_id", thread_id)
+                        ctx = otel_context.set_value("thread_id", thread_id, ctx)
+            
+            # Execute request with propagated context
+            token_ctx = otel_context.attach(ctx)
+            try:
+                response = await call_next(request)
+                return response
+            finally:
+                otel_context.detach(token_ctx)
+        else:
+            response = await call_next(request)
+            return response
+    else:
+        response = await call_next(request)
+        return response
 
 
 @app.get("/health", response_model=HealthResponse)

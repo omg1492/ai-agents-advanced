@@ -81,6 +81,16 @@ resource "helm_release" "demo" {
     value = var.tavily_api_key
   }
 
+  # OpenTelemetry Configuration
+  # OpenAI Instrumentation Provider: Use "openinference" temporarily for Responses API streaming support
+  # Standard "opentelemetry" doesn't support Responses API streaming yet (awaiting PR #3396)
+  # Switch to "opentelemetry" once PR is merged for full Langfuse compatibility
+  # See: https://github.com/traceloop/openllmetry/pull/3396
+  set {
+    name  = "otel.instrumentationProvider"
+    value = "openinference"
+  }
+
   # Chef agent MCP URL (now via ingress)
   set {
     name  = "chefAgent.mcpUrl"

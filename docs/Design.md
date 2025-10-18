@@ -130,8 +130,17 @@ Deployment (local dev): Docker Compose runs: frontend, agent, PostgreSQL(+extens
   - **Grafana Tempo**: Distributed tracing backend with object storage (MinIO for demo)
   - **Grafana**: Visualization, query interface, service graphs
   - **Langfuse**: LLM-specific observability (prompts, tokens, quality)
-- Business dimensions (user_id, is_vip, experiment) propagated through all spans
-- NGINX ingress instrumentation for HTTP request tracing
+- **Auto-instrumentation stack**:
+  - **OpenAI**: Direct `OpenAIInstrumentor().instrument()` (no Traceloop SDK wrapper)
+    - Captures LLM calls with gen_ai.* semantic conventions
+    - Full prompt/completion content logging enabled via `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true`
+    - Token usage, model parameters, finish reasons
+  - **PostgreSQL**: `opentelemetry-instrumentation-psycopg` for database query spans
+  - **SQLAlchemy**: `opentelemetry-instrumentation-sqlalchemy` for ORM-level tracing
+  - **FastAPI**: HTTP request spans with route, method, status codes
+  - **NGINX Ingress**: Root HTTP spans with W3C Trace Context propagation
+- Business dimensions (user_id, is_vip, experiment, thread_id, agent_type) propagated through all spans via custom middleware
+- Custom TracerProvider with OTLP exporter to OTel Collector (gRPC, port 4317)
 - Future: optional runtime drift / quality sampling service (post manual DeepEval phase)
 
 ---

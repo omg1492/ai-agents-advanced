@@ -23,6 +23,24 @@ spec:
           containerPort: 8001
           protocol: TCP
         env:
+        # OpenTelemetry Configuration
+        - name: OTEL_SERVICE_NAME
+          value: "dreamfarm-agent"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector:4317"
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: "grpc"
+        - name: OTEL_TRACES_EXPORTER
+          value: "otlp"
+        - name: OTEL_EXPERIMENT
+          value: "production"
+        # OpenAI Instrumentation Provider: "opentelemetry" (standard, future Langfuse) or "openinference" (works NOW with Responses API)
+        # Default: "opentelemetry", Override to "openinference" until PR #3396 is merged
+        - name: OTEL_INSTRUMENTATION_PROVIDER
+          value: {{ .Values.otel.instrumentationProvider | quote }}
+        # Enable full prompt/completion content logging (caution: may include sensitive data)
+        - name: OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT
+          value: "true"
         # OpenAI Configuration
         - name: OPENAI_API_KEY
           valueFrom:

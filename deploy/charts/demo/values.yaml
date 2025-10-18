@@ -50,6 +50,14 @@ keycloak:
 tavily:
   apiKey: ""  # Set via Terraform (sensitive)
 
+# OpenTelemetry configuration
+otel:
+  # OpenAI Instrumentation Provider: "opentelemetry" (standard GenAI conventions) or "openinference" (custom conventions)
+  # Default: "opentelemetry" (future Langfuse compatibility)
+  # Use "openinference" temporarily for Responses API streaming support until PR #3396 is merged
+  # See: https://github.com/traceloop/openllmetry/pull/3396
+  instrumentationProvider: "opentelemetry"
+
 # Chef agent specific configuration
 chefAgent:
   mcpUrl: ""  # Set via Terraform to https://mcp-chef-services.domain/mcp

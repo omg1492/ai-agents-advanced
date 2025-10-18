@@ -4,6 +4,73 @@ This document tracks key implementation decisions, architectural patterns, and c
 
 ---
 
+## OpenTelemetry & Observability
+
+### 2025-10-17: Dual OpenAI Instrumentation Support (OpenInference + Standard OTel)
+
+**Summary**: Implemented environment-based switching between OpenInference and standard OpenTelemetry instrumentation for OpenAI to enable immediate Responses API streaming support while maintaining future compatibility with Langfuse.
+
+**Problem**: 
+- Standard OpenTelemetry (`opentelemetry-instrumentation-openai`) doesn't support Responses API streaming yet ([Issue #3395](https://github.com/traceloop/openllmetry/issues/3395))
+- Fix PR ([#3396](https://github.com/traceloop/openllmetry/pull/3396)) submitted but not yet merged
+- OpenInference (`openinference-instrumentation-openai`) supports Responses API streaming NOW but uses custom semantic conventions
+- Langfuse expects standard GenAI conventions (`gen_ai.usage.*`) for full compatibility
+
+**Solution**: Implemented dual instrumentation support with environment-based selection:
+
+1. **Code Changes (`agents/dreamfarm-agent/src/main.py`)**:
+   ```python
+   otel_provider = os.getenv("OTEL_INSTRUMENTATION_PROVIDER", "opentelemetry").lower()
+   
+   if otel_provider == "openinference":
+       from openinference.instrumentation.openai import OpenAIInstrumentor
+       OpenAIInstrumentor().instrument(tracer_provider=provider)
+   else:
+       from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+       OpenAIInstrumentor().instrument(tracer_provider=provider)
+   ```
+
+2. **Dependencies (`pyproject.toml`)**:
+   - Added both packages: `openinference-instrumentation-openai>=0.1.34` and `opentelemetry-instrumentation-openai>=0.47.3`
+   - Documented purpose in inline comments
+
+3. **Kubernetes Deployment (`deploy/charts/demo/templates/deployment-dreamfarm-agent.yaml`)**:
+   - Added `OTEL_INSTRUMENTATION_PROVIDER=openinference` environment variable
+   - Set to OpenInference by default until standard OTel fix is merged
+
+**Semantic Convention Differences**:
+
+| Attribute | Standard OTel | OpenInference |
+|-----------|---------------|---------------|
+| Input tokens | `gen_ai.usage.input_tokens` | `llm.token_count.input` |
+| Output tokens | `gen_ai.usage.output_tokens` | `llm.token_count.output` |
+| Total tokens | `gen_ai.usage.total_tokens` | `llm.token_count.total` |
+| Model | `gen_ai.request.model` | `llm.model_name` |
+| Messages | `gen_ai.input.messages` | `llm.input_messages` |
+
+**Migration Plan**:
+1. **Current (Oct 2025)**: Use OpenInference (`OTEL_INSTRUMENTATION_PROVIDER=openinference`) - Responses API streaming works NOW
+2. **Future (Q1 2026)**: Switch to standard OTel (`OTEL_INSTRUMENTATION_PROVIDER=opentelemetry`) - Once PR #3396 is merged
+3. **Long-term**: Remove OpenInference dependency, keep only standard OTel for Langfuse compatibility
+
+**Deployment Status**:
+- ✅ DreamFarm Agent: Configured to use OpenInference (Responses API streaming supported)
+- ⏳ Chef Agent: Needs same implementation (tracked in plan.md)
+- ⏳ MCP Servers: Needs same implementation (tracked in plan.md)
+
+**Documentation Updated**:
+- `agents/dreamfarm-agent/README.md`: Added OpenAI Instrumentation Provider section with decision rationale
+- `docs/CommonErrors.md`: Added section explaining the issue and workaround
+- `lessons/L10-deployment/plan.md`: Added note to implement in all services
+
+**References**:
+- GitHub Issue: https://github.com/traceloop/openllmetry/issues/3395
+- Fix PR: https://github.com/traceloop/openllmetry/pull/3396
+- OpenInference Docs: https://github.com/Arize-ai/openinference
+- OpenTelemetry GenAI Conventions: https://opentelemetry.io/docs/specs/semconv/gen-ai/
+
+---
+
 ## Kubernetes Deployment & Networking
 
 ### 2025-01-15: Dreamfarm Agent and Keycloak Deployment

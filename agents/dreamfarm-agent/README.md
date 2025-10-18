@@ -52,6 +52,13 @@ This is the main AI agent for the Advanced AI Applications course. It provides a
    OPENAI_MODEL=gpt-5
    CORS_ORIGINS=http://localhost:3000
 
+   # OpenTelemetry Configuration (for distributed tracing)
+   OTEL_SERVICE_NAME=dreamfarm-agent
+   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+   OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+   OTEL_TRACES_EXPORTER=otlp
+   OTEL_EXPERIMENT=production
+
    # RAG Configuration (requires PostgreSQL + pgvector)
    ENABLE_RAG=true
    PGHOST=localhost
@@ -68,6 +75,13 @@ This is the main AI agent for the Advanced AI Applications course. It provides a
    OPENAI_API_VERSION=preview
    OPENAI_MODEL=your-deployment-name  # use your Azure deployment name
    CORS_ORIGINS=http://localhost:3000
+
+   # OpenTelemetry Configuration (for distributed tracing)
+   OTEL_SERVICE_NAME=dreamfarm-agent
+   OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+   OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+   OTEL_TRACES_EXPORTER=otlp
+   OTEL_EXPERIMENT=production
 
    # RAG Configuration (requires PostgreSQL + pgvector)
    ENABLE_RAG=true
@@ -109,6 +123,78 @@ Behavior:
 - If `AUTH_ENABLED=false`, endpoints skip validation (development fallback).
 
 Current scope (dev): No refresh endpoint, no per-route RBAC decisions yet—only identity extraction and logging foundation for later RAG fencing.
+
+### Observability & Distributed Tracing (OpenTelemetry)
+
+The agent is instrumented with OpenTelemetry for comprehensive distributed tracing:
+
+**OpenAI Instrumentation Provider:**
+
+The agent supports two OpenTelemetry instrumentation implementations for OpenAI tracing:
+
+1. **Standard OpenTelemetry (`opentelemetry-instrumentation-openai`)** - *Future Default*
+   - Uses standard GenAI semantic conventions (`gen_ai.usage.input_tokens`, `gen_ai.request.model`)
+   - ✅ Full compatibility with Langfuse and observability platforms
+   - ⚠️ **Responses API streaming support pending** - [PR #3396](https://github.com/traceloop/openllmetry/pull/3396) not yet merged
+   - **Use when**: Langfuse integration is required OR after PR #3396 is merged
+
+2. **OpenInference (`openinference-instrumentation-openai`)** - *Current Default*
+   - Uses custom semantic conventions (`llm.token_count.total`, `llm.model_name`)
+   - ✅ **Supports Responses API streaming NOW** (including `responses.parse()`)
+   - ⚠️ Non-standard conventions may have limited Langfuse compatibility
+   - **Use when**: You need Responses API tracing immediately (recommended until standard OTel fix)
+
+**Configuration:**
+```env
+# Choose instrumentation provider (default: opentelemetry)
+OTEL_INSTRUMENTATION_PROVIDER=openinference  # Use until PR #3396 is merged
+# OTEL_INSTRUMENTATION_PROVIDER=opentelemetry  # Switch to this once standard OTel supports Responses API streaming
+```
+
+**Why Two Implementations?**
+
+OpenAI's Responses API with streaming (`responses.create(..., stream=True)`) is currently only supported by OpenInference. The standard OpenTelemetry instrumentation has an open PR ([#3396](https://github.com/traceloop/openllmetry/issues/3395)) to add this support. Once merged, we recommend switching to standard OTel for better ecosystem compatibility, especially with Langfuse.
+
+**Features:**
+- Automatic HTTP request/response tracing (via FastAPI instrumentation)
+- LLM call tracing with token counts and latency (provider-dependent semantic conventions)
+- Tool execution traces (RAG searches, MCP calls, etc.)
+- Custom business dimensions for filtering and analysis
+
+**Business Dimensions Injected:**
+The agent automatically adds these span attributes to every trace:
+- `user_id` - Username from JWT claims (or "anonymous" if unauthenticated)
+- `is_vip` - VIP status from JWT role claims (true/false)
+- `thread_id` - Conversation session identifier (from thread endpoints)
+- `agent_type` - Static value "dreamfarm" to distinguish from other agents
+- `experiment` - Environment identifier (default "production", configurable via `OTEL_EXPERIMENT`)
+
+**Configuration:**
+```env
+# Enable OpenTelemetry tracing
+OTEL_SERVICE_NAME=dreamfarm-agent
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317  # or http://localhost:4317 for local dev
+OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+OTEL_TRACES_EXPORTER=otlp
+OTEL_EXPERIMENT=production  # or staging, canary, etc.
+```
+
+**Local Development:**
+To test tracing locally:
+1. Port-forward the OTel Collector: `kubectl port-forward svc/otel-collector 4317:4317`
+2. Set `OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317` in your `.env`
+3. Run the agent and make requests
+4. View traces in Grafana: https://grafana.dreamfarm.tomasdemo.org
+
+**Observability Queries Enabled:**
+- "Show all LLM calls for user_id=xyz"
+- "Compare latency between VIP and non-VIP users"
+- "Trace a conversation across multiple turns (thread_id)"
+- "Find all requests for experiment=canary"
+- "95th percentile latency for dreamfarm agent"
+
+**Disabling Tracing:**
+If you don't want tracing (e.g., for local experiments), simply don't set `OTEL_EXPORTER_OTLP_ENDPOINT` or set it to an empty string.
 
 ### Optional: Remote MCP Tools (Farmer Tools)
 
@@ -304,6 +390,7 @@ curl -X POST http://localhost:8001/threads/{thread_id}/messages \
 - **SQLAlchemy**: Database ORM for vector operations
 - **Jinja2**: Template engine for dynamic prompt generation
 - **Responses API**: /chat endpoint using server-managed state; lightweight `/threads` for session handles and UI-only history
+- **OpenTelemetry + Traceloop**: Distributed tracing with LLM observability (optional)
 
 ## Development
 
