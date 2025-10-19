@@ -18,6 +18,8 @@ dependencies = [
     "opentelemetry-sdk>=1.20.0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",
     # OpenTelemetry auto-instrumentation libraries
+    "opentelemetry-distro>=0.41b0",
+    "opentelemetry-instrumentation>=0.41b0",
     "opentelemetry-instrumentation-fastapi>=0.41b0",
     # Dual OpenAI instrumentation providers (switch via env var)
     "openinference-instrumentation-openai>=0.1.34",

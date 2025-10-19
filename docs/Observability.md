@@ -185,6 +185,97 @@ OTEL_INSTRUMENTATION_PROVIDER=openinference
 
 ## Implementation Details
 
+### Consolidated Tracing Module
+
+To improve code readability and maintainability, all tracing initialization logic has been consolidated into a single reusable module: `utils/otel_tracing.py` (or `src/utils/otel_tracing.py` for agents with `src/` structure).
+
+**Key Components**:
+
+```python
+# utils/otel_tracing.py
+
+class ContextAttributeSpanProcessor(SpanProcessor):
+    """Propagates context attributes (user_id, is_vip, agent_type, experiment)
+    to all spans in the trace tree."""
+    
+    def on_start(self, span, parent_context=None):
+        # Automatically inject business dimensions into every span
+        # See "Custom Business Dimensions" section below
+
+def configure_otel_tracing(
+    service_name: str,
+    otlp_endpoint: str,
+    instrument_openai: bool = False,
+    instrument_psycopg2: bool = False,
+    instrument_sqlalchemy: bool = False
+) -> bool:
+    """One-function tracing initialization.
+    
+    Configures:
+    1. TracerProvider with service name resource
+    2. ContextAttributeSpanProcessor for business dimensions
+    3. OTLP exporter (gRPC) to collector
+    4. Conditional auto-instrumentation based on flags
+    
+    Returns True if successful, False otherwise.
+    """
+```
+
+**Simplified Service Initialization** (before, ~150 lines → after, ~20 lines):
+
+```python
+# Load environment variables FIRST
+load_dotenv()
+
+service_name = os.getenv("OTEL_SERVICE_NAME", "dreamfarm-agent")
+otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+otel_enabled = otlp_endpoint != ""
+
+if otel_enabled:
+    try:
+        # All tracing setup in one function call
+        from src.utils.otel_tracing import configure_otel_tracing
+        configure_otel_tracing(
+            service_name=service_name,
+            otlp_endpoint=otlp_endpoint,
+            instrument_openai=True,        # Enable for services using OpenAI
+            instrument_psycopg2=True,      # Enable for services using psycopg2
+            instrument_sqlalchemy=True     # Enable for services using SQLAlchemy
+        )
+        print(f"[OK] OpenTelemetry tracing initialized: service={service_name}")
+        
+        # Configure logging + metrics (see respective sections)
+        from src.utils.otel_logging import configure_otel_logging
+        logger = configure_otel_logging(service_name, otlp_endpoint)
+        
+        from src.utils.otel_metrics import configure_otel_metrics
+        meter_provider, meter = configure_otel_metrics(service_name, otlp_endpoint)
+        
+    except Exception as e:
+        print(f"[WARNING] OpenTelemetry initialization failed: {e}")
+        otel_enabled = False
+
+# NOW import FastAPI and other libraries AFTER initialization
+from fastapi import FastAPI
+```
+
+**Service-Specific Instrumentation Flags**:
+
+| Service | OpenAI | psycopg2 | SQLAlchemy | Notes |
+|---------|--------|----------|------------|-------|
+| **dreamfarm-agent** | ✅ | ✅ | ✅ | Full stack (LLM + DB + ORM) |
+| **chef-agent** | ✅ | ❌ | ❌ | LLM only (remote MCP tools) |
+| **api_stock** | ❌ | ✅ | ❌ | Database only (raw SQL) |
+| **mcp_chef_services** | ❌ | ❌ | ❌ | Pure logic (mock data) |
+| **mcp_public_farmer_tools** | ❌ | ❌ | ❌ | Pure logic (mock data) |
+| **mcp_visualization_generator** | ✅ | ❌ | ❌ | LLM only (HTML generation) |
+
+**Benefits**:
+- **Code Reduction**: ~600 lines of duplicated code eliminated across 6 services
+- **Consistency**: All services use identical tracing setup
+- **Maintainability**: Single source of truth for tracing configuration
+- **Flexibility**: Service-specific instrumentation via boolean flags
+
 ### Initialization Order (Critical!)
 
 OpenTelemetry auto-instrumentation **must** be initialized **before** importing instrumented libraries. Our implementation follows this strict order:
@@ -193,23 +284,17 @@ OpenTelemetry auto-instrumentation **must** be initialized **before** importing 
 # 1. Load environment variables FIRST
 load_dotenv()
 
-# 2. Initialize OpenTelemetry TracerProvider
-from opentelemetry.sdk.trace import TracerProvider
-provider = TracerProvider(resource=Resource({SERVICE_NAME: "dreamfarm-agent"}))
-trace.set_tracer_provider(provider)
+# 2. Initialize OpenTelemetry TracerProvider via consolidated module
+from src.utils.otel_tracing import configure_otel_tracing
+configure_otel_tracing(
+    service_name="dreamfarm-agent",
+    otlp_endpoint="http://otel-collector:4317",
+    instrument_openai=True,
+    instrument_psycopg2=True,
+    instrument_sqlalchemy=True
+)
 
-# 3. Add OTLP exporter
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-otlp_exporter = OTLPSpanExporter(endpoint="http://otel-collector:4317", insecure=True)
-provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
-
-# 4. Instrument libraries BEFORE importing them
-# Order: OpenAI → PostgreSQL → SQLAlchemy
-OpenAIInstrumentor().instrument(tracer_provider=provider)
-Psycopg2Instrumentor().instrument()
-SQLAlchemyInstrumentor().instrument()
-
-# 5. NOW import FastAPI and services (auto-instrumentation active)
+# 3. NOW import FastAPI and services (auto-instrumentation active)
 from fastapi import FastAPI
 from src.services.openai_service import OpenAIService
 ```
@@ -774,6 +859,344 @@ kubectl rollout restart deployment/dreamfarm-agent
 
 ---
 
+## Complete LGTM Stack (Loki, Grafana, Tempo, Metrics)
+
+### Enhanced Architecture with Logs and Metrics
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                      Python Applications                         │
+│   - DreamFarm Agent    - API Stock         - MCP Servers        │
+│   - Chef Agent                                                   │
+│                                                                   │
+│   Instrumentation:                                               │
+│   • OpenTelemetry Traces (spans with context)                   │
+│   • OpenTelemetry Logs (structured JSON + trace correlation)    │
+│   • OpenTelemetry Metrics (FastAPI + custom business metrics)   │
+└────────────────────────────┬────────────────────────────────────┘
+                             │
+                             │ OTLP/gRPC (port 4317)
+                             │ OTLP/HTTP (port 4318)
+                             ▼
+┌─────────────────────────────────────────────────────────────────┐
+│              OpenTelemetry Collector (Centralized)              │
+│                                                                   │
+│  Receivers: OTLP (gRPC/HTTP) for traces, logs, metrics         │
+│  Processors: Batch, Resource, Memory Limiter                    │
+│  Exporters: OTLP to Tempo, OTLP HTTP to Loki,                  │
+│             Prometheus Remote Write                              │
+└──────────────┬──────────────┬──────────────┬────────────────────┘
+               │              │              │
+               ▼              ▼              ▼
+   ┌───────────────┐  ┌──────────────┐  ┌─────────────────┐
+   │  Grafana Tempo │  │ Grafana Loki │  │  Prometheus     │
+   │  (Traces)      │  │ (Logs)       │  │  (Metrics)      │
+   │                │  │              │  │                 │
+   │  • Trace       │  │  • Structured│  │  • HTTP metrics │
+   │    storage     │  │    logs      │  │  • LLM metrics  │
+   │  • Service     │  │  • Trace     │  │  • Cache hits   │
+   │    graphs      │  │    correlation│  │  • DB queries  │
+   │  • TraceQL     │  │  • LogQL     │  │  • PromQL       │
+   └────────┬──────┘  └──────┬───────┘  └────────┬────────┘
+            │                │                    │
+            └────────────────┴────────────────────┘
+                             ▼
+                    ┌─────────────────┐
+                    │  Grafana        │
+                    │  (Unified UI)   │
+                    │                 │
+                    │  • Dashboards   │
+                    │  • Correlation  │
+                    │  • Explore      │
+                    └─────────────────┘
+```
+
+### Components
+
+| Component | Purpose | Storage | Retention | Access |
+|-----------|---------|---------|-----------|--------|
+| **Loki** | Log aggregation | MinIO (S3) | 7 days | http://loki:3100 |
+| **Grafana** | Visualization | PVC (5Gi) | N/A | https://grafana.{domain} |
+| **Tempo** | Distributed tracing | MinIO (S3) | Default | http://tempo-query-frontend:3200 |
+| **Prometheus** | Metrics | PVC (10Gi) | 7 days | http://prometheus-...:9090 |
+
+---
+
+## Structured Logging with Trace Correlation
+
+### Overview
+
+All Python applications use structured JSON logging with automatic trace correlation. This enables:
+- Jump from logs to traces and back
+- Filter logs by trace_id or span_id
+- Correlate errors across services
+
+### Log Format
+
+```json
+{
+  "timestamp": "2025-10-19T14:30:45",
+  "service": "dreamfarm-agent",
+  "level": "INFO",
+  "message": "Processing RAG search for user query",
+  "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+  "span_id": "00f067aa0ba902b7",
+  "filename": "rag_service.py",
+  "lineno": 125
+}
+```
+
+### Implementation
+
+Logging is configured via `utils/otel_logging.py` (or `src/utils/otel_logging.py` for agents):
+
+```python
+from utils.otel_logging import configure_otel_logging
+
+# Configure OpenTelemetry logging (OTLP export + trace correlation)
+logger = configure_otel_logging()
+
+# Use standard Python logging
+logger.info("User query received", extra={"query_length": len(query)})
+logger.error("Database connection failed", exc_info=True)
+```
+
+**Features:**
+- Automatically exports logs via OTLP to OTel Collector
+- Injects `trace_id` and `span_id` into every log record within a span context
+- Supports structured extra fields (e.g., `query_length`, `user_id`)
+- Falls back to console logging if OTLP export fails
+
+### Querying Logs in Grafana
+
+**LogQL Examples:**
+
+```logql
+# Find all ERROR logs from dreamfarm-agent
+{service_name="dreamfarm-agent"} | json | level="ERROR"
+
+# Find logs for a specific trace
+{service_name="dreamfarm-agent"} | json | trace_id="4bf92f3577b34da6a3ce929d0e0e4736"
+
+# Find logs mentioning "database" with trace correlation
+{service_name="api-stock"} |= "database" | json
+```
+
+**Trace Correlation:**
+In Grafana Explore, clicking a log entry with `trace_id` will show a "Tempo" link to jump directly to the full distributed trace.
+
+---
+
+## Metrics Collection
+
+### Overview
+
+All Python applications export custom business metrics and HTTP server metrics via OpenTelemetry. Metrics are sent to Prometheus via the OTel Collector's remote write exporter.
+
+### Metrics Available
+
+**HTTP Metrics (Auto-instrumented):**
+- `http_server_duration` (histogram): Request duration by method, route, status
+- `http_server_request_count` (counter): Total requests by service, method, route
+
+**Custom Business Metrics:**
+- `llm_requests_total` (counter): LLM API calls by model, provider
+- `llm_tokens_total` (counter): Token usage (prompt + completion) by model
+- `cache_hits_total` (counter): Semantic cache hits vs misses
+- `active_connections` (gauge): Current active HTTP connections
+- `session_count` (gauge): Active user sessions
+- `database_query_duration` (histogram): Database query latency
+
+### Implementation
+
+Metrics are configured via `utils/otel_metrics.py`:
+
+```python
+from utils.otel_metrics import (
+    configure_otel_metrics,
+    create_custom_metrics,
+    instrument_fastapi_metrics
+)
+
+# Configure OpenTelemetry metrics (OTLP export)
+meter_provider, meter = configure_otel_metrics()
+metrics = create_custom_metrics(meter)
+
+# Instrument FastAPI with custom HTTP metrics
+instrument_fastapi_metrics(app, meter)
+
+# Record custom metrics
+metrics["llm_requests_total"].add(1, {"model": "gpt-5", "provider": "azure"})
+metrics["llm_tokens_total"].add(prompt_tokens + completion_tokens, {"model": "gpt-5"})
+metrics["cache_hits_total"].add(1, {"hit": "true"})
+```
+
+### Querying Metrics in Grafana
+
+**PromQL Examples:**
+
+```promql
+# Request rate per service
+rate(http_server_request_count[5m])
+
+# P95 request latency by service
+histogram_quantile(0.95, rate(http_server_duration_bucket[5m]))
+
+# LLM token usage per minute
+rate(llm_tokens_total[1m])
+
+# Cache hit rate
+rate(cache_hits_total{hit="true"}[5m]) / rate(cache_hits_total[5m])
+
+# Active database connections
+database_connections{state="active"}
+```
+
+### Grafana Dashboards
+
+Default dashboards include:
+- **HTTP Overview**: Request rate, latency, error rate by service
+- **LLM Usage**: Token consumption, model distribution, API call rate
+- **System Health**: Memory, CPU, active connections, cache performance
+- **Business Metrics**: User sessions, feature usage, A/B test metrics
+
+---
+
+## Data Correlation Strategy
+
+### Logs ↔ Traces
+
+**From Logs to Traces:**
+- Grafana Loki automatically detects `trace_id` field in JSON logs
+- Clicking a log entry shows "Tempo" button to jump to trace
+- Configured via Grafana datasource `derivedFields`
+
+**From Traces to Logs:**
+- Tempo spans include `service.name` attribute
+- Grafana Explore shows "Logs for this span" link
+- Configured via Grafana datasource `tracesToLogsV2`
+
+### Metrics ↔ Traces (Exemplars)
+
+**Prometheus Exemplars:**
+- Histogram metrics include trace_id as exemplar
+- Clicking a metric data point jumps to corresponding trace
+- Enabled via `exemplarTraceIdDestinations` in Grafana datasource
+
+**Use Cases:**
+- Identify slow requests causing P99 latency spikes
+- Debug high error rates by inspecting failing traces
+- Correlate resource exhaustion with specific user sessions
+
+---
+
+## Environment Configuration
+
+All services require these environment variables to enable logs and metrics:
+
+```bash
+# Enable OpenTelemetry exporters
+OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+OTEL_TRACES_EXPORTER=otlp
+OTEL_LOGS_EXPORTER=otlp         # NEW: Enables structured logging
+OTEL_METRICS_EXPORTER=otlp      # NEW: Enables metrics export
+OTEL_EXPERIMENT=production
+```
+
+See [ConfigurationReference.md](./ConfigurationReference.md) for complete variable list.
+
+---
+
+## Deployment
+
+### Terraform Infrastructure
+
+Loki and Prometheus are deployed via Terraform Helm releases:
+
+```hcl
+# deploy/azure/infrastructure/kubernetes.grafana.tf
+
+# Loki deployment
+resource "helm_release" "loki" {
+  name       = "loki"
+  repository = "https://grafana.github.io/helm-charts"
+  chart      = "loki"
+  version    = "6.26.0"
+  # MinIO storage, 7-day retention, OTLP receiver on :3100
+}
+
+# Prometheus deployment
+resource "helm_release" "prometheus" {
+  name       = "prometheus"
+  repository = "https://prometheus-community.github.io/helm-charts"
+  chart      = "kube-prometheus-stack"
+  version    = "67.5.1"
+  # 10Gi PVC, remote write enabled, 7-day retention
+}
+```
+
+### OTel Collector Configuration
+
+The collector routes telemetry signals to appropriate backends:
+
+```yaml
+# deploy/charts/demo/templates/configmap-otel-collector.yaml
+
+receivers:
+  otlp:
+    protocols:
+      grpc: { endpoint: "0.0.0.0:4317" }
+      http: { endpoint: "0.0.0.0:4318" }
+
+exporters:
+  otlp/tempo:  # Traces to Tempo
+    endpoint: tempo-distributor.default.svc.cluster.local:4317
+  otlphttp/loki:  # Logs to Loki
+    endpoint: http://loki.default.svc.cluster.local:3100/otlp
+  prometheusremotewrite:  # Metrics to Prometheus
+    endpoint: http://prometheus-kube-prometheus-prometheus.default.svc.cluster.local:9090/api/v1/write
+
+service:
+  pipelines:
+    traces:   { receivers: [otlp], processors: [...], exporters: [otlp/tempo] }
+    logs:     { receivers: [otlp], processors: [...], exporters: [otlphttp/loki] }
+    metrics:  { receivers: [otlp], processors: [...], exporters: [prometheusremotewrite] }
+```
+
+---
+
+## Operational Best Practices
+
+### 1. **Use Structured Logging**
+- Always use `logger.info()` / `logger.error()` instead of `print()`
+- Add structured context via `extra={"key": "value"}`
+- Let trace correlation happen automatically (no manual trace_id injection)
+
+### 2. **Monitor Key Metrics**
+- Set up alerts for P95/P99 latency > threshold
+- Alert on error rate > 1%
+- Monitor cache hit rate (should be > 50% for semantic cache)
+- Track LLM token usage to avoid unexpected costs
+
+### 3. **Correlate Before Investigating**
+- Start with metrics to identify anomalies (e.g., latency spike)
+- Use exemplars to jump to specific slow traces
+- From trace, jump to logs for detailed error messages
+- Check all services involved in distributed trace
+
+### 4. **Leverage Grafana Explore**
+- Use split view to show metrics + logs + traces side-by-side
+- Filter logs by trace_id to see all logs for a request
+- Use TraceQL to query traces by business dimensions (user_id, agent_type)
+
+### 5. **Tune Retention and Storage**
+- Loki: 7-day retention (adjust `retention_period` in Helm values)
+- Prometheus: 7-day retention (adjust `retention` in Helm values)
+- Tempo: Default retention (extend for production debugging)
+- MinIO: Monitor bucket size, implement lifecycle policies if needed
+
+---
+
 ## Future Enhancements
 
 ### Short-term (Q1 2026)
@@ -783,10 +1206,10 @@ kubectl rollout restart deployment/dreamfarm-agent
 - [ ] Test Langfuse integration with standard conventions
 
 ### Medium-term (Q2 2026)
-- [ ] Add metrics collection (Prometheus)
-- [ ] Implement log correlation with trace IDs
+- [x] ~~Add metrics collection (Prometheus)~~ **COMPLETED**
+- [x] ~~Implement log correlation with trace IDs~~ **COMPLETED**
 - [ ] Add custom span events for key business logic
-- [ ] Create Grafana dashboards for common queries
+- [ ] Create Grafana dashboards for common queries (HTTP, LLM, System Health)
 
 ### Long-term (Q3 2026+)
 - [ ] Implement sampling strategies for high-volume production

@@ -27,68 +27,48 @@ from dotenv import load_dotenv
 # Load environment variables FIRST
 load_dotenv()
 
-# Initialize OpenTelemetry tracing BEFORE importing FastMCP or Starlette
-otel_enabled = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip() != ""
+# Initialize OpenTelemetry BEFORE importing FastMCP or Starlette
+service_name = os.getenv("OTEL_SERVICE_NAME", "mcp-chef-services")
+otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
+otel_enabled = otlp_endpoint != ""
+
 if otel_enabled:
     try:
-        from opentelemetry import trace
-        from opentelemetry.sdk.trace import TracerProvider, SpanProcessor
-        from opentelemetry.sdk.trace.export import BatchSpanProcessor
-        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
-        from opentelemetry.sdk.resources import Resource, SERVICE_NAME
-        from opentelemetry import context as otel_context
-        from opentelemetry.sdk.trace import ReadableSpan
+        # 1. Configure tracing (TracerProvider + custom span processor)
+        from utils.otel_tracing import configure_otel_tracing
+        configure_otel_tracing(
+            service_name=service_name,
+            otlp_endpoint=otlp_endpoint,
+            instrument_openai=False,
+            instrument_psycopg2=False,
+            instrument_sqlalchemy=False
+        )
+        print(f"[OK] OpenTelemetry tracing initialized: service={service_name}")
         
-        # Custom span processor to propagate context attributes to all child spans
-        class ContextAttributeSpanProcessor(SpanProcessor):
-            """Propagates context values to span attributes for all instrumentation layers."""
-            
-            def on_start(self, span: "Span", parent_context=None):
-                """Called when span starts - add context attributes."""
-                ctx = parent_context or otel_context.get_current()
-                
-                user_id = otel_context.get_value("user_id", ctx)
-                if user_id:
-                    span.set_attribute("user_id", user_id)
-                
-                is_vip = otel_context.get_value("is_vip", ctx)
-                if is_vip is not None:
-                    span.set_attribute("is_vip", is_vip)
-                
-                agent_type = otel_context.get_value("agent_type", ctx)
-                if agent_type:
-                    span.set_attribute("agent_type", agent_type)
-                
-                experiment = otel_context.get_value("experiment", ctx)
-                if experiment:
-                    span.set_attribute("experiment", experiment)
-            
-            def on_end(self, span: ReadableSpan):
-                pass
-            
-            def shutdown(self):
-                pass
-            
-            def force_flush(self, timeout_millis: int = 30000):
-                pass
+        # 2. Configure logging (structured JSON logs with trace correlation)
+        from utils.otel_logging import configure_otel_logging
+        logger_otel = configure_otel_logging()
+        print("[OK] OpenTelemetry logging initialized")
         
-        service_name = os.getenv("OTEL_SERVICE_NAME", "mcp-chef-services")
-        otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+        # 3. Configure metrics (application metrics)
+        from utils.otel_metrics import configure_otel_metrics, create_custom_metrics
+        meter_provider, meter = configure_otel_metrics()
+        metrics = create_custom_metrics(meter)
+        print("[OK] OpenTelemetry metrics initialized")
         
-        resource = Resource(attributes={SERVICE_NAME: service_name})
-        provider = TracerProvider(resource=resource)
-        provider.add_span_processor(ContextAttributeSpanProcessor())
-        
-        otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
-        provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
-        trace.set_tracer_provider(provider)
-        
-        print(f"[OK] OpenTelemetry initialized: service={service_name} endpoint={otlp_endpoint}")
     except Exception as e:
         print(f"[WARNING] OpenTelemetry initialization failed: {e}")
         otel_enabled = False
+        logger_otel = None
+        meter_provider = None
+        meter = None
+        metrics = None
 else:
     print("[INFO] OpenTelemetry disabled (OTEL_EXPORTER_OTLP_ENDPOINT not set)")
+    logger_otel = None
+    meter_provider = None
+    meter = None
+    metrics = None
 
 # NOW import FastMCP and Starlette AFTER OpenTelemetry initialization
 from starlette.middleware.cors import CORSMiddleware

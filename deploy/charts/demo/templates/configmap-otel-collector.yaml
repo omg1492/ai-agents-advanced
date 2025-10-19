@@ -7,6 +7,7 @@ metadata:
 data:
   otel-collector-config.yaml: |
     receivers:
+      # OTLP receiver for traces, metrics, and logs
       otlp:
         protocols:
           grpc:
@@ -15,9 +16,26 @@ data:
             endpoint: 0.0.0.0:4318
 
     processors:
+      # Batch processor for all signal types
       batch:
         timeout: 10s
         send_batch_size: 1024
+      
+      # Resource processor to add deployment metadata
+      resource:
+        attributes:
+          - key: deployment.environment
+            value: {{ .Values.otel.experiment }}
+            action: upsert
+          - key: k8s.cluster.name
+            value: "aks-demo"
+            action: upsert
+      
+      # Memory limiter to prevent OOM
+      memory_limiter:
+        check_interval: 1s
+        limit_percentage: 80
+        spike_limit_percentage: 25
 
     exporters:
       # Debug exporter for initial testing (console output)
@@ -31,6 +49,20 @@ data:
         endpoint: tempo-distributor.default.svc.cluster.local:4317
         tls:
           insecure: true
+      
+      # Grafana Loki OTLP exporter (HTTP to Loki OTLP endpoint)
+      otlphttp/loki:
+        endpoint: http://loki.default.svc.cluster.local:4318
+        tls:
+          insecure: true
+      
+      # Prometheus Remote Write exporter
+      prometheusremotewrite:
+        endpoint: http://prometheus-kube-prometheus-prometheus.default.svc.cluster.local:9090/api/v1/write
+        tls:
+          insecure: true
+        resource_to_telemetry_conversion:
+          enabled: true  # Convert resource attributes to metric labels
 
     extensions:
       health_check:
@@ -39,7 +71,20 @@ data:
     service:
       extensions: [health_check]
       pipelines:
+        # Traces pipeline - send to Tempo
         traces:
           receivers: [otlp]
-          processors: [batch]
+          processors: [memory_limiter, resource, batch]
           exporters: [debug, otlp/tempo]
+        
+        # Metrics pipeline - send to Prometheus
+        metrics:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [debug, prometheusremotewrite]
+        
+        # Logs pipeline - send to Loki
+        logs:
+          receivers: [otlp]
+          processors: [memory_limiter, resource, batch]
+          exporters: [debug, otlphttp/loki]

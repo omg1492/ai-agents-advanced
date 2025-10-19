@@ -33,6 +33,10 @@ dependencies = [
     "opentelemetry-instrumentation-openai>=0.47.3",  # Standard GenAI conventions, Responses API streaming pending (PR #3396)
     "opentelemetry-instrumentation-psycopg2>=0.57b0",
     "opentelemetry-instrumentation-sqlalchemy>=0.57b0",
+    # Logging and metrics support
+    "opentelemetry-exporter-otlp-proto-grpc>=1.20.0",  # OTLP gRPC exporter for logs/metrics
+    "opentelemetry-distro>=0.41b0",  # Auto-instrumentation distribution
+    "opentelemetry-instrumentation>=0.41b0",  # Instrumentation utilities
 ]
 
 [project.scripts]

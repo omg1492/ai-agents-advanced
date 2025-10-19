@@ -495,13 +495,23 @@ See [CodeExecution.md#code-interpreter](./CodeExecution.md) for details.
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | No | - | OTel Collector endpoint (gRPC, e.g., `http://otel-collector:4317`). Leave empty to disable tracing. |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | No | grpc | Export protocol (grpc or http) |
 | `OTEL_TRACES_EXPORTER` | No | otlp | Trace exporter type (otlp, console, none) |
+| `OTEL_LOGS_EXPORTER` | No | otlp | Logs exporter type (otlp, console, none). Sends structured logs with trace correlation to Loki. |
+| `OTEL_METRICS_EXPORTER` | No | otlp | Metrics exporter type (otlp, console, none). Sends application metrics to Prometheus. |
 | `OTEL_EXPERIMENT` | No | production | Custom experiment/environment tag for filtering traces |
 | `OTEL_RESOURCE_ATTRIBUTES` | No | - | Additional resource attributes (e.g., `experiment=production`) |
 
 **Auto-Instrumentation:**
-- FastAPI (HTTP requests)
+- FastAPI (HTTP requests, including custom metrics)
 - SQLAlchemy / Psycopg2 (database)
 - OpenAI SDK (LLM calls with gen_ai.* semantic conventions)
+- Structured logging with trace correlation (trace_id, span_id automatically injected)
+
+**Custom Metrics:**
+- HTTP request duration and count (per service)
+- LLM request count and token usage
+- Cache hit rate (semantic cache)
+- Active connections and session count
+- Database query duration
 
 **Business Dimensions:**
 - `user_id`, `is_vip`, `thread_id`, `agent_type`, `experiment`
@@ -509,6 +519,8 @@ See [CodeExecution.md#code-interpreter](./CodeExecution.md) for details.
 
 **Backends:**
 - Grafana Tempo (distributed tracing)
+- Loki (structured logs with trace correlation)
+- Prometheus (metrics and alerting)
 - Langfuse (LLM-specific analytics)
 
 See [Observability.md](./Observability.md) for complete observability strategy.

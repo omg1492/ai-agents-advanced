@@ -32,6 +32,10 @@ spec:
           value: "grpc"
         - name: OTEL_TRACES_EXPORTER
           value: "otlp"
+        - name: OTEL_LOGS_EXPORTER
+          value: "otlp"
+        - name: OTEL_METRICS_EXPORTER
+          value: "otlp"
         - name: OTEL_EXPERIMENT
           value: "production"
         # OpenAI Instrumentation Provider: "opentelemetry" (standard, future Langfuse) or "openinference" (works NOW with Responses API)
