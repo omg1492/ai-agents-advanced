@@ -51,6 +51,19 @@ spec:
             secretKeyRef:
               name: mcp-credentials
               key: api-key
+        # OpenTelemetry configuration
+        - name: OTEL_SERVICE_NAME
+          value: "chef-agent"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector:4317"
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: "grpc"
+        - name: OTEL_TRACES_EXPORTER
+          value: "otlp"
+        - name: OTEL_EXPERIMENT
+          value: {{ .Values.otel.experiment | default "default" | quote }}
+        - name: OTEL_INSTRUMENTATION_PROVIDER
+          value: {{ .Values.otel.instrumentationProvider | default "openinference" | quote }}
         livenessProbe:
           httpGet:
             path: /health

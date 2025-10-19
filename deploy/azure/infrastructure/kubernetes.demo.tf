@@ -82,6 +82,12 @@ resource "helm_release" "demo" {
   }
 
   # OpenTelemetry Configuration
+  # Experiment identifier for A/B testing and trace filtering
+  set {
+    name  = "otel.experiment"
+    value = var.otel_experiment
+  }
+  
   # OpenAI Instrumentation Provider: Use "openinference" temporarily for Responses API streaming support
   # Standard "opentelemetry" doesn't support Responses API streaming yet (awaiting PR #3396)
   # Switch to "opentelemetry" once PR is merged for full Langfuse compatibility

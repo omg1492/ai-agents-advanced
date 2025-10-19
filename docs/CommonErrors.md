@@ -475,6 +475,63 @@ class EnvAPIKeyVerifier(TokenVerifier):
 
 **Prevention**: Use `inspect.signature()` to discover required parameters; always call `super().__init__()`
 
+### 4.5 StarletteInstrumentor - Incorrect Reassignment Pattern
+**Symptom**: `AttributeError: 'NoneType' object has no attribute 'add_middleware'` immediately after calling `StarletteInstrumentor.instrument_app(app)`
+
+**Root Cause**: `StarletteInstrumentor.instrument_app()` modifies the app in-place and returns `None` (or undefined), NOT a new instrumented instance. Reassigning the result sets `app` to `None`, breaking all subsequent `app.add_middleware()` calls.
+
+**Fix**: Remove assignment - method modifies in-place
+```python
+# WRONG - Sets app to None/undefined
+app = StarletteInstrumentor.instrument_app(app)
+app.add_middleware(CORSMiddleware, ...)  # ❌ Crashes: 'NoneType' has no attribute 'add_middleware'
+
+# CORRECT - Modifies app in-place, returns None
+from opentelemetry.instrumentation.starlette import StarletteInstrumentor
+
+StarletteInstrumentor.instrument_app(app)  # ✅ app is still the original Starlette instance
+app.add_middleware(CORSMiddleware, ...)  # ✅ Works correctly
+```
+
+**Discovery Process**:
+1. MCP servers crashed on startup with `AttributeError: 'NoneType' object has no attribute 'add_middleware'`
+2. Pod logs showed: "[OK] Starlette instrumented" followed immediately by crash
+3. Error occurred at line attempting `app.add_middleware()` right after instrumentation
+4. Investigated code - discovered `app = StarletteInstrumentor.instrument_app(app)` pattern
+5. Researched OpenTelemetry documentation - confirmed method modifies in-place, returns None
+6. Removed assignment in all 3 affected MCP servers - fixed immediately
+
+**Affected Patterns**:
+- ❌ `app = StarletteInstrumentor.instrument_app(app)` - WRONG
+- ✅ `StarletteInstrumentor.instrument_app(app)` - CORRECT
+- ✅ `FastAPIInstrumentor.instrument_app(app)` - Same pattern (also in-place)
+
+**Why This Happens**:
+- OpenTelemetry instrumentation adds middleware/hooks to the existing app object
+- Returns `None` or `undefined` (not documented clearly in some versions)
+- Pattern differs from builder/factory methods that return new instances
+- Common mistake when migrating from other instrumentation libraries
+
+**Related Context**:
+- This bug appeared in 3 MCP servers during OpenTelemetry instrumentation implementation
+- All servers: `mcp_chef_services`, `mcp_public_farmer_tools`, `mcp_visualization_generator`
+- Only discovered after Docker build + Kubernetes deployment (would have been caught with local `uv run main.py` test)
+
+**Prevention**: 
+- Test instrumentation locally before Docker build
+- Never reassign result of `*.instrument_app()` methods
+- Read OpenTelemetry instrumentation docs carefully - in-place vs builder pattern
+- Look for return type hints: `None` or missing return means in-place modification
+
+**Additional Fix** (Visualization Generator):
+- Also fixed `mcp.http_app` → `mcp.http_app()` (missing parentheses on method call)
+
+**Key Lesson**: OpenTelemetry instrumentation methods vary in behavior - some modify in-place (Starlette, FastAPI), others return new instances. Always check documentation and test locally before deployment.
+
+**References**:
+- OpenTelemetry Starlette Instrumentation: https://github.com/open-telemetry/opentelemetry-python-contrib/tree/main/instrumentation/opentelemetry-instrumentation-starlette
+- Full bug analysis: `docs/OTel_Middleware_Fix.md`
+
 ---
 
 ## 5. Data Processing & Embeddings

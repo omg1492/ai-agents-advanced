@@ -18,9 +18,9 @@ services:
   #   path: ../../../agents/chef-agent
   #   tag: latest
 
-  - name: dreamfarm-agent
-    path: ../../../agents/dreamfarm-agent
-    tag: latest
+  # - name: dreamfarm-agent
+  #   path: ../../../agents/dreamfarm-agent
+  #   tag: latest
 
   # - name: frontend
   #   path: ../../../frontend
@@ -30,17 +30,17 @@ services:
   #   path: ../../../tools/api_stock
   #   tag: latest
 
-  # - name: mcp-chef-services
-  #   path: ../../../tools/mcp_chef_services
-  #   tag: latest
-  #   external: true
+  - name: mcp-chef-services
+    path: ../../../tools/mcp_chef_services
+    tag: latest
+    external: true
 
-  # - name: mcp-public-farmer-tools
-  #   path: ../../../tools/mcp_public_farmer_tools
-  #   tag: latest
-  #   external: true
+  - name: mcp-public-farmer-tools
+    path: ../../../tools/mcp_public_farmer_tools
+    tag: latest
+    external: true
 
-  # - name: mcp-visualization-generator
-  #   path: ../../../tools/mcp_visualization_generator
-  #   tag: latest
-  #   external: true
+  - name: mcp-visualization-generator
+    path: ../../../tools/mcp_visualization_generator
+    tag: latest
+    external: true

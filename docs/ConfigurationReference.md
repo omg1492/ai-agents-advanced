@@ -491,9 +491,11 @@ See [CodeExecution.md#code-interpreter](./CodeExecution.md) for details.
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
-| `OTEL_SERVICE_NAME` | No | dreamfarm-agent | Service name in traces |
-| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | - | OTel Collector endpoint (gRPC, e.g., `http://otel-collector:4317`) |
+| `OTEL_SERVICE_NAME` | No | (varies by service) | Service name in traces (e.g., `dreamfarm-agent`, `chef-agent`, `mcp-chef-services`) |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | - | OTel Collector endpoint (gRPC, e.g., `http://otel-collector:4317`). Leave empty to disable tracing. |
 | `OTEL_EXPORTER_OTLP_PROTOCOL` | No | grpc | Export protocol (grpc or http) |
+| `OTEL_TRACES_EXPORTER` | No | otlp | Trace exporter type (otlp, console, none) |
+| `OTEL_EXPERIMENT` | No | production | Custom experiment/environment tag for filtering traces |
 | `OTEL_RESOURCE_ATTRIBUTES` | No | - | Additional resource attributes (e.g., `experiment=production`) |
 
 **Auto-Instrumentation:**

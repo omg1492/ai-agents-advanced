@@ -35,20 +35,20 @@
 - [x] Enable full prompt/completion logging: `OTEL_INSTRUMENTATION_GENAI_CAPTURE_MESSAGE_CONTENT=true`
 - [x] Add environment variables to Kubernetes deployment: `OTEL_SERVICE_NAME=dreamfarm-agent`, `OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317`
 - [x] **Test (Fast Iteration)**: Created minimal test pod with direct instrumentation → traces visible in Grafana ✅
-- [ ] **Test (K8s)**: Build and deploy updated agent image → verify OpenAI + PostgreSQL spans in Grafana
-- [ ] **Test (K8s)**: Make chat request → verify full trace with LLM prompts/completions in span logs
+- [x] **Test (K8s)**: Build and deploy updated agent image → verify OpenAI + PostgreSQL spans in Grafana ✅
+- [x] **Test (K8s)**: Make chat request → verify full trace with LLM prompts/completions in span logs ✅
 
 ### 5. Business Dimension Injection (DreamFarm Agent)
 - [x] Created OpenTelemetry middleware to extract user context from JWT
 - [x] Set span attributes: `user_id`, `is_vip` (from auth), `agent_type=dreamfarm`, `experiment=production`
 - [x] Extract `thread_id` from request path for thread-based endpoints
 - [x] Add `OTEL_EXPERIMENT` environment variable to deployment
-- [ ] **Test**: Make authenticated chat request → inspect trace in Grafana → verify custom attributes visible
-- [ ] **Test**: Filter traces by `is_vip=true` in Grafana → should show only VIP user requests
-- [ ] **Test**: Make unauthenticated request → verify `user_id=anonymous` attribute set
+- [x] **Test**: Make authenticated chat request → inspect trace in Grafana → verify custom attributes visible ✅
+- [x] **Test**: Filter traces by `is_vip=true` in Grafana → should show only VIP user requests ✅
+- [x] **Test**: Make unauthenticated request → verify `user_id=anonymous` attribute set ✅
 
 ### 6. OpenAI Instrumentation Provider Selection (All Services)
-- [x] **DreamFarm Agent**: Implemented dual instrumentation support (OpenInference + standard OTel)
+- [x] **DreamFarm Agent**: Implemented dual instrumentation support (OpenInference + standard OTel) ✅
 - [ ] **Chef Agent**: Add same dual instrumentation pattern
 - [ ] **MCP Servers**: Add same dual instrumentation pattern to all MCP servers
 
@@ -96,13 +96,15 @@ env:
 ---
 
 ### 7. Chef Agent Instrumentation
-- [ ] Add OpenTelemetry instrumentation to `agents/chef-agent/pyproject.toml` (both providers like DreamFarm)
-- [ ] Initialize in Chef Agent startup with `agent_type=chef`
-- [ ] Add `OTEL_INSTRUMENTATION_PROVIDER=openinference` to Chef Agent deployment
-- [ ] Deploy updated Chef Agent
-- **Test**: Trigger DreamFarm→Chef delegation → verify trace spans both agents in Tempo
-- **Test**: Verify trace shows parent-child relationship (DreamFarm calls Chef)
-- **Test**: Check `agent_type` attribute correctly distinguishes services
+- [x] Add OpenTelemetry dependencies to `agents/chef-agent/pyproject.toml` (both providers like DreamFarm) ✅
+- [x] Initialize OpenTelemetry in Chef Agent `src/main.py` (TracerProvider, OTLP exporter, dual instrumentation) ✅
+- [x] Add business dimension middleware with `agent_type=chef` ✅
+- [x] Add environment variables to Kubernetes deployment ✅
+- [ ] Build and deploy updated Chef Agent image
+- [ ] **Test**: Trigger DreamFarm→Chef delegation → verify trace spans both agents in Grafana
+- [ ] **Test**: Verify trace shows parent-child relationship (DreamFarm calls Chef)
+- [ ] **Test**: Check `agent_type` attribute correctly distinguishes services
+- [ ] **Test**: Verify Chef Agent custom dimensions propagate (user_id, is_vip, thread_id)
 
 ### 8. NGINX Ingress OpenTelemetry
 - [ ] Enable OpenTelemetry in NGINX Ingress Helm values (`enable-opentelemetry: "true"`, set collector endpoint)
@@ -111,13 +113,26 @@ env:
 - **Test**: Verify W3C Trace Context headers propagate (check application logs for `traceparent` header)
 - **Test**: Confirm HTTP metrics (status code, latency) visible in NGINX spans
 
-### 9. MCP Server Instrumentation (Optional)
-- [ ] Add dual instrumentation to MCP servers (`mcp-chef-services`, `mcp-public-farmer-tools`, `mcp-visualization-generator`)
-- [ ] Set `agent_type=mcp-<service-name>` for each
-- [ ] Add `OTEL_INSTRUMENTATION_PROVIDER=openinference` to all MCP server deployments
-- **Test**: Trigger tool call → verify MCP server spans appear in trace chain
-- **Test**: Verify full trace: NGINX → DreamFarm Agent → MCP Server → OpenAI
-- 
+### 9. MCP Server & API Stock Instrumentation
+- [x] **API Stock Tool**: Add OpenTelemetry instrumentation with `agent_type=api-stock` ✅
+- [x] **API Stock Tool**: Add business dimension middleware and PostgreSQL instrumentation ✅
+- [x] **API Stock Tool**: Add environment variables to Kubernetes deployment ✅
+- [x] **MCP Chef Services**: Add OpenTelemetry dependencies to pyproject.toml ✅
+- [x] **MCP Chef Services**: Add OpenTelemetry initialization to main.py (Starlette instrumentation) ✅
+- [x] **MCP Chef Services**: Add environment variables to Kubernetes deployment ✅
+- [x] **MCP Public Farmer Tools**: Add OpenTelemetry dependencies to pyproject.toml ✅
+- [x] **MCP Public Farmer Tools**: Add OpenTelemetry initialization to main.py (Starlette instrumentation) ✅
+- [x] **MCP Public Farmer Tools**: Add environment variables to Kubernetes deployment ✅
+- [x] **MCP Visualization Generator**: Add OpenTelemetry dependencies to pyproject.toml (with dual OpenAI) ✅
+- [x] **MCP Visualization Generator**: Add OpenTelemetry initialization to main.py (Starlette + dual OpenAI) ✅
+- [x] **MCP Visualization Generator**: Add environment variables to Kubernetes deployment ✅
+- [x] **Terraform**: Add `otel.experiment` variable and configuration ✅
+- [x] **Helm Values**: Add `otel.experiment` default value ✅
+- [ ] Build and deploy updated images for all services
+- [ ] **Test**: Trigger tool call → verify MCP server spans appear in trace chain
+- [ ] **Test**: Verify full trace: NGINX → DreamFarm Agent → MCP Server → OpenAI (for viz generator)
+- [ ] **Test**: Verify API Stock tool traces appear when called
+- [ ] **Test**: Verify all services show correct `agent_type` in spans
 ### 10. Langfuse Backend Deployment
 - [ ] Deploy Langfuse single-container pod
 - [ ] Expose Langfuse UI via service

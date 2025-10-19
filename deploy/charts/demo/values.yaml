@@ -52,11 +52,17 @@ tavily:
 
 # OpenTelemetry configuration
 otel:
+  # Experiment identifier for A/B testing and trace filtering
+  # Default: "default"
+  # Examples: "production", "canary", "experiment-v2"
+  experiment: "default"
+  
   # OpenAI Instrumentation Provider: "opentelemetry" (standard GenAI conventions) or "openinference" (custom conventions)
-  # Default: "opentelemetry" (future Langfuse compatibility)
-  # Use "openinference" temporarily for Responses API streaming support until PR #3396 is merged
+  # Default: "openinference" (temporary for Responses API streaming support)
+  # Use "openinference" temporarily until PR #3396 is merged for Responses API streaming
+  # Switch to "opentelemetry" once PR is merged for Langfuse compatibility
   # See: https://github.com/traceloop/openllmetry/pull/3396
-  instrumentationProvider: "opentelemetry"
+  instrumentationProvider: "openinference"
 
 # Chef agent specific configuration
 chefAgent:

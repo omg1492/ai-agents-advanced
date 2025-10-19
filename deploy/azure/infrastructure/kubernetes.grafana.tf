@@ -177,7 +177,31 @@ resource "helm_release" "tempo" {
       }
 
       metricsGenerator = {
-        enabled  = false # Disable for traces-only demo
+        enabled  = true
+        replicas = 1
+        resources = {
+          requests = {
+            memory = "512Mi"
+            cpu    = "250m"
+          }
+          limits = {
+            memory = "1Gi"
+            cpu    = "500m"
+          }
+        }
+        # Enable local-blocks processor for TraceQL metrics queries
+        config = {
+          processor = {
+            local_blocks = {
+              flush_to_storage = false  # Keep in-memory only for demo
+              max_live_traces  = 10000
+              max_block_duration = "5m"
+            }
+          }
+          registry = {
+            collection_interval = "15s"
+          }
+        }
       }
     })
   ]

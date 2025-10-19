@@ -27,6 +27,31 @@ spec:
           value: "8000"
         - name: LOG_LEVEL
           value: "INFO"
+        # PostgreSQL Database
+        - name: PGHOST
+          value: {{ .Values.postgres.host | quote }}
+        - name: PGPORT
+          value: {{ .Values.postgres.port | quote }}
+        - name: PGDATABASE
+          value: {{ .Values.postgres.database | quote }}
+        - name: PGUSER
+          value: {{ .Values.postgres.username | quote }}
+        - name: PGPASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: postgres-credentials
+              key: password
+        # OpenTelemetry configuration
+        - name: OTEL_SERVICE_NAME
+          value: "api-stock"
+        - name: OTEL_EXPORTER_OTLP_ENDPOINT
+          value: "http://otel-collector:4317"
+        - name: OTEL_EXPORTER_OTLP_PROTOCOL
+          value: "grpc"
+        - name: OTEL_TRACES_EXPORTER
+          value: "otlp"
+        - name: OTEL_EXPERIMENT
+          value: {{ .Values.otel.experiment | default "default" | quote }}
         livenessProbe:
           httpGet:
             path: /health

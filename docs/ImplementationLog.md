@@ -6,6 +6,141 @@ This document tracks key implementation decisions, architectural patterns, and c
 
 ## OpenTelemetry & Observability
 
+### 2025-10-19: Complete Service Instrumentation & StarletteInstrumentor Bug Fix
+
+**Summary**: Implemented comprehensive OpenTelemetry instrumentation across all 5 services (DreamFarm Agent, Chef Agent, API Stock, 3 MCP servers) with dual OpenAI provider support, business dimensions middleware, and Kubernetes/Terraform deployment configuration. Fixed critical runtime bug in MCP servers caused by incorrect StarletteInstrumentor usage.
+
+**Services Instrumented**:
+1. **DreamFarm Agent** (`agents/dreamfarm-agent/src/main.py`)
+2. **Chef Agent** (`agents/chef-agent/src/main.py`)
+3. **API Stock** (`tools/api_stock/main.py`)
+4. **MCP Chef Services** (`tools/mcp_chef_services/main.py`)
+5. **MCP Public Farmer Tools** (`tools/mcp_public_farmer_tools/main.py`)
+6. **MCP Visualization Generator** (`tools/mcp_visualization_generator/main.py`)
+
+**Implementation Pattern**:
+
+1. **Core OTel Setup** (all services):
+   - Resource with `SERVICE_NAME` attribute
+   - TracerProvider with BatchSpanProcessor
+   - OTLP gRPC exporter to collector (port 4317)
+   - CustomContextAttributeSpanProcessor for business dimensions
+   
+2. **Auto-Instrumentation**:
+   - FastAPI/Starlette (`opentelemetry-instrumentation-fastapi>=0.41b0`)
+   - PostgreSQL (`opentelemetry-instrumentation-psycopg2>=0.41b0`) - API Stock only
+   - OpenAI (dual provider via `OTEL_INSTRUMENTATION_PROVIDER`)
+   
+3. **Business Dimensions Middleware**:
+   - Propagates context attributes: `user_id`, `is_vip`, `agent_type`, `experiment`
+   - Implemented as Starlette `BaseHTTPMiddleware`
+   - Extracts values from request headers/context
+   - Adds to OpenTelemetry context for span enrichment via CustomContextAttributeSpanProcessor
+
+**Critical Bug Discovery & Fix**:
+
+**Problem**: All 3 MCP servers crashed on startup with `AttributeError: 'NoneType' object has no attribute 'add_middleware'` after initial Docker deployment.
+
+**Root Cause**: Incorrect usage of `StarletteInstrumentor.instrument_app()`:
+```python
+# WRONG - Sets app to None/undefined
+app = StarletteInstrumentor.instrument_app(app)
+```
+
+**Discovery Process**:
+1. Pod logs showed: "[OK] Starlette instrumented" then immediate crash on `app.add_middleware()`
+2. Investigated line numbers - crash occurred immediately after instrumentation call
+3. Traced through code - discovered `app` variable was being reassigned
+4. Researched StarletteInstrumentor documentation - confirmed it modifies in-place, returns None
+
+**Solution**: Remove assignment, method modifies in-place:
+```python
+# CORRECT - Modifies app in-place, returns None
+StarletteInstrumentor.instrument_app(app)
+# app is still the original Starlette instance, now instrumented
+```
+
+**Affected Files**:
+- `tools/mcp_chef_services/main.py` (line ~1009)
+- `tools/mcp_public_farmer_tools/main.py` (line ~358)
+- `tools/mcp_visualization_generator/main.py` (line ~538)
+
+**Additional Fix** (Visualization Generator):
+- Changed `mcp.http_app` to `mcp.http_app()` (method call with parentheses)
+
+**Deployment Configuration**:
+
+1. **Kubernetes Environment Variables** (all 5 services):
+   ```yaml
+   - name: OTEL_SERVICE_NAME
+     value: <service-name>
+   - name: OTEL_EXPORTER_OTLP_ENDPOINT
+     value: http://otel-collector:4317
+   - name: OTEL_EXPERIMENT
+     value: {{ .Values.otel.experiment }}
+   - name: OTEL_INSTRUMENTATION_PROVIDER  # Chef Agent, DreamFarm Agent, Viz Generator only
+     value: {{ .Values.otel.instrumentationProvider }}
+   ```
+
+2. **Terraform Configuration**:
+   - Added `otel_experiment` variable (default: "default")
+   - Added `set` block in `kubernetes.demo.tf`: `otel.experiment = var.otel_experiment`
+   - Supports A/B testing, canary deployments, experiment tracking
+
+3. **Helm Values** (`deploy/charts/demo/values.yaml`):
+   ```yaml
+   otel:
+     experiment: "default"
+     instrumentationProvider: "openinference"  # Temporary for streaming support
+   ```
+
+**Business Dimensions by Service**:
+- **DreamFarm Agent**: `agent_type="dreamfarm"`, extracts `user_id`, `is_vip`, `experiment`
+- **Chef Agent**: `agent_type="chef"`, propagates from DreamFarm context
+- **API Stock**: `agent_type="api-stock"`, backend service context
+- **MCP Chef Services**: `agent_type="mcp-chef-services"`
+- **MCP Public Farmer Tools**: `agent_type="mcp-public-farmer-tools"`
+- **MCP Visualization Generator**: `agent_type="mcp-visualization-generator"`
+
+**Key Learnings**:
+
+1. **OpenTelemetry Instrumentation Methods**: Some modify in-place (StarletteInstrumentor), others return instrumented instance (pattern varies by library)
+
+2. **Middleware Layering Pattern**:
+   - Use Starlette's `add_middleware()` for `BaseHTTPMiddleware` subclasses
+   - Use ASGI wrapper pattern (callable class with `__call__`) for low-level middleware
+   - Apply OpenTelemetry instrumentation first, then custom middleware
+
+3. **Testing Strategy**: Should test locally with `uv run main.py` before Docker build to catch runtime errors earlier (would have caught the StarletteInstrumentor bug immediately)
+
+4. **Documentation as Debugging Tool**: Creating `docs/OTel_Middleware_Fix.md` forced systematic analysis that revealed the actual root cause (initially thought it was middleware ordering)
+
+**Documentation Created**:
+- `docs/OTel_Deployment_Summary.md` - Comprehensive overview of all instrumentation work
+- `docs/OTel_Quick_Deployment_Guide.md` - Step-by-step deployment and verification
+- `docs/OTel_Middleware_Fix.md` - Detailed bug analysis and solution
+
+**Testing Status**:
+- ✅ All code changes applied successfully
+- ✅ Docker images rebuilt with fixes
+- ⏳ Deployment verification pending (next step)
+- ⏳ Trace testing in Grafana Tempo pending
+
+**Next Steps** (from L10 deployment plan):
+- Deploy updated images via Terraform
+- Verify all services start successfully
+- Test trace generation in Grafana Tempo
+- Verify business dimensions propagation
+- Implement Step 8: NGINX Ingress OpenTelemetry (future)
+- Implement Step 10: Langfuse backend integration (future)
+
+**References**:
+- L10 Deployment Plan: `lessons/L10-deployment/plan.md` (Steps 7 & 9)
+- OpenTelemetry Python SDK: https://opentelemetry.io/docs/languages/python/
+- Starlette Instrumentation: https://github.com/open-telemetry/opentelemetry-python-contrib
+
+---
+
 ### 2025-10-17: Dual OpenAI Instrumentation Support (OpenInference + Standard OTel)
 
 **Summary**: Implemented environment-based switching between OpenInference and standard OpenTelemetry instrumentation for OpenAI to enable immediate Responses API streaming support while maintaining future compatibility with Langfuse.

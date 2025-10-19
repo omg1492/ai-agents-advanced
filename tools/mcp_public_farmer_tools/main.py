@@ -11,6 +11,7 @@ Environment variables
 - PORT (default: 8012)
 - MCP_CORS_ORIGINS (default: "*" or comma-separated list)
 - MCP_API_KEY (required; static bearer token for auth)
+- OTEL_EXPORTER_OTLP_ENDPOINT, OTEL_SERVICE_NAME (OpenTelemetry)
 """
 
 from __future__ import annotations
@@ -23,6 +24,72 @@ import random
 from typing import Dict, List, Optional
 
 from dotenv import load_dotenv
+
+# Load environment variables FIRST
+load_dotenv()
+
+# Initialize OpenTelemetry tracing BEFORE importing FastMCP
+otel_enabled = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip() != ""
+if otel_enabled:
+    try:
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider, SpanProcessor
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.resources import Resource, SERVICE_NAME
+        from opentelemetry import context as otel_context
+        from opentelemetry.sdk.trace import ReadableSpan
+        
+        class ContextAttributeSpanProcessor(SpanProcessor):
+            """Propagates context values to span attributes for all instrumentation layers."""
+            
+            def on_start(self, span: "Span", parent_context=None):
+                ctx = parent_context or otel_context.get_current()
+                
+                user_id = otel_context.get_value("user_id", ctx)
+                if user_id:
+                    span.set_attribute("user_id", user_id)
+                
+                is_vip = otel_context.get_value("is_vip", ctx)
+                if is_vip is not None:
+                    span.set_attribute("is_vip", is_vip)
+                
+                agent_type = otel_context.get_value("agent_type", ctx)
+                if agent_type:
+                    span.set_attribute("agent_type", agent_type)
+                
+                experiment = otel_context.get_value("experiment", ctx)
+                if experiment:
+                    span.set_attribute("experiment", experiment)
+            
+            def on_end(self, span: ReadableSpan):
+                pass
+            
+            def shutdown(self):
+                pass
+            
+            def force_flush(self, timeout_millis: int = 30000):
+                pass
+        
+        service_name = os.getenv("OTEL_SERVICE_NAME", "mcp-public-farmer-tools")
+        otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+        
+        resource = Resource(attributes={SERVICE_NAME: service_name})
+        provider = TracerProvider(resource=resource)
+        provider.add_span_processor(ContextAttributeSpanProcessor())
+        
+        otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
+        provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+        trace.set_tracer_provider(provider)
+        
+        print(f"[OK] OpenTelemetry initialized: service={service_name} endpoint={otlp_endpoint}")
+    except Exception as e:
+        print(f"[WARNING] OpenTelemetry initialization failed: {e}")
+        otel_enabled = False
+else:
+    print("[INFO] OpenTelemetry disabled (OTEL_EXPORTER_OTLP_ENDPOINT not set)")
+
+# NOW import FastMCP and Starlette AFTER OpenTelemetry initialization
 from starlette.middleware.cors import CORSMiddleware
 from fastmcp import FastMCP
 from fastmcp.server.auth.auth import AccessToken, TokenVerifier
@@ -288,6 +355,18 @@ def build_server() -> tuple[FastMCP, object]:
 
     # Build ASGI app and attach CORS
     app = mcp.http_app()
+    
+    # Instrument Starlette app with OpenTelemetry AFTER app creation
+    # Note: instrument_app modifies in-place, don't reassign
+    if otel_enabled:
+        try:
+            from opentelemetry.instrumentation.starlette import StarletteInstrumentor
+            StarletteInstrumentor.instrument_app(app)
+            print("[OK] Starlette instrumentation applied")
+        except Exception as e:
+            print(f"[WARNING] Starlette instrumentation failed: {e}")
+    
+    # Add CORS middleware using Starlette's add_middleware (before ASGI wrapping)
     allow_origins = _get_cors_origins(os.getenv("MCP_CORS_ORIGINS", "*"))
     app.add_middleware(
         CORSMiddleware,
@@ -297,7 +376,44 @@ def build_server() -> tuple[FastMCP, object]:
         allow_headers=["*"],
         expose_headers=["*"],
     )
+    
+    # Add business dimensions middleware for OpenTelemetry context enrichment
+    # MCP servers are backend services - set backend-service defaults
+    # (parent trace from DreamFarm/Chef agent will propagate actual user context)
+    if otel_enabled:
+        from starlette.middleware.base import BaseHTTPMiddleware
+        
+        class BusinessDimensionsMiddleware(BaseHTTPMiddleware):
+            """Middleware to inject business dimensions into OpenTelemetry context."""
+            
+            async def dispatch(self, request: Request, call_next):
+                from opentelemetry import context as otel_context
+                
+                # MCP servers don't parse JWT - they're internal backend services
+                # Set default backend identity; parent trace propagates actual user_id
+                user_id = "backend-service"
+                is_vip = False
+                agent_type = "mcp-public-farmer-tools"
+                experiment = os.getenv("OTEL_EXPERIMENT", "default")
+                
+                ctx = otel_context.get_current()
+                ctx = otel_context.set_value("user_id", user_id, ctx)
+                ctx = otel_context.set_value("is_vip", is_vip, ctx)
+                ctx = otel_context.set_value("agent_type", agent_type, ctx)
+                ctx = otel_context.set_value("experiment", experiment, ctx)
+                
+                token = otel_context.attach(ctx)
+                try:
+                    response = await call_next(request)
+                    return response
+                finally:
+                    otel_context.detach(token)
+        
+        app.add_middleware(BusinessDimensionsMiddleware)
+        print("[OK] Business dimensions middleware added")
+    
     # Intercept DELETE /mcp to keep sessions alive briefly (workaround for early close)
+    # This must be last as it's ASGI-style wrapping
     app = DeferDeleteMiddleware(app, target_path="/mcp")
     return mcp, app
 

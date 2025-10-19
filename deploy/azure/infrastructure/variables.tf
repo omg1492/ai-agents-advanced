@@ -65,3 +65,25 @@ variable "environment" {
   type        = string
   default     = "production"
 }
+
+variable "otel_experiment" {
+  description = <<-EOT
+    OpenTelemetry experiment identifier for A/B testing and trace filtering.
+    This value is added as a span attribute to all traces, enabling:
+    - Filtering traces by experiment in Grafana Tempo
+    - A/B testing different configurations or models
+    - Tracking canary deployments
+    - Separating production vs. experimental traffic
+    
+    Common values:
+    - "default" - Standard production traffic
+    - "production" - Explicit production environment
+    - "canary" - Canary deployment testing
+    - "experiment-v2" - Specific experiment identifier
+    
+    Set via environment variable or Terraform variable:
+    export TF_VAR_otel_experiment="canary"
+  EOT
+  type        = string
+  default     = "default"
+}

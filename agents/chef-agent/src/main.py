@@ -8,16 +8,108 @@ import os
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+# Load environment variables FIRST (before any other imports that might use them)
 from dotenv import load_dotenv
+load_dotenv()
+
+# Initialize OpenTelemetry tracing BEFORE importing any LLM libraries or services
+# This is critical for auto-instrumentation to work properly
+otel_enabled = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip() != ""
+if otel_enabled:
+    try:
+        from opentelemetry import trace
+        from opentelemetry.sdk.trace import TracerProvider, SpanProcessor
+        from opentelemetry.sdk.trace.export import BatchSpanProcessor
+        from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+        from opentelemetry.sdk.resources import Resource, SERVICE_NAME
+        from opentelemetry import context as otel_context
+        from opentelemetry.sdk.trace import ReadableSpan
+        
+        # Custom span processor to propagate context attributes to all child spans
+        class ContextAttributeSpanProcessor(SpanProcessor):
+            """Propagates context values to span attributes for all instrumentation layers."""
+            
+            def on_start(self, span: "Span", parent_context=None):
+                """Called when span starts - add context attributes."""
+                ctx = parent_context or otel_context.get_current()
+                
+                # Propagate custom dimensions from context
+                user_id = otel_context.get_value("user_id", ctx)
+                if user_id:
+                    span.set_attribute("user_id", user_id)
+                
+                is_vip = otel_context.get_value("is_vip", ctx)
+                if is_vip is not None:
+                    span.set_attribute("is_vip", is_vip)
+                
+                agent_type = otel_context.get_value("agent_type", ctx)
+                if agent_type:
+                    span.set_attribute("agent_type", agent_type)
+                
+                experiment = otel_context.get_value("experiment", ctx)
+                if experiment:
+                    span.set_attribute("experiment", experiment)
+            
+            def on_end(self, span: ReadableSpan):
+                """Called when span ends."""
+                pass
+            
+            def shutdown(self):
+                """Called on shutdown."""
+                pass
+            
+            def force_flush(self, timeout_millis: int = 30000):
+                """Called on force flush."""
+                pass
+        
+        service_name = os.getenv("OTEL_SERVICE_NAME", "chef-agent")
+        otlp_endpoint = os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT")
+        
+        # Create resource with service name
+        resource = Resource(attributes={
+            SERVICE_NAME: service_name
+        })
+        
+        # Configure tracer provider
+        provider = TracerProvider(resource=resource)
+        
+        # Add custom span processor to propagate context attributes
+        provider.add_span_processor(ContextAttributeSpanProcessor())
+        
+        # Add OTLP exporter with batch processor
+        otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)
+        provider.add_span_processor(BatchSpanProcessor(otlp_exporter))
+        
+        # Set as global tracer provider
+        trace.set_tracer_provider(provider)
+        
+        # Instrument OpenAI SDK BEFORE importing it
+        # Choose between OpenInference and standard OTel via environment variable
+        otel_provider = os.getenv("OTEL_INSTRUMENTATION_PROVIDER", "opentelemetry").lower()
+        
+        if otel_provider == "openinference":
+            from openinference.instrumentation.openai import OpenAIInstrumentor
+            OpenAIInstrumentor().instrument(tracer_provider=provider)
+            print("[OK] OpenAI instrumented with OpenInference (Responses API streaming supported)")
+        else:
+            from opentelemetry.instrumentation.openai import OpenAIInstrumentor
+            OpenAIInstrumentor().instrument(tracer_provider=provider)
+            print("[OK] OpenAI instrumented with standard OpenTelemetry (GenAI conventions)")
+        
+        print(f"[INFO] OTEL_INSTRUMENTATION_PROVIDER={otel_provider}")
+        print(f"[OK] OpenTelemetry initialized: service={service_name} endpoint={otlp_endpoint}")
+    except Exception as e:
+        print(f"[WARNING] OpenTelemetry initialization failed: {e}")
+        otel_enabled = False
+else:
+    print("[INFO] OpenTelemetry disabled (OTEL_EXPORTER_OTLP_ENDPOINT not set)")
+
+# NOW import FastAPI and other libraries AFTER OpenTelemetry initialization
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 
 from src.models import QueryRequest, QueryResponse, HealthResponse
 from src.services import ConfigService, OpenAIService
-
-
-# Load environment variables
-load_dotenv()
 
 # Configure logging
 log_level = os.getenv("LOG_LEVEL", "INFO").upper()
@@ -127,6 +219,19 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# Instrument FastAPI with OpenTelemetry (after app creation)
+if otel_enabled:
+    try:
+        from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+        # Exclude health check endpoint from tracing (reduces noise)
+        FastAPIInstrumentor.instrument_app(
+            app,
+            excluded_urls="/health"
+        )
+        print("[OK] FastAPI instrumented with OpenTelemetry (excluding /health)")
+    except Exception as e:
+        print(f"[WARNING] FastAPI instrumentation failed: {e}")
+
 # Configure CORS
 cors_origins = os.getenv("CORS_ORIGINS", "*").split(",")
 app.add_middleware(
@@ -136,6 +241,55 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# OpenTelemetry business dimensions middleware
+@app.middleware("http")
+async def add_business_dimensions(request: Request, call_next):
+    """Add business context attributes to OpenTelemetry spans and propagate via context."""
+    if otel_enabled:
+        from opentelemetry import trace as otel_trace
+        from opentelemetry import context as otel_context
+        
+        span = otel_trace.get_current_span()
+        if span and span.is_recording():
+            # Set static agent_type dimension (chef for this service)
+            span.set_attribute("agent_type", "chef")
+            
+            # Set experiment dimension
+            experiment = os.getenv("OTEL_EXPERIMENT", "production")
+            span.set_attribute("experiment", experiment)
+            
+            # Note: Chef Agent is typically called by DreamFarm Agent, so user context
+            # may be propagated via trace context headers (W3C Trace Context)
+            # We could extract user_id/is_vip from custom headers if DreamFarm sends them,
+            # but for now we'll use defaults since this is a backend service
+            user_id = "backend-service"
+            is_vip = False
+            
+            span.set_attribute("user_id", user_id)
+            span.set_attribute("is_vip", is_vip)
+            
+            # Propagate custom dimensions via OpenTelemetry context
+            ctx = otel_context.get_current()
+            ctx = otel_context.set_value("user_id", user_id, ctx)
+            ctx = otel_context.set_value("is_vip", is_vip, ctx)
+            ctx = otel_context.set_value("agent_type", "chef", ctx)
+            ctx = otel_context.set_value("experiment", experiment, ctx)
+            
+            # Execute request with propagated context
+            token_ctx = otel_context.attach(ctx)
+            try:
+                response = await call_next(request)
+                return response
+            finally:
+                otel_context.detach(token_ctx)
+        else:
+            response = await call_next(request)
+            return response
+    else:
+        response = await call_next(request)
+        return response
 
 
 @app.get("/health", response_model=HealthResponse)
