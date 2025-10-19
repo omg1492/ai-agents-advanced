@@ -52,9 +52,10 @@ Students start from `Lxx-student` branch and work towards the solution shown in 
 1. Deploy infrastructure: `cd deploy/azure/infrastructure && terraform apply`
 2. Build and push containers: `cd deploy/azure/docker_build && uv run build_and_push.py`
 3. Deploy services: `cd deploy/charts/demo && helm install dreamfarm .`
-4. Configure database: `uv run data/scripts/configure_postgresql.py`
-5. Import data: `uv run data/scripts/import_all.py`
-6. Access via Ingress URL (provided by `kubectl get ingress`)
+4. Configure Keycloak: `uv run identity/provision_keycloak.py`
+5. Configure database: `uv run data/scripts/configure_postgresql.py`
+6. Import data: `uv run data/scripts/import_all.py`
+7. Access via Ingress URL (provided by `kubectl get ingress`)
 
 ### Option 2: Local Development
 
@@ -118,7 +119,7 @@ Students start from `Lxx-student` branch and work towards the solution shown in 
 **Database:** PostgreSQL, pgvector (vectors), Apache AGE (knowledge graph)  
 **Frontend:** React, TypeScript, assistant-ui, Vite  
 **Tools:** MCP protocol, function calling, Tavily search  
-**Orchestration:** Temporal (workflows), LangGraph (multi-agent)  
+**Orchestration:** Temporal (workflows)
 **Authentication:** Keycloak, OAuth2/OIDC  
 **Observability:** OpenTelemetry, Langfuse, Grafana Tempo  
 **Deployment:** Docker, Kubernetes (AKS), Helm, Terraform, GitHub Actions
