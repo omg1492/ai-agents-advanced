@@ -1,0 +1,53 @@
+# ServiceMonitor for MCP Chef Services
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mcp-chef-services
+  labels:
+    app: mcp-chef-services
+    release: prometheus  # Required for kube-prometheus-stack to discover
+spec:
+  selector:
+    matchLabels:
+      app: mcp-chef-services
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+# ServiceMonitor for MCP Public Farmer Tools
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mcp-public-farmer-tools
+  labels:
+    app: mcp-public-farmer-tools
+    release: prometheus  # Required for kube-prometheus-stack to discover
+spec:
+  selector:
+    matchLabels:
+      app: mcp-public-farmer-tools
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s
+---
+# ServiceMonitor for MCP Visualization Generator
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: mcp-visualization-generator
+  labels:
+    app: mcp-visualization-generator
+    release: prometheus  # Required for kube-prometheus-stack to discover
+spec:
+  selector:
+    matchLabels:
+      app: mcp-visualization-generator
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

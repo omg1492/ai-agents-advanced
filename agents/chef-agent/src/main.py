@@ -31,9 +31,10 @@ if otel_enabled:
         print(f"[OK] OpenTelemetry tracing initialized: service={service_name}")
         
         # 2. Configure logging (structured JSON logs with trace correlation)
-        from src.utils.otel_logging import configure_otel_logging
-        logger_otel = configure_otel_logging()
-        print("[OK] OpenTelemetry logging initialized")
+        from src.utils.otel_logging import configure_otel_logging, add_trace_context_to_logs
+        logger_otel = configure_otel_logging()  # Configures ROOT logger
+        add_trace_context_to_logs()
+        print("[OK] OpenTelemetry logging initialized (root logger with OTLP)")
         
         # 3. Configure metrics (application metrics + FastAPI instrumentation)
         from src.utils.otel_metrics import configure_otel_metrics, create_custom_metrics
@@ -311,7 +312,14 @@ def main():
     """Main entry point for the application."""
     import uvicorn
     port = int(os.getenv("PORT", "8002"))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    
+    # Get uvicorn logging config that uses OTLP-enabled root logger
+    if otel_enabled:
+        from src.utils.otel_logging import get_uvicorn_log_config
+        log_config = get_uvicorn_log_config()
+        uvicorn.run(app, host="0.0.0.0", port=port, log_config=log_config)
+    else:
+        uvicorn.run(app, host="0.0.0.0", port=port)
 
 
 if __name__ == "__main__":

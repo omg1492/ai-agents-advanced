@@ -198,17 +198,58 @@ resource "helm_release" "tempo" {
             cpu    = "500m"
           }
         }
-        # Enable local-blocks processor for TraceQL metrics queries
+        # Enable service graphs and span metrics processors for full observability
         config = {
+          # Processor configuration - processors are enabled via overrides section
           processor = {
+            service_graphs = {
+              # Service graph generation (service-to-service relationships)
+              histogram_buckets = [0.1, 0.2, 0.4, 0.8, 1.6, 3.2, 6.4, 12.8]
+              dimensions = ["service.name", "span.name", "span.kind", "status.code"]
+              peer_attributes = ["db.name", "db.system"]
+            }
+            span_metrics = {
+              # Span metrics (RED metrics per span)
+              histogram_buckets = [0.002, 0.004, 0.008, 0.016, 0.032, 0.064, 0.128, 0.256, 0.512, 1.024, 2.048, 4.096, 8.192, 16.384]
+              dimensions = [
+                "service.name",
+                "span.name",
+                "span.kind",
+                "status.code"
+              ]
+              enable_target_info = true
+            }
             local_blocks = {
-              flush_to_storage = false  # Keep in-memory only for demo
+              # Keep in-memory for TraceQL metrics queries
+              flush_to_storage = false
               max_live_traces  = 10000
               max_block_duration = "5m"
             }
           }
+          storage = {
+            # Remote write generated metrics to Prometheus
+            remote_write = [
+              {
+                url = "http://prometheus-kube-prometheus-prometheus:9090/api/v1/write"
+                send_exemplars = true
+                queue_config = {
+                  capacity = 10000
+                  max_shards = 10
+                }
+              }
+            ]
+          }
           registry = {
             collection_interval = "15s"
+          }
+        }
+      }
+
+      # Enable processors globally for all tenants via overrides
+      overrides = {
+        defaults = {
+          metrics_generator = {
+            processors = ["service-graphs", "span-metrics", "local-blocks"]
           }
         }
       }
@@ -293,6 +334,7 @@ resource "helm_release" "loki" {
           retention_period           = "168h"  # 7 days retention for demo
           max_query_series           = 5000
           max_query_parallelism      = 32
+          allow_structured_metadata  = true    # Required for OTLP ingestion
         }
 
         # Query range config
@@ -383,9 +425,11 @@ resource "helm_release" "loki" {
         selfMonitoring = {
           enabled = false
         }
-        lokiCanary = {
-          enabled = false
-        }
+      }
+
+      # Loki Canary disabled (must be at root level, not under monitoring)
+      lokiCanary = {
+        enabled = false
       }
 
       # Test disabled
@@ -697,18 +741,17 @@ output "helm_grafana_status" {
 output "tempo_services" {
   description = "Tempo service endpoints for OpenTelemetry Collector"
   value = {
-    otlp_grpc_endpoint = "tempo-distributed-distributor.default.svc.cluster.local:4317"
-    otlp_http_endpoint = "tempo-distributed-distributor.default.svc.cluster.local:4318"
-    query_frontend_url = "http://tempo-distributed-query-frontend.default.svc.cluster.local:3200"
+    otlp_grpc_endpoint = "tempo-distributor.default.svc.cluster.local:4317"
+    otlp_http_endpoint = "tempo-distributor.default.svc.cluster.local:4318"
+    query_frontend_url = "http://tempo-query-frontend.default.svc.cluster.local:3200"
   }
 }
 
 output "loki_services" {
   description = "Loki service endpoints for OpenTelemetry Collector"
   value = {
-    otlp_grpc_endpoint = "loki:4317"
-    otlp_http_endpoint = "loki:4318"
-    query_url          = "http://loki:3100"
+    otlp_http_endpoint = "http://loki.default.svc.cluster.local:3100/otlp"
+    query_url          = "http://loki.default.svc.cluster.local:3100"
   }
 }
 
@@ -733,8 +776,8 @@ output "grafana_access" {
 output "observability_stack_summary" {
   description = "Summary of deployed observability components"
   value = {
-    tempo      = "Traces: tempo-distributed-distributor.default.svc.cluster.local:4317"
-    loki       = "Logs: loki.default.svc.cluster.local:4318 (OTLP HTTP)"
+    tempo      = "Traces: tempo-distributor.default.svc.cluster.local:4317 (OTLP gRPC)"
+    loki       = "Logs: loki.default.svc.cluster.local:3100/otlp (OTLP HTTP)"
     prometheus = "Metrics: prometheus-kube-prometheus-prometheus.default.svc.cluster.local:9090"
     grafana    = "Dashboards: https://grafana.${var.domain}"
   }

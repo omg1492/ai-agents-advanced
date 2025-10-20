@@ -50,9 +50,10 @@ data:
         tls:
           insecure: true
       
-      # Grafana Loki OTLP exporter (HTTP to Loki OTLP endpoint)
+      # Grafana Loki OTLP exporter (HTTP directly to Loki SingleBinary)
+      # Loki 3.x supports OTLP natively on /otlp/v1/logs endpoint
       otlphttp/loki:
-        endpoint: http://loki.default.svc.cluster.local:4318
+        endpoint: http://loki.default.svc.cluster.local:3100/otlp
         tls:
           insecure: true
       

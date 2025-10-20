@@ -18,6 +18,7 @@ RUN uv sync --frozen
 
 # Copy source code
 COPY main.py ./
+COPY utils/ ./utils/
 
 # Expose port (default 5003)
 EXPOSE 5003

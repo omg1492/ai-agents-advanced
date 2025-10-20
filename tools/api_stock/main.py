@@ -45,13 +45,14 @@ if otel_enabled:
         print(f"[OK] OpenTelemetry tracing initialized: service={service_name}")
         
         # 2. Configure logging (structured JSON logs with trace correlation)
-        from utils.otel_logging import configure_otel_logging
-        logger_otel = configure_otel_logging()
-        print("[OK] OpenTelemetry logging initialized")
+        from utils.otel_logging import configure_otel_logging, add_trace_context_to_logs
+        logger_otel = configure_otel_logging()  # Configures ROOT logger
+        add_trace_context_to_logs()
+        print("[OK] OpenTelemetry logging initialized (root logger with OTLP)")
         
         # 3. Configure metrics (application metrics + FastAPI instrumentation)
         from utils.otel_metrics import configure_otel_metrics, create_custom_metrics
-        meter_provider, meter = configure_otel_metrics()
+        meter_provider, meter = configure_otel_metrics(service_name=service_name)
         metrics = create_custom_metrics(meter)
         print("[OK] OpenTelemetry metrics initialized")
         
@@ -205,7 +206,7 @@ if otel_enabled:
 if metrics:
     try:
         from utils.otel_metrics import instrument_fastapi_metrics
-        instrument_fastapi_metrics(app, meter)
+        instrument_fastapi_metrics(app, meter_provider, meter)
         print("[OK] FastAPI instrumented with custom metrics")
     except Exception as e:
         print(f"[WARNING] FastAPI metrics instrumentation failed: {e}")
@@ -321,7 +322,14 @@ def main() -> None:
 
     port = int(os.getenv("PORT", "8011"))
     reload = os.getenv("RELOAD", "true").lower() == "true"
-    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload)
+    
+    # Get uvicorn logging config that uses OTLP-enabled root logger
+    if otel_enabled:
+        from utils.otel_logging import get_uvicorn_log_config
+        log_config = get_uvicorn_log_config()
+        uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload, log_config=log_config)
+    else:
+        uvicorn.run("main:app", host="0.0.0.0", port=port, reload=reload)
 
 
 if __name__ == "__main__":

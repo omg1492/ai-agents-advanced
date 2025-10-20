@@ -1,0 +1,16 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: chef-agent
+  labels:
+    app: chef-agent
+    release: prometheus  # Required for kube-prometheus-stack to discover
+spec:
+  selector:
+    matchLabels:
+      app: chef-agent
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 30s
+      scrapeTimeout: 10s

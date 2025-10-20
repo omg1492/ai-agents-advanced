@@ -12,26 +12,32 @@ import os
 from typing import Optional
 
 
-def configure_otel_logging(service_name: str, otel_endpoint: Optional[str] = None) -> logging.Logger:
+def configure_otel_logging(service_name: Optional[str] = None, otel_endpoint: Optional[str] = None) -> logging.Logger:
     """Configure OpenTelemetry logging with structured output and trace correlation.
     
+    Configures the ROOT logger so all loggers in the application inherit OTLP handler.
+    
     Args:
-        service_name: Name of the service (e.g., 'dreamfarm-agent')
+        service_name: Name of the service (if None, reads from OTEL_SERVICE_NAME env var)
         otel_endpoint: OTLP endpoint URL (if None, reads from OTEL_EXPORTER_OTLP_ENDPOINT)
     
     Returns:
-        Configured logger instance
+        Root logger instance
     """
-    # Get OTLP endpoint from env or parameter
+    # Get service name and OTLP endpoint from env if not provided
+    service_name = service_name or os.getenv("OTEL_SERVICE_NAME", "unknown-service")
     endpoint = otel_endpoint or os.getenv("OTEL_EXPORTER_OTLP_ENDPOINT", "").strip()
     
-    # Create logger
-    logger = logging.getLogger(service_name)
+    # Configure ROOT logger (so all child loggers inherit handlers)
+    logger = logging.getLogger()  # Root logger
     log_level = os.getenv("LOG_LEVEL", "INFO").upper()
     logger.setLevel(getattr(logging, log_level, logging.INFO))
     
     # Remove existing handlers to avoid duplicates
     logger.handlers.clear()
+    
+    # Add trace context filter FIRST (before formatters try to use the fields)
+    _add_trace_context_filter(logger)
     
     # Always add console handler with structured format
     console_handler = logging.StreamHandler()
@@ -82,33 +88,77 @@ def configure_otel_logging(service_name: str, otel_endpoint: Optional[str] = Non
     return logger
 
 
-def add_trace_context_to_logs():
-    """Add a logging filter that injects trace context into log records.
+def _add_trace_context_filter(logger: logging.Logger):
+    """Internal helper to add trace context to ALL log records globally.
     
-    This allows log records to include trace_id and span_id for correlation.
-    Should be called after OpenTelemetry trace provider is initialized.
+    Uses setLogRecordFactory to ensure ALL log records (including from third-party libraries)
+    have the trace context fields, preventing KeyError in formatters.
+    
+    Args:
+        logger: Logger instance (not used, but kept for API compatibility)
     """
     from opentelemetry import trace
     
-    class TraceContextFilter(logging.Filter):
-        """Logging filter that adds trace context to log records."""
+    # Get the original factory
+    old_factory = logging.getLogRecordFactory()
+    
+    def record_factory(*args, **kwargs):
+        """Custom LogRecord factory that adds trace context fields."""
+        record = old_factory(*args, **kwargs)
         
-        def filter(self, record):
-            """Add trace_id and span_id to log record."""
+        # Always initialize these fields to prevent KeyError
+        record.otelTraceID = ""
+        record.otelSpanID = ""
+        
+        # Try to populate from current span
+        try:
             span = trace.get_current_span()
             if span:
                 ctx = span.get_span_context()
                 if ctx.is_valid:
-                    # Format trace_id and span_id as hex strings
                     record.otelTraceID = format(ctx.trace_id, '032x')
                     record.otelSpanID = format(ctx.span_id, '016x')
-                else:
-                    record.otelTraceID = ""
-                    record.otelSpanID = ""
-            else:
-                record.otelTraceID = ""
-                record.otelSpanID = ""
-            return True
+        except Exception:
+            # Silently ignore - fields already initialized to empty strings
+            pass
+        
+        return record
     
-    # Add filter to root logger
-    logging.root.addFilter(TraceContextFilter())
+    # Install the custom factory globally
+    logging.setLogRecordFactory(record_factory)
+
+
+def add_trace_context_to_logs():
+    """Add a logging filter that injects trace context into log records.
+    
+    This is now a no-op since the filter is added during configure_otel_logging().
+    Kept for backward compatibility with existing code that calls this function.
+    
+    Note: The filter is automatically added when configure_otel_logging() is called,
+    so you don't need to call this function separately.
+    """
+    pass  # Filter already added during configure_otel_logging()
+
+
+def get_uvicorn_log_config() -> dict:
+    """Get uvicorn logging configuration that uses the OTLP-configured root logger.
+    
+    This ensures uvicorn logs propagate to root logger (which has OTLP handler and filter).
+    
+    Returns:
+        Dictionary compatible with uvicorn's log_config parameter
+    """
+    log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+    
+    return {
+        "version": 1,
+        "disable_existing_loggers": False,
+        "formatters": {},
+        "handlers": {},
+        "loggers": {
+            # All uvicorn loggers propagate to root logger (no handlers, just propagate)
+            "uvicorn": {"level": log_level, "propagate": True, "handlers": []},
+            "uvicorn.error": {"level": log_level, "propagate": True, "handlers": []},
+            "uvicorn.access": {"level": log_level, "propagate": True, "handlers": []},
+        },
+    }

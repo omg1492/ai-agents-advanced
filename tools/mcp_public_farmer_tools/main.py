@@ -47,9 +47,10 @@ if otel_enabled:
         print(f"[OK] OpenTelemetry tracing initialized: service={service_name}")
         
         # 2. Configure logging (structured JSON logs with trace correlation)
-        from utils.otel_logging import configure_otel_logging
-        logger_otel = configure_otel_logging()
-        print("[OK] OpenTelemetry logging initialized")
+        from utils.otel_logging import configure_otel_logging, add_trace_context_to_logs
+        logger_otel = configure_otel_logging()  # Configures ROOT logger
+        add_trace_context_to_logs()
+        print("[OK] OpenTelemetry logging initialized (root logger with OTLP)")
         
         # 3. Configure metrics (application metrics)
         from utils.otel_metrics import configure_otel_metrics, create_custom_metrics
@@ -406,9 +407,19 @@ def main() -> None:
     load_dotenv()
     host = os.getenv("HOST", "0.0.0.0")
     port = int(os.getenv("PORT", "8012"))
-    mcp, _ = build_server()
-    # Streamable HTTP is the recommended remote transport
-    mcp.run(transport="http", host=host, port=port)
+    
+    # Build server and get ASGI app
+    mcp, asgi_app = build_server()
+    
+    # Use uvicorn directly with OTLP logging config (instead of mcp.run())
+    if otel_enabled:
+        import uvicorn
+        from utils.otel_logging import get_uvicorn_log_config
+        log_config = get_uvicorn_log_config()
+        uvicorn.run(asgi_app, host=host, port=port, log_config=log_config)
+    else:
+        # Streamable HTTP is the recommended remote transport
+        mcp.run(transport="http", host=host, port=port)
 
 
 """ASGI application entrypoint for uvicorn/gunicorn.

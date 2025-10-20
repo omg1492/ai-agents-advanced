@@ -35,9 +35,9 @@ if otel_enabled:
         
         # 2. Configure logging (structured JSON logs with trace correlation)
         from src.utils.otel_logging import configure_otel_logging, add_trace_context_to_logs
-        logger = configure_otel_logging(service_name, otlp_endpoint)
+        logger = configure_otel_logging(service_name, otlp_endpoint)  # Configures ROOT logger
         add_trace_context_to_logs()
-        print("[OK] OpenTelemetry logging configured")
+        print("[OK] OpenTelemetry logging configured (root logger with OTLP)")
         
         # 3. Configure metrics (application metrics + FastAPI instrumentation)
         from src.utils.otel_metrics import configure_otel_metrics
@@ -2109,7 +2109,14 @@ async def voice_endpoint(websocket: WebSocket, thread_id: str):
 def main():
     """Main entry point for the application."""
     import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8001)
+    
+    # Get uvicorn logging config that uses OTLP-enabled root logger
+    if otel_enabled:
+        from src.utils.otel_logging import get_uvicorn_log_config
+        log_config = get_uvicorn_log_config()
+        uvicorn.run(app, host="0.0.0.0", port=8001, log_config=log_config)
+    else:
+        uvicorn.run(app, host="0.0.0.0", port=8001)
 
 
 if __name__ == "__main__":

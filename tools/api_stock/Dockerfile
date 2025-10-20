@@ -24,6 +24,7 @@ RUN uv sync --frozen --no-dev
 
 # Copy application code
 COPY main.py ./
+COPY utils/ ./utils/
 
 EXPOSE 8011
 

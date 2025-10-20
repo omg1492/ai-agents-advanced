@@ -24,6 +24,7 @@ RUN uv sync --frozen --no-dev
 
 # Copy application code
 COPY main.py mock_data.py ./
+COPY utils/ ./utils/
 
 # Default runtime env
 ENV LOG_LEVEL=INFO \
