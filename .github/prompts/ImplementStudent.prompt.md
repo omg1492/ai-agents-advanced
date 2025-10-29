@@ -1,0 +1,3 @@
+Go ahead and implement proposed changes unless instructed otherwise later in this prompt.
+Do not give aways answers too easily. Good practices is to remove all classes or even all files and create placeholder with few comments what that class mights do. Do not just comment existing code.
+In README I want to add example GitHub Copilot prompts for students to get started. Do not create too many prompts and do not create them too specific. Focus on rich context explain Copilot what we want to achieve, how this should be implement and suggest steps to achieve that. Each major point in our students task should be mapped to its own example prompt. Althow document is in Czech and should stay like that, prompt themselves will be n English.
