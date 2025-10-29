@@ -1,8 +1,8 @@
 # Advanced AI Applications - Dream Farm AI Platform
 
-**Dream Farm** is a production-grade AI platform demonstrating a virtual farmers marketplace that connects local farmers with customers through an intelligent AI assistant. The platform showcases advanced AI capabilities including RAG (Retrieval-Augmented Generation), multi-agent systems, knowledge graphs, voice interaction, workflow orchestration, and enterprise-grade observability.
+**Dream Farm** is a (almost) production-grade AI platform demonstrating a virtual farmers marketplace that connects local farmers with customers through an intelligent AI assistant. The platform showcases advanced AI capabilities including RAG (Retrieval-Augmented Generation), multi-agent systems, knowledge graphs, voice interaction, workflow orchestration, and enterprise-grade observability and deployment.
 
-**Key Features:** Semantic product search, tool integration (MCP servers, web search, internal APIs), hybrid retrieval (semantic + keyword + graph), personalized memory, voice chat, code interpreter with visualizations, multi-agent collaboration, workflow automation, authentication (Keycloak), and OpenTelemetry observability.
+**Key Features:** Semantic product search, tool integration (MCP servers, web search, internal APIs), hybrid retrieval (semantic + keyword + graph), personalized memory, voice chat, code interpreter with visualizations, multi-agent collaboration, workflow automation, authentication (Keycloak), OpenTelemetry observability and Red Teaming, and deployment to Kubernetes.
 
 📖 **[Read full architecture documentation →](docs/Design.md)**
 
@@ -12,7 +12,7 @@
 
 This repository is the foundation for an intensive 10-lesson course teaching how to design, implement, and deploy production AI applications. The course follows an incremental, hands-on approach where each lesson builds on the previous one, evolving from a basic RAG chatbot to a sophisticated multi-agent system with enterprise features.
 
-**Course Format:** 10 consecutive evening lessons (2 hours each) with live coding using GitHub Copilot. Students actively implement features alongside instructor demonstrations.
+**Course Format:** 10 consecutive evening lessons (up to 2 hours each) with live coding using GitHub Copilot. Students actively implement features alongside instructor demonstrations.
 
 📚 **[Full course details →](docs/README.md)**
 
@@ -46,8 +46,9 @@ Students start from `Lxx-student` branch and work towards the solution shown in 
 ---
 
 ## How to Run
+Here we describe final stage of development with all features implemented. Follow instructor and individual lessons for more instructions as we go.
 
-### Option 1: Azure/Kubernetes Deployment
+### Azure/Kubernetes Deployment (final stage)
 
 1. Deploy infrastructure: `cd deploy/azure/infrastructure && terraform apply`
 2. Build and push containers: `cd deploy/azure/docker_build && uv run build_and_push.py`
@@ -57,13 +58,13 @@ Students start from `Lxx-student` branch and work towards the solution shown in 
 6. Import data: `uv run data/scripts/import_all.py`
 7. Access via Ingress URL (provided by `kubectl get ingress`)
 
-### Option 2: Local Development
+### Local Development (final stage)
 
 **Prerequisites:**
-- Docker & Docker Compose
+- Docker & Docker Compose (eg. Rancher Desktop)
 - Python 3.11+
 - Node.js 18+ (for frontend)
-- MCP servers accessible via public endpoint (we use Azure Container Apps)
+- MCP servers accessible via public endpoint (we use Azure Container Apps, shared for whole group)
 
 **Steps:**
 
@@ -108,7 +109,7 @@ Students start from `Lxx-student` branch and work towards the solution shown in 
 
 7. **Access application:** http://localhost:3000
 
-**Note:** MCP servers must be accessible from Internet (called from Responses API in cloud). In our setup, they run on Azure Container Apps with public endpoints configured in `.env` files.
+**Note:** MCP servers must be accessible from Internet (called from Responses API in cloud). 
 
 ---
 
