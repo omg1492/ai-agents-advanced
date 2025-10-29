@@ -145,8 +145,7 @@ def prompt_confirm(commit: CommitInfo, main_branch: str, assume_yes: bool = Fals
 
 LESSON_BRANCH_PATTERNS = [
 	re.compile(r"^L\d{2}-teacher$"),
-	re.compile(r"^L\d{2}-student-starter$"),
-	re.compile(r"^L\d{2}-student-end$"),
+	re.compile(r"^L\d{2}-student-$"),
 ]
 
 
