@@ -79,28 +79,42 @@ Cache obsahuje pouze bezpečné, obecné Q&A bez specifických produktů (rychlo
 cd deploy/local
 docker compose up -d postgres api-stock
 ```
-2. (Volitelně) zpracujte multimediální soubory (použijte reálné produkty z `data/`):
+2. Nakonfigurujte PostgreSQL (pgvector extension + schéma):
 ```pwsh
 cd data/scripts
 uv sync
+uv run configure_postgresql.py
+```
+3. Naimportujte základní data do databáze:
+```pwsh
+# Import produktů s embeddingy
+uv run import_simple_products.py
+
+# Import stock dat
+uv run import_stock.py
+
+# Import Q&A semantic cache
+uv run import_qna.py
+```
+4. (Volitelně) zpracujte multimediální soubory (použijte reálné produkty z `data/`):
+```pwsh
 uv run process_pdfs.py
 uv run process_images.py
 uv run process_videos.py
 ```
-3. Naimportujte/aktualizujte výsledné texty / metadata do databáze (připravte vlastní ingest SQL / skript – analogie k jednoduchým produktům z L01).
-4. Spusťte agenta (s aktivovaným RAG a cache):
+5. Spusťte agenta (s aktivovaným RAG a cache):
 ```pwsh
 cd agents/dreamfarm-agent
 uv sync
 uv run dreamfarm-agent
 ```
-5. Frontend:
+6. Frontend:
 ```pwsh
 cd frontend
 npm install
 npm run dev
 ```
-6. Otevřete `http://localhost:3000` a zkuste dotazy.
+7. Otevřete `http://localhost:3000` a zkuste dotazy.
 
 ---
 ## .env (nové / relevantní proměnné)
