@@ -8,27 +8,61 @@ This document describes our comprehensive observability strategy using OpenTelem
 
 ### High-Level Design
 
-```
-┌─────────────────────┐
-│   AI Agents         │
-│  - DreamFarm Agent  │
-│  - Chef Agent       │
-│  - MCP Servers      │
-└──────────┬──────────┘
-           │ OTLP/gRPC (port 4317)
-           ▼
-┌─────────────────────┐
-│  OTel Collector     │
-│  (Centralized)      │
-└──────────┬──────────┘
-           │
-           ├─────────────────────┐
-           ▼                     ▼
-┌─────────────────────┐  ┌─────────────────────┐
-│  Grafana Tempo      │  │  Langfuse (Future)  │
-│  (Distributed       │  │  (LLM Analytics)    │
-│   Tracing)          │  │                     │
-└─────────────────────┘  └─────────────────────┘
+```mermaid
+flowchart TB
+    subgraph services["AI Services"]
+        dreamfarm["DreamFarm Agent"]
+        chef["Chef Agent"]
+        api["API Stock"]
+        mcp1["MCP Chef Services"]
+        mcp2["MCP Farmer Tools"]
+        mcp3["MCP Visualization"]
+    end
+    
+    subgraph collector["OpenTelemetry Collector (Centralized)"]
+        otlp_receiver["OTLP Receiver<br/>gRPC: 4317<br/>HTTP: 4318"]
+        processors["Processors<br/>• Batch<br/>• Resource<br/>• Memory Limiter"]
+        exporters["Exporters"]
+    end
+    
+    subgraph trace_backends["Trace Backends"]
+        tempo["Grafana Tempo<br/>(General Tracing)"]
+        langfuse["Langfuse<br/>(LLM Analytics)<br/>"]
+        aspire_trace["Aspire Dashboard<br/>(Dev/Debug Tracing)"]
+    end
+    
+    subgraph metric_backends["Metrics Backends"]
+        prometheus["Prometheus<br/>(Production Metrics)"]
+        aspire_metrics["Aspire Dashboard<br/>(Dev/Debug Metrics)"]
+    end
+    
+    subgraph log_backends["Log Backends"]
+        loki["Grafana Loki<br/>(Production Logs)"]
+        aspire_logs["Aspire Dashboard<br/>(Dev/Debug Logs)"]
+    end
+    
+    services -->|"OTLP/gRPC<br/>Traces + Metrics + Logs"| otlp_receiver
+    otlp_receiver --> processors
+    
+    processors -->|Traces| exporters
+    processors -->|Metrics| exporters
+    processors -->|Logs| exporters
+    
+    exporters -->|"OTLP"| tempo
+    exporters -->|"OTLP HTTP"| langfuse
+    exporters -->|"OTLP"| aspire_trace
+    
+    exporters -->|"Prometheus<br/>Remote Write"| prometheus
+    exporters -->|"OTLP"| aspire_metrics
+    
+    exporters -->|"OTLP HTTP"| loki
+    exporters -->|"OTLP"| aspire_logs
+    
+    style services fill:#e1f5ff
+    style collector fill:#fff4e1
+    style trace_backends fill:#f0e1ff
+    style metric_backends fill:#e1ffe1
+    style log_backends fill:#ffe1e1
 ```
 
 **Key Design Principles**:
@@ -36,8 +70,10 @@ This document describes our comprehensive observability strategy using OpenTelem
 1. **Centralized Collection**: All services send traces to a single OpenTelemetry Collector
 2. **Multiple Backends**: Collector routes traces to multiple backends (Tempo for general tracing, Langfuse for LLM-specific analysis)
 3. **Auto-Instrumentation**: Automatic instrumentation for common frameworks (FastAPI, SQLAlchemy, PostgreSQL, OpenAI)
-4. **Business Context**: Custom dimensions added via middleware (user_id, is_vip, agent_type, experiment)
-5. **Standard Conventions**: Prefer OpenTelemetry GenAI semantic conventions for long-term compatibility
+4. **Business Context**: Custom dimensions propagated via OpenTelemetry Baggage API (user.id, session.id, is_vip, agent_type, experiment)
+5. **Cross-Service Context**: W3C Baggage headers automatically propagate business dimensions to all downstream services
+6. **Semantic Conventions**: Using OpenTelemetry semantic conventions (user.id, session.id) for standardized attributes
+7. **Standard Conventions**: Prefer OpenTelemetry GenAI semantic conventions for long-term compatibility
 
 ---
 
@@ -194,12 +230,26 @@ To improve code readability and maintainability, all tracing initialization logi
 ```python
 # utils/otel_tracing.py
 
-class ContextAttributeSpanProcessor(SpanProcessor):
-    """Propagates context attributes (user_id, is_vip, agent_type, experiment)
-    to all spans in the trace tree."""
+class BaggageSpanProcessor(SpanProcessor):
+    """Copies OpenTelemetry Baggage values to span attributes for all spans.
+    
+    Ensures that user/session context set via Baggage API is available as
+    queryable attributes on all spans. Baggage propagates across service
+    boundaries via W3C headers automatically.
+    
+    Baggage keys using OpenTelemetry semantic conventions:
+    - user.id: User identifier (OpenTelemetry semantic convention)
+    - session.id: Session identifier (OpenTelemetry semantic convention, uses thread_id value)
+    - is_vip: VIP status for filtering premium users
+    - agent_type: Service identifier
+    - experiment: A/B test identifier
+    - thread_id: Conversation thread identifier
+    """
+    
+    BAGGAGE_KEYS = ["user.id", "session.id", "is_vip", "agent_type", "experiment", "thread_id"]
     
     def on_start(self, span, parent_context=None):
-        # Automatically inject business dimensions into every span
+        # Automatically inject baggage values into every span
         # See "Custom Business Dimensions" section below
 
 def configure_otel_tracing(
@@ -213,7 +263,7 @@ def configure_otel_tracing(
     
     Configures:
     1. TracerProvider with service name resource
-    2. ContextAttributeSpanProcessor for business dimensions
+    2. BaggageSpanProcessor for business dimensions propagation
     3. OTLP exporter (gRPC) to collector
     4. Conditional auto-instrumentation based on flags
     
@@ -330,51 +380,68 @@ This creates spans for:
 
 ## Custom Business Dimensions
 
-We enrich traces with business context using FastAPI middleware. This allows filtering traces by user type, experiment, or agent in observability tools.
+We enrich traces with business context using FastAPI middleware and OpenTelemetry Baggage API. Baggage enables automatic cross-service propagation via W3C headers, allowing filtering traces by user type, experiment, or agent across the entire distributed system.
 
 ### Middleware Implementation
 
 ```python
 @app.middleware("http")
 async def add_business_dimensions(request: Request, call_next):
-    """Add business context attributes to OpenTelemetry spans."""
+    """Add business context attributes to OpenTelemetry spans and propagate via baggage.
+    
+    Uses OpenTelemetry Baggage API for cross-service propagation of business dimensions.
+    Baggage is automatically propagated via W3C headers to downstream services.
+    """
     if otel_enabled:
-        from opentelemetry import trace as otel_trace
+        from opentelemetry import baggage, context as otel_context, trace as otel_trace
         
         span = otel_trace.get_current_span()
+        ctx = otel_context.get_current()
+        
         if span and span.is_recording():
-            # 1. Static agent identifier
-            span.set_attribute("agent_type", "dreamfarm")
-            
-            # 2. Experiment/environment tag
-            experiment = os.getenv("OTEL_EXPERIMENT", "production")
-            span.set_attribute("experiment", experiment)
-            
-            # 3. User context from JWT
+            # Extract user context from JWT
             auth_header = request.headers.get("Authorization", "")
+            user_id = "anonymous"
+            is_vip = False
+            
             if auth_header.startswith("Bearer ") and auth_service is not None:
                 try:
                     token = auth_header.split(" ", 1)[1].strip()
                     claims = auth_service.validate(token)
                     username, is_vip = auth_service.extract_identity(claims)
-                    
-                    span.set_attribute("user_id", username)
-                    span.set_attribute("is_vip", is_vip)
+                    user_id = username
                 except Exception:
-                    span.set_attribute("user_id", "anonymous")
-                    span.set_attribute("is_vip", False)
-            else:
-                span.set_attribute("user_id", "anonymous")
-                span.set_attribute("is_vip", False)
+                    pass
             
-            # 4. Thread context from URL path
+            # Extract thread_id from URL path
+            thread_id = None
             path = request.url.path
             if "/threads/" in path:
                 parts = path.split("/")
                 if len(parts) > 2 and parts[1] == "threads":
                     thread_id = parts[2]
-                    if thread_id:
-                        span.set_attribute("thread_id", thread_id)
+            
+            # Generate session_id (use thread_id for conversation sessions)
+            experiment = os.getenv("OTEL_EXPERIMENT", "production")
+            session_id = thread_id if thread_id else f"session_{user_id}_{int(time.time())}"
+            
+            # Set baggage for automatic propagation to all child spans and downstream services
+            # Baggage propagates via W3C headers automatically (using OpenTelemetry semantic conventions)
+            ctx = baggage.set_baggage("user.id", user_id, ctx)
+            ctx = baggage.set_baggage("is_vip", str(is_vip).lower(), ctx)
+            ctx = baggage.set_baggage("agent_type", "dreamfarm", ctx)
+            ctx = baggage.set_baggage("experiment", experiment, ctx)
+            ctx = baggage.set_baggage("session.id", session_id, ctx)
+            if thread_id:
+                ctx = baggage.set_baggage("thread_id", thread_id, ctx)
+            
+            # Execute request with propagated baggage context
+            token = otel_context.attach(ctx)
+            try:
+                response = await call_next(request)
+            finally:
+                otel_context.detach(token)
+            return response
     
     response = await call_next(request)
     return response
@@ -382,13 +449,26 @@ async def add_business_dimensions(request: Request, call_next):
 
 ### Custom Dimensions Explained
 
-| Dimension | Source | Purpose | Example Values |
-|-----------|--------|---------|----------------|
-| **agent_type** | Static config | Identify which service created the span | `dreamfarm`, `chef`, `mcp-visualization` |
-| **experiment** | `OTEL_EXPERIMENT` env var | A/B testing, staging vs prod | `production`, `staging`, `experiment-a` |
-| **user_id** | JWT `preferred_username` claim | User-level filtering and analysis | `john.doe`, `anonymous` |
-| **is_vip** | JWT `groups` or `is_vip` claim | VIP vs regular user segmentation | `true`, `false` |
-| **thread_id** | URL path parsing | Conversation-level tracing | `550e8400-e29b-41d4-a716-446655440000` |
+| Dimension | Source | Purpose | Example Values | OpenTelemetry Convention |
+|-----------|--------|---------|----------------|--------------------------|
+| **user.id** | JWT `preferred_username` claim | User-level filtering and analysis | `john.doe`, `anonymous` | ✅ Yes (semantic convention) |
+| **session.id** | Thread ID from URL or generated | Session-level tracing (conversation groups) | `thread_abc`, `session_user1_12345` | ✅ Yes (semantic convention) |
+| **is_vip** | JWT `groups` or `is_vip` claim | VIP vs regular user segmentation | `true`, `false` | No (custom) |
+| **agent_type** | Static config | Identify which service created the span | `dreamfarm`, `chef`, `mcp-visualization` | No (custom) |
+| **experiment** | `OTEL_EXPERIMENT` env var | A/B testing, staging vs prod | `production`, `staging`, `experiment-a` | No (custom) |
+| **thread_id** | URL path parsing | Conversation-level tracing | `550e8400-e29b-41d4-a716-446655440000` | No (custom) |
+
+**OpenTelemetry Semantic Conventions**:
+- **user.id** (with dot): Standard OpenTelemetry convention for user identification across observability tools
+- **session.id** (with dot): Standard OpenTelemetry convention for session tracking
+- Using thread_id as the session.id value makes sense because each conversation thread represents a logical session
+- These conventions are recognized by multiple observability platforms (Langfuse, Grafana, etc.)
+
+**Baggage Propagation**:
+- All dimensions are set via `baggage.set_baggage()` in origin service (DreamFarm Agent)
+- W3C Baggage headers automatically propagate context to downstream services
+- Downstream services extract with `baggage.get_baggage()`
+- BaggageSpanProcessor copies baggage values to span attributes for all spans
 
 ### Use Cases
 
@@ -404,13 +484,19 @@ is_vip = true
 experiment = experiment-a vs experiment = production
 ```
 
-**3. Track Conversation Threads**:
+**3. Track Conversation Sessions** (OpenTelemetry convention):
 ```
-# All spans for a specific conversation
-thread_id = 550e8400-e29b-41d4-a716-446655440000
+# All spans for a specific conversation session
+session.id = thread_abc
 ```
 
-**4. Service-Level Metrics**:
+**4. Track User Across Services** (OpenTelemetry convention):
+```
+# All spans for a specific user
+user.id = john.doe
+```
+
+**5. Service-Level Metrics**:
 ```
 # DreamFarm agent specific performance
 agent_type = dreamfarm
@@ -546,7 +632,42 @@ spec:
 
 ## Observability Backends
 
-### Grafana Tempo (Distributed Tracing)
+### Aspire Dashboard (Development/Debug)
+
+**Purpose**: All-in-one observability dashboard for local development and debugging
+
+**Features**:
+- **Unified View**: Traces, logs, and metrics in one interface
+- **Real-time Updates**: Live view of telemetry as it arrives
+- **Detailed Inspection**: Drill down into spans, log entries, and metric data points
+- **No Configuration**: Works out-of-the-box with OTLP
+- **Lightweight**: In-memory storage, no persistence needed
+- **Fast Iteration**: Perfect for development and debugging
+
+**Access**:
+```bash
+# Local development
+http://localhost:18888
+
+# Kubernetes port-forward
+kubectl port-forward svc/aspire-dashboard 18888:18888
+```
+
+**Use Cases**:
+- Local development debugging
+- Quick trace inspection during testing
+- Log correlation without complex queries
+- Metrics visualization for performance testing
+- Understanding telemetry flow before production
+
+**Why Aspire + Production Backends?**
+- **Aspire**: Fast, interactive debugging during development
+- **Tempo/Loki/Prometheus**: Long-term storage, alerting, production analytics
+- **Langfuse**: LLM-specific analysis and cost tracking
+
+---
+
+### Grafana Tempo (Distributed Tracing - Production)
 
 **Purpose**: General-purpose distributed tracing for all services
 
@@ -555,6 +676,7 @@ spec:
 - Span-level details (duration, attributes, events)
 - Search by trace ID, service name, custom attributes
 - Trace comparison (slow vs fast requests)
+- MinIO backend for long-term storage
 
 **Access**: Port-forward or ingress
 ```bash
@@ -569,11 +691,16 @@ kubectl port-forward svc/tempo-query-frontend 3200:3200
 # Find slow LLM calls (>10s)
 { name = "openai.chat.completions" } && { duration > 10s }
 
-# Find all traces for a conversation
-{ thread_id = "550e8400-..." }
+# Find all traces for a conversation session (OpenTelemetry convention)
+{ session.id = "thread_abc" }
+
+# Find all traces for a specific user (OpenTelemetry convention)
+{ user.id = "john.doe" }
 ```
 
-### Langfuse (Future - LLM Analytics)
+---
+
+### Langfuse (LLM Analytics - Production)
 
 **Purpose**: LLM-specific observability and analytics
 
@@ -583,25 +710,46 @@ kubectl port-forward svc/tempo-query-frontend 3200:3200
 - Model performance comparison
 - User feedback correlation
 - Prompt engineering insights
+- Session-based analysis (groups traces by session.id)
+- User-based analysis (groups traces by user.id)
 
-**Requirements**:
-- Standard OpenTelemetry GenAI semantic conventions
-- Will work once we switch to `OTEL_INSTRUMENTATION_PROVIDER=opentelemetry`
+**Semantic Conventions**:
+Langfuse recognizes OpenTelemetry semantic conventions:
+- **user.id** (with dot): Standard OpenTelemetry convention for user identification
+- **session.id** (with dot): Standard OpenTelemetry convention for session tracking
+- These conventions enable Langfuse to automatically group and analyze traces by user and session
 
-**Deployment** (planned):
+**Access**:
+```bash
+# Kubernetes port-forward
+kubectl port-forward svc/langfuse-web 3000:3000 -n langfuse
+
+# Production URL
+https://langfuse.{domain}
+```
+
+**Current Implementation**:
+- ✅ Deployed and running in Kubernetes
+- ✅ OTel Collector configured with Langfuse exporter
+- ✅ Baggage-based context propagation (user.id, session.id, etc.)
+- ✅ BaggageSpanProcessor copies baggage to span attributes
+- ✅ W3C Baggage headers propagate context to downstream services
+- ⏳ Waiting for OpenAI Responses API streaming support in standard OTel instrumentation
+
+**Configuration**:
 ```yaml
 exporters:
-  otlp/langfuse:
-    endpoint: langfuse:4317
-    tls:
-      insecure: true
+  otlphttp/langfuse:
+    endpoint: http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel
+    headers:
+      Authorization: "Basic <credentials>"
 
 service:
   pipelines:
     traces:
       receivers: [otlp]
       processors: [batch]
-      exporters: [otlp/tempo, otlp/langfuse]  # Dual export
+      exporters: [otlp/aspire, otlp/tempo, otlphttp/langfuse]
 ```
 
 ---
@@ -644,14 +792,16 @@ Open Grafana → Explore → Tempo → Search for recent traces
 **4. Test Custom Dimensions**:
 Make authenticated request:
 ```bash
-curl -H "Authorization: Bearer $TOKEN" https://dreamfarm-agent.domain/chat
+curl -H "Authorization: Bearer $TOKEN" https://dreamfarm-agent.domain/threads/thread_abc/messages
 ```
 
-In Grafana, verify span has:
-- `user_id` = username from JWT
+In Grafana, verify span has (using OpenTelemetry semantic conventions):
+- `user.id` = username from JWT
+- `session.id` = thread_abc (from URL)
 - `is_vip` = true/false based on user
 - `agent_type` = "dreamfarm"
 - `experiment` = "production"
+- `thread_id` = thread_abc
 
 ---
 
@@ -720,38 +870,40 @@ If you see excessive spans (hundreds for a single request), this indicates a con
 
 ### Missing Custom Dimensions on Child Spans
 
-**Symptoms**: `user_id`, `is_vip`, `agent_type` appear on FastAPI span but not on database or OpenAI child spans
+**Symptoms**: `user.id`, `is_vip`, `agent_type` appear on FastAPI span but not on database or OpenAI child spans
 
-**Root Cause**: Custom dimensions not propagated via OpenTelemetry context
+**Root Cause**: Custom dimensions not propagated via OpenTelemetry Baggage API
 
-**Solution**: We use a custom `SpanProcessor` to propagate context attributes to all child spans:
+**Solution**: We use a custom `BaggageSpanProcessor` to propagate baggage values to all child spans:
 
 ```python
-class ContextAttributeSpanProcessor(SpanProcessor):
-    """Propagates context values to span attributes for all instrumentation layers."""
+class BaggageSpanProcessor(SpanProcessor):
+    """Copies OpenTelemetry Baggage values to span attributes for all spans."""
+    
+    BAGGAGE_KEYS = ["user.id", "session.id", "is_vip", "agent_type", "experiment", "thread_id"]
     
     def on_start(self, span, parent_context=None):
-        """Called when span starts - add context attributes."""
+        """Called when span starts - add baggage values as attributes."""
+        from opentelemetry import baggage
+        
         ctx = parent_context or otel_context.get_current()
         
-        # Propagate custom dimensions from context to span
-        user_id = otel_context.get_value("user_id", ctx)
-        if user_id:
-            span.set_attribute("user_id", user_id)
-        
-        is_vip = otel_context.get_value("is_vip", ctx)
-        if is_vip is not None:
-            span.set_attribute("is_vip", is_vip)
-        
-        # ... agent_type, experiment, thread_id
+        # Propagate custom dimensions from baggage to span
+        for key in self.BAGGAGE_KEYS:
+            value = baggage.get_baggage(key, ctx)
+            if value is not None:
+                span.set_attribute(key, value)
 ```
 
-**Middleware sets context**:
+**Middleware sets baggage** (using Langfuse conventions):
 ```python
 # In middleware, after extracting user from JWT
+from opentelemetry import baggage, context as otel_context
+
 ctx = otel_context.get_current()
-ctx = otel_context.set_value("user_id", user_id, ctx)
-ctx = otel_context.set_value("is_vip", is_vip, ctx)
+ctx = baggage.set_baggage("user.id", user_id, ctx)
+ctx = baggage.set_baggage("session.id", session_id, ctx)
+ctx = baggage.set_baggage("is_vip", str(is_vip).lower(), ctx)
 
 # Attach context for request duration
 token = otel_context.attach(ctx)
@@ -764,12 +916,12 @@ finally:
 **Verification**:
 ```bash
 # Make authenticated request
-curl -H "Authorization: Bearer $TOKEN" https://dreamfarm-agent.domain/chat
+curl -H "Authorization: Bearer $TOKEN" https://dreamfarm-agent.domain/threads/thread_abc/messages
 
-# In Grafana, verify ALL spans have custom attributes:
-# - FastAPI span: ✅ user_id, is_vip, agent_type, experiment
-# - PostgreSQL span: ✅ user_id, is_vip, agent_type, experiment  
-# - OpenAI span: ✅ user_id, is_vip, agent_type, experiment
+# In Grafana, verify ALL spans have custom attributes (OpenTelemetry conventions):
+# - FastAPI span: ✅ user.id, session.id, is_vip, agent_type, experiment
+# - PostgreSQL span: ✅ user.id, session.id, is_vip, agent_type, experiment  
+# - OpenAI span: ✅ user.id, session.id, is_vip, agent_type, experiment
 ```
 
 ### Wrong Semantic Conventions
@@ -794,7 +946,7 @@ helm upgrade demo ./charts/demo --set otel.instrumentationProvider=opentelemetry
 
 ### Missing Custom Dimensions
 
-**Symptoms**: `user_id`, `is_vip`, or other custom attributes not in spans
+**Symptoms**: `user.id`, `is_vip`, or other custom attributes not in spans
 
 **Diagnosis**:
 ```bash
@@ -809,6 +961,7 @@ kubectl logs -l app=dreamfarm-agent | grep -A5 "add_business_dimensions"
 - Ensure middleware is registered: `@app.middleware("http")`
 - Verify span is recording: `if span and span.is_recording()`
 - Check JWT parsing: Auth service must extract claims correctly
+- Verify BaggageSpanProcessor is installed in TracerProvider
 
 ### Responses API Streaming Not Traced
 
@@ -821,6 +974,159 @@ kubectl logs -l app=dreamfarm-agent | grep -A5 "add_business_dimensions"
 # Switch to OpenInference
 helm upgrade demo ./charts/demo --set otel.instrumentationProvider=openinference
 kubectl rollout restart deployment/dreamfarm-agent
+```
+
+---
+
+## W3C Baggage Propagation
+
+### Overview
+
+Our implementation uses the OpenTelemetry Baggage API to propagate business context across service boundaries. Baggage is a W3C standard that automatically propagates key-value pairs via HTTP headers.
+
+### How It Works
+
+**1. Origin Service (DreamFarm Agent)**:
+```python
+from opentelemetry import baggage, context as otel_context
+
+# Set baggage values (will propagate automatically)
+ctx = otel_context.get_current()
+ctx = baggage.set_baggage("user.id", "john.doe", ctx)
+ctx = baggage.set_baggage("session.id", "thread_abc", ctx)
+ctx = baggage.set_baggage("is_vip", "true", ctx)
+
+# Attach context for request
+token = otel_context.attach(ctx)
+try:
+    # Make HTTP call to downstream service
+    # Baggage automatically propagates via W3C headers
+    response = httpx.post("http://chef-agent/cook")
+finally:
+    otel_context.detach(token)
+```
+
+**2. HTTP Headers (Automatic)**:
+```
+baggage: user.id=john.doe,session.id=thread_abc,is_vip=true
+```
+
+**3. Downstream Service (Chef Agent)**:
+```python
+from opentelemetry import baggage, context as otel_context
+
+# Extract baggage from incoming request (automatic via OpenTelemetry auto-instrumentation)
+ctx = otel_context.get_current()
+user_id = baggage.get_baggage("user.id", ctx)  # "john.doe"
+session_id = baggage.get_baggage("session.id", ctx)  # "thread_abc"
+is_vip = baggage.get_baggage("is_vip", ctx)  # "true"
+```
+
+**4. BaggageSpanProcessor (All Services)**:
+```python
+class BaggageSpanProcessor:
+    """Automatically copies baggage values to span attributes."""
+    
+    def on_start(self, span, parent_context=None):
+        # Every span gets baggage values as attributes
+        # This makes them queryable in Grafana Tempo
+        for key in BAGGAGE_KEYS:
+            value = baggage.get_baggage(key, ctx)
+            if value:
+                span.set_attribute(key, value)
+```
+
+### Benefits
+
+✅ **Automatic Propagation**: No manual header passing required  
+✅ **Standards-Based**: W3C Baggage specification  
+✅ **Framework-Agnostic**: Works with any OpenTelemetry-instrumented HTTP client  
+✅ **Cross-Service Context**: User/session context available in all downstream services  
+✅ **Queryable**: All spans have business dimensions as attributes  
+
+### Architecture Flow
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│ 1. DreamFarm Agent (Origin)                                     │
+│    - Extracts user from JWT: user_id="john.doe", is_vip=true   │
+│    - Extracts thread_id from URL: thread_id="thread_abc"        │
+│    - Sets baggage: user.id, session.id, is_vip, agent_type     │
+│    - session.id = thread_id (conversation = session)            │
+└──────────────────┬──────────────────────────────────────────────┘
+                   │
+                   │ HTTP Request with W3C Baggage Header
+                   │ baggage: user.id=john.doe,session.id=thread_abc,...
+                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 2. Downstream Service (Chef Agent, API Stock, MCP Servers)     │
+│    - Baggage automatically extracted from headers               │
+│    - baggage.get_baggage("user.id") → "john.doe"               │
+│    - baggage.get_baggage("session.id") → "thread_abc"          │
+│    - BaggageSpanProcessor copies to span attributes             │
+│    - Service enriches with own agent_type                       │
+└─────────────────────────────────────────────────────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────────────────────────────────┐
+│ 3. All Spans Across Services                                    │
+│    ✅ user.id = "john.doe"                                      │
+│    ✅ session.id = "thread_abc"                                 │
+│    ✅ is_vip = "true"                                           │
+│    ✅ agent_type = service-specific                             │
+│    ✅ experiment = "production"                                 │
+│                                                                  │
+│    Queryable in Grafana Tempo:                                  │
+│    { user.id = "john.doe" }                                     │
+│    { session.id = "thread_abc" }                                │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### Verification
+
+Test baggage propagation end-to-end:
+
+```bash
+# 1. Make authenticated request with thread_id
+curl -H "Authorization: Bearer $TOKEN" \
+     https://dreamfarm-agent.domain/threads/thread_abc/messages \
+     -d '{"content": "Cook pasta"}'
+
+# 2. In Grafana Tempo, query by session:
+{ session.id = "thread_abc" }
+
+# 3. Verify all services in trace have attributes:
+# - dreamfarm-agent span: user.id, session.id, is_vip, agent_type=dreamfarm
+# - chef-agent span: user.id, session.id, is_vip, agent_type=chef
+# - api-stock span: user.id, session.id, is_vip, agent_type=api-stock
+```
+
+### Debugging Baggage
+
+**Check baggage headers in flight**:
+```python
+# In middleware or route handler
+from opentelemetry import baggage, context as otel_context
+
+ctx = otel_context.get_current()
+user_id = baggage.get_baggage("user.id", ctx)
+print(f"Received baggage: user.id={user_id}")
+```
+
+**Verify BaggageSpanProcessor is active**:
+```bash
+# Check service logs for initialization
+kubectl logs -l app=dreamfarm-agent | grep "BaggageSpanProcessor"
+```
+
+**Inspect HTTP headers** (if needed):
+```python
+# In downstream service
+@app.middleware("http")
+async def debug_baggage(request: Request, call_next):
+    baggage_header = request.headers.get("baggage", "")
+    print(f"Baggage header: {baggage_header}")
+    return await call_next(request)
 ```
 
 ---
@@ -842,10 +1148,13 @@ kubectl rollout restart deployment/dreamfarm-agent
 - Avoid spaces or special characters
 - Use lowercase with hyphens
 
-### 4. **Add Business Context**
+### 4. **Add Business Context with Baggage**
+- Use Baggage API for cross-service propagation (not span.set_attribute directly)
+- Follow OpenTelemetry semantic conventions: `user.id` and `session.id` (with dots)
 - Always set `agent_type` to identify service
 - Use `experiment` for A/B testing or environment tagging
 - Extract user context when available (not all requests have auth)
+- Use thread_id as session.id value (conversation thread = session)
 
 ### 5. **Monitor Collector Health**
 - Watch for export errors in collector logs
@@ -859,66 +1168,87 @@ kubectl rollout restart deployment/dreamfarm-agent
 
 ---
 
-## Complete LGTM Stack (Loki, Grafana, Tempo, Metrics)
+## Complete Observability Stack
 
-### Enhanced Architecture with Logs and Metrics
+### Enhanced Architecture with Traces, Logs, and Metrics
 
+```mermaid
+flowchart TB
+    subgraph apps["Python Applications"]
+        direction LR
+        app1["DreamFarm Agent"]
+        app2["Chef Agent"]
+        app3["API Stock"]
+        app4["MCP Servers"]
+    end
+    
+    subgraph instrumentation["OpenTelemetry Instrumentation"]
+        traces["📊 Traces<br/>(Spans + Baggage)"]
+        logs["📝 Logs<br/>(JSON + Correlation)"]
+        metrics["📈 Metrics<br/>(HTTP + Custom)"]
+    end
+    
+    subgraph collector["OTel Collector"]
+        receivers["OTLP Receivers<br/>gRPC: 4317<br/>HTTP: 4318"]
+        batch["Batch Processor"]
+    end
+    
+    subgraph production["Production Backends"]
+        tempo["Grafana Tempo<br/>🔍 Distributed Tracing<br/>📦 MinIO Storage<br/>🔎 TraceQL"]
+        loki["Grafana Loki<br/>📝 Log Aggregation<br/>📦 MinIO Storage<br/>🔎 LogQL"]
+        prometheus["Prometheus<br/>📈 Time Series Metrics<br/>💾 PVC 10Gi<br/>🔎 PromQL"]
+        langfuse["Langfuse<br/>🤖 LLM Analytics<br/>💰 Token Costs<br/>📊 Prompt Analysis"]
+    end
+    
+    subgraph dev["Development/Debug Backends"]
+        aspire["Aspire Dashboard<br/>🔍 Traces<br/>📝 Logs<br/>📈 Metrics<br/>🛠️ Dev Experience"]
+    end
+    
+    subgraph viz["Visualization Layer"]
+        grafana["Grafana<br/>📊 Dashboards<br/>🔗 Correlation<br/>🔍 Explore"]
+    end
+    
+    apps --> instrumentation
+    instrumentation -->|OTLP| receivers
+    receivers --> batch
+    
+    batch -->|"Traces<br/>OTLP"| tempo
+    batch -->|"Logs<br/>OTLP HTTP"| loki
+    batch -->|"Metrics<br/>Remote Write"| prometheus
+    batch -->|"Traces<br/>OTLP HTTP"| langfuse
+    
+    batch -->|"All Signals<br/>OTLP"| aspire
+    
+    tempo --> grafana
+    loki --> grafana
+    prometheus --> grafana
+    
+    style apps fill:#e1f5ff
+    style instrumentation fill:#fff4e1
+    style collector fill:#ffe1f5
+    style production fill:#e1ffe1
+    style dev fill:#f5e1ff
+    style viz fill:#ffe1e1
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                      Python Applications                         │
-│   - DreamFarm Agent    - API Stock         - MCP Servers        │
-│   - Chef Agent                                                   │
-│                                                                   │
-│   Instrumentation:                                               │
-│   • OpenTelemetry Traces (spans with context)                   │
-│   • OpenTelemetry Logs (structured JSON + trace correlation)    │
-│   • OpenTelemetry Metrics (FastAPI + custom business metrics)   │
-└────────────────────────────┬────────────────────────────────────┘
-                             │
-                             │ OTLP/gRPC (port 4317)
-                             │ OTLP/HTTP (port 4318)
-                             ▼
-┌─────────────────────────────────────────────────────────────────┐
-│              OpenTelemetry Collector (Centralized)              │
-│                                                                   │
-│  Receivers: OTLP (gRPC/HTTP) for traces, logs, metrics         │
-│  Processors: Batch, Resource, Memory Limiter                    │
-│  Exporters: OTLP to Tempo, OTLP HTTP to Loki,                  │
-│             Prometheus Remote Write                              │
-└──────────────┬──────────────┬──────────────┬────────────────────┘
-               │              │              │
-               ▼              ▼              ▼
-   ┌───────────────┐  ┌──────────────┐  ┌─────────────────┐
-   │  Grafana Tempo │  │ Grafana Loki │  │  Prometheus     │
-   │  (Traces)      │  │ (Logs)       │  │  (Metrics)      │
-   │                │  │              │  │                 │
-   │  • Trace       │  │  • Structured│  │  • HTTP metrics │
-   │    storage     │  │    logs      │  │  • LLM metrics  │
-   │  • Service     │  │  • Trace     │  │  • Cache hits   │
-   │    graphs      │  │    correlation│  │  • DB queries  │
-   │  • TraceQL     │  │  • LogQL     │  │  • PromQL       │
-   └────────┬──────┘  └──────┬───────┘  └────────┬────────┘
-            │                │                    │
-            └────────────────┴────────────────────┘
-                             ▼
-                    ┌─────────────────┐
-                    │  Grafana        │
-                    │  (Unified UI)   │
-                    │                 │
-                    │  • Dashboards   │
-                    │  • Correlation  │
-                    │  • Explore      │
-                    └─────────────────┘
-```
+
+### Signal Routing Summary
+
+| Signal | Production | Development |
+|--------|-----------|-------------|
+| **Traces** | Grafana Tempo, Langfuse | Aspire Dashboard |
+| **Logs** | Grafana Loki | Aspire Dashboard |
+| **Metrics** | Prometheus | Aspire Dashboard |
 
 ### Components
 
-| Component | Purpose | Storage | Retention | Access |
-|-----------|---------|---------|-----------|--------|
-| **Loki** | Log aggregation | MinIO (S3) | 7 days | http://loki:3100 |
-| **Grafana** | Visualization | PVC (5Gi) | N/A | https://grafana.{domain} |
-| **Tempo** | Distributed tracing | MinIO (S3) | Default | http://tempo-query-frontend:3200 |
-| **Prometheus** | Metrics | PVC (10Gi) | 7 days | http://prometheus-...:9090 |
+| Component | Purpose | Storage | Retention | Access | Environment |
+|-----------|---------|---------|-----------|--------|-------------|
+| **Grafana Tempo** | Distributed tracing | MinIO (S3) | Default | http://tempo-query-frontend:3200 | Production |
+| **Grafana Loki** | Log aggregation | MinIO (S3) | 7 days | http://loki:3100 | Production |
+| **Prometheus** | Metrics storage | PVC (10Gi) | 7 days | http://prometheus:9090 | Production |
+| **Langfuse** | LLM analytics | Database | N/A | http://langfuse-web:3000 | Production |
+| **Aspire Dashboard** | All-in-one observability | Memory | Session | http://aspire:18888 | Development |
+| **Grafana** | Unified visualization | PVC (5Gi) | N/A | https://grafana.{domain} | Production |
 
 ---
 
@@ -1222,11 +1552,16 @@ service:
 ## References
 
 - **OpenTelemetry Documentation**: https://opentelemetry.io/docs/
+- **OpenTelemetry Baggage API**: https://opentelemetry.io/docs/concepts/signals/baggage/
+- **W3C Baggage Specification**: https://www.w3.org/TR/baggage/
 - **GenAI Semantic Conventions**: https://opentelemetry.io/docs/specs/semconv/gen-ai/
+- **OpenTelemetry Semantic Conventions**: https://opentelemetry.io/docs/specs/semconv/
+- **Langfuse**: https://langfuse.com/docs
 - **OpenInference Documentation**: https://github.com/Arize-ai/openinference
 - **Grafana Tempo**: https://grafana.com/docs/tempo/latest/
 - **Langfuse**: https://langfuse.com/docs
 - **GitHub PR #3396** (Responses API streaming fix): https://github.com/traceloop/openllmetry/pull/3396
+- **Reference Implementation**: https://github.com/tkubica12/d-ai-maf-observability (baggage pattern)
 
 ---
 
