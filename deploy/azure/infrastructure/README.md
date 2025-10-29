@@ -10,6 +10,7 @@ This directory contains Terraform configuration for deploying the complete Azure
 - **Database**: Azure PostgreSQL Flexible Server
 - **Ingress**: NGINX Ingress Controller with Let's Encrypt TLS certificates
 - **Networking**: Single public IP with hostname-based routing
+- **Observability**: Grafana Stack (Tempo, Loki, Prometheus) + Langfuse for LLM tracing + Aspire Dashboard for comprehensive OTLP visualization
 
 ## Prerequisites
 
@@ -78,6 +79,9 @@ After DNS configuration and certificate issuance (5-10 minutes):
 - **Keycloak**: https://keycloak.dreamfarm.tomasdemo.org
 - **Dreamfarm Agent**: https://dreamfarm-agent.dreamfarm.tomasdemo.org
 - **MCP Services**: https://mcp-*.dreamfarm.tomasdemo.org
+- **Grafana**: https://grafana.dreamfarm.tomasdemo.org
+- **Langfuse**: https://langfuse.dreamfarm.tomasdemo.org
+- **Aspire Dashboard**: https://aspire.dreamfarm.tomasdemo.org
 
 ## HTTPS & Certificates
 
@@ -140,9 +144,16 @@ terraform destroy
 - `main.tf` - Resource group and locals
 - `aks.tf` - AKS cluster configuration
 - `acr.tf` - Container Registry
-- `ai_services.tf` - Azure OpenAI
+- `foundry.tf` - Azure OpenAI & AI Services
 - `postgres.tf` - PostgreSQL database
-- `ingress.tf` - NGINX Ingress & cert-manager
-- `helm.tf` - Demo application deployment
+- `network.tf` - Virtual network configuration
+- `static_ips.tf` - Public IP for ingress
+- `kubernetes.provider.tf` - Kubernetes provider configuration
+- `kubernetes.ingress.tf` - NGINX Ingress & cert-manager
+- `kubernetes.grafana.tf` - Grafana observability stack (Tempo, Loki, Prometheus)
+- `kubernetes.langfuse.tf` - Langfuse LLM observability platform
+- `kubernetes.demo.tf` - Demo application deployment
+- `docker_build_config.tf` - Docker build configuration for CI/CD
+- `tests_config.tf` - Test environment configuration
 - `variables.tf` - Input variables
 - `providers.tf` - Terraform providers

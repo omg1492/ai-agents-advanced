@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: aspire-dashboard
+  labels:
+    app: aspire-dashboard
+    app.kubernetes.io/component: aspire-dashboard
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: aspire-dashboard
+  template:
+    metadata:
+      labels:
+        app: aspire-dashboard
+    spec:
+      containers:
+      - name: aspire-dashboard
+        image: mcr.microsoft.com/dotnet/aspire-dashboard:9.0
+        ports:
+        - containerPort: 18888  # Dashboard UI
+          name: http
+          protocol: TCP
+        - containerPort: 18889  # OTLP gRPC
+          name: otlp-grpc
+          protocol: TCP
+        - containerPort: 18890  # OTLP HTTP
+          name: otlp-http
+          protocol: TCP
+        env:
+        - name: ASPNETCORE_ENVIRONMENT
+          value: "Production"
+        - name: ASPNETCORE_URLS
+          value: "http://+:18888"
+        - name: DOTNET_DASHBOARD_OTLP_ENDPOINT_URL
+          value: "http://+:18889"
+        - name: DOTNET_DASHBOARD_OTLP_HTTP_ENDPOINT_URL
+          value: "http://+:18890"
+        - name: DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS
+          value: "true"
+        resources:
+          requests:
+            memory: "128Mi"
+            cpu: "100m"
+          limits:
+            memory: "512Mi"
+            cpu: "500m"

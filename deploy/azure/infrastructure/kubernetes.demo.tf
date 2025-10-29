@@ -97,6 +97,19 @@ resource "helm_release" "demo" {
     value = "openinference"
   }
 
+  # Langfuse Configuration
+  # Langfuse OTLP endpoint for LLM observability
+  set {
+    name  = "langfuse.endpoint"
+    value = "http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel"
+  }
+
+  # Langfuse API authentication (Basic auth with generated API keys)
+  set_sensitive {
+    name  = "langfuse.authorization"
+    value = local.langfuse_auth_header
+  }
+
   # Chef agent MCP URL (now via ingress)
   set {
     name  = "chefAgent.mcpUrl"
@@ -135,13 +148,14 @@ resource "helm_release" "demo" {
     value = "https://${var.domain}/"
   }
 
-  # Wait for AKS, ACR permissions, cert-manager, and nginx ingress
+  # Wait for AKS, ACR permissions, cert-manager, nginx ingress, and Langfuse
   depends_on = [
     azapi_resource.aks,
     azurerm_role_assignment.aks_acr_pull,
     azurerm_cognitive_account.ai_services,
     azurerm_postgresql_flexible_server.main,
     helm_release.nginx_ingress,
+    helm_release.langfuse,
     time_sleep.wait_for_cert_manager
   ]
 }
@@ -191,6 +205,13 @@ resource "local_file" "test_env" {
 
     # Tavily API Key
     TAVILY_API_KEY=${var.tavily_api_key}
+
+    # Langfuse Configuration
+    LANGFUSE_URL=https://langfuse.${var.domain}
+    LANGFUSE_PUBLIC_KEY=${local.langfuse_public_key}
+    LANGFUSE_SECRET_KEY=${local.langfuse_secret_key}
+    LANGFUSE_ADMIN_EMAIL=admin@dreamfarm.local
+    LANGFUSE_ADMIN_PASSWORD=${random_password.langfuse_admin_password.result}
 
     # Service URLs (via Ingress with HTTPS)
     MCP_CHEF_SERVICES_URL=https://mcp-chef-services.${var.domain}/mcp

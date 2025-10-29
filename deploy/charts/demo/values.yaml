@@ -64,6 +64,18 @@ otel:
   # See: https://github.com/traceloop/openllmetry/pull/3396
   instrumentationProvider: "openinference"
 
+# Langfuse LLM Observability configuration
+langfuse:
+  # Langfuse OTLP endpoint (internal cluster service)
+  # Default points to the Langfuse service deployed via Terraform
+  endpoint: "http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel"
+  
+  # Authorization header for Langfuse API authentication
+  # Format: "Basic <base64(public_key:secret_key)>"
+  # Set via Terraform using the generated API keys
+  # Default empty value disables authentication (for testing only)
+  authorization: ""
+
 # Chef agent specific configuration
 chefAgent:
   mcpUrl: ""  # Set via Terraform to https://mcp-chef-services.domain/mcp

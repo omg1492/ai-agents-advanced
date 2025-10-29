@@ -44,6 +44,13 @@ data:
         sampling_initial: 5
         sampling_thereafter: 200
       
+      # Aspire Dashboard OTLP exporter (gRPC for comprehensive observability UI)
+      # Provides unified view of traces, metrics, and logs with detailed inspection
+      otlp/aspire:
+        endpoint: aspire-dashboard.default.svc.cluster.local:18889
+        tls:
+          insecure: true
+      
       # Grafana Tempo OTLP exporter (gRPC to distributor)
       otlp/tempo:
         endpoint: tempo-distributor.default.svc.cluster.local:4317
@@ -64,6 +71,14 @@ data:
           insecure: true
         resource_to_telemetry_conversion:
           enabled: true  # Convert resource attributes to metric labels
+      
+      # Langfuse OTLP exporter for LLM observability
+      # Exports traces to Langfuse via HTTP/protobuf protocol
+      # Provides advanced trace visualization, prompt management, and LLM analytics
+      otlphttp/langfuse:
+        endpoint: {{ .Values.langfuse.endpoint | default "http://langfuse-web.langfuse.svc.cluster.local:3000/api/public/otel" | quote }}
+        headers:
+          Authorization: {{ .Values.langfuse.authorization | default "Basic " | quote }}
 
     extensions:
       health_check:
@@ -72,20 +87,20 @@ data:
     service:
       extensions: [health_check]
       pipelines:
-        # Traces pipeline - send to Tempo
+        # Traces pipeline - send to Aspire Dashboard, Tempo and Langfuse
         traces:
           receivers: [otlp]
           processors: [memory_limiter, resource, batch]
-          exporters: [debug, otlp/tempo]
+          exporters: [debug, otlp/aspire, otlp/tempo, otlphttp/langfuse]
         
-        # Metrics pipeline - send to Prometheus
+        # Metrics pipeline - send to Aspire Dashboard and Prometheus
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, resource, batch]
-          exporters: [debug, prometheusremotewrite]
+          exporters: [debug, otlp/aspire, prometheusremotewrite]
         
-        # Logs pipeline - send to Loki
+        # Logs pipeline - send to Aspire Dashboard and Loki
         logs:
           receivers: [otlp]
           processors: [memory_limiter, resource, batch]
-          exporters: [debug, otlphttp/loki]
+          exporters: [debug, otlp/aspire, otlphttp/loki]

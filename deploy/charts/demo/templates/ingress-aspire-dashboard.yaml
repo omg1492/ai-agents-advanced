@@ -1,0 +1,23 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: aspire-dashboard
+  annotations:
+    {{- toYaml .Values.ingress.annotations | nindent 4 }}
+spec:
+  ingressClassName: {{ .Values.ingress.className }}
+  rules:
+    - host: aspire.{{ .Values.domain }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: aspire-dashboard
+                port:
+                  number: 18888
+  tls:
+    - hosts:
+        - aspire.{{ .Values.domain }}
+      secretName: aspire-dashboard-tls

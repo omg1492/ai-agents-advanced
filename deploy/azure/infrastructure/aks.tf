@@ -54,22 +54,21 @@ resource "azapi_resource" "aks" {
         dnsServiceIP      = "10.0.0.10"
       }
 
-      nodeProvisioningProfile = {
-        mode = "Auto"
-      }
-
       agentPoolProfiles = [
         {
-          name         = "system"
-          mode         = "System"
-          count        = 1
-          vmSize       = "Standard_D2ads_v6"
-          osDiskSizeGB = 110
-          osDiskType   = "Ephemeral"
-          osType       = "Linux"
-          osSKU        = "AzureLinux"
-          type         = "VirtualMachineScaleSets"
-          vnetSubnetID = azurerm_subnet.aks.id
+          name                = "system"
+          mode                = "System"
+          count               = 2
+          minCount            = 2
+          maxCount            = 5
+          enableAutoScaling   = true
+          vmSize              = "Standard_B8as_v2"
+          osDiskSizeGB        = 128
+          osDiskType          = "Managed"
+          osType              = "Linux"
+          osSKU               = "AzureLinux"
+          type                = "VirtualMachineScaleSets"
+          vnetSubnetID        = azurerm_subnet.aks.id
         }
       ]
 
