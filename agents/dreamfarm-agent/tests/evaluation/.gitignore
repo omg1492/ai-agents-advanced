@@ -1,0 +1,3 @@
+.deepeval/
+evaluation_results/
+!evaluation_results/.gitkeep
