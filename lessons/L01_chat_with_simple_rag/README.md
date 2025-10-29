@@ -18,16 +18,75 @@ Frontend je v Reactu v adresáři `frontend` a spustíte ho z něj pomocí pří
 
 Backend je v adresáři `agents/dreamfarm-agent/src/`, spuští se příklazem `uv run main.py`.
 
-Databázi PostgreSQL spustíte přes Docker Compose v adresáři `deploy/local` příkazem `docker-compose up -d`. Bude potřeba nainstalovat extensions a vytvořit schéma jednoduché tabulky, což najdete v `data/scripts/sql` buď ručně nebo použijte skript `data/scripts/configurepostgresql.py`.
+Databázi PostgreSQL spustíte přes Docker Compose v adresáři `deploy/local` příkazem `docker-compose up -d`. Bude potřeba nainstalovat extensions a vytvořit schéma jednoduché tabulky, což najdete v `data/scripts/sql` buď ručně nebo použijte skript `data/scripts/configure_postgresql.py`.
 
 Spusťte celé řešení - backend i frontend. Chatbot by měl fungovat a reagovat na otázky, ale pokud se zeptáte například `Who is producing vanilla-infused milk` nebude znát správnou odpověď.
 
 Pokud budete dělat změny v kódu, využijte testů pro rychlé ověření funkčnosti - popis je v `agents/dreamfarm-agent/tests/README.md`.
 
+# Ukázka (teacher branch)
+```powershell
+# Run docker compose
+cd deploy/local
+docker-compose up -d
+cd ../..
+
+# Import data
+cd data/scripts/
+uv run configure_postgresql.py
+uv run import_simple_products.py
+cd ../..
+
+# Run agent (new terminal window)
+cd agents/dreamfarm-agent/src/
+uv run main.py
+
+# Run frontend
+cd frontend
+npm run dev
+```
+
+# Úkol (student branch)
+
 ## Příprava dat
 Data jsou pro vás už vygenerovaná a uložená v `data/source_json/`. Pokud byste chtěli generovat vlastní data, použijte skript `data/scripts/gen_basic_data.py`, který vytvoří JSON soubory s produkty, producenty a dalšími informacemi.
 
-Vytvořte skript, který pro producenty a jejich produkty vytvoří embeddings přes OpenAI API (nakonfigurujte správně soubor `.env` na základě přiložené šablony) a výsledek uloží jako Parquet soubor `data/processed/simple_products.parquet`. Můžete použít předpřipravený prompt z adresáře `.github/prompts/L01-EmbeddingsSimpleProduct.prompt.md` dohromady s GitHub Copilot nebo jiným asistentem nebo napsat skript ručně. Použijte datové schéma popsané v `data/scripts/sql/01_create_simple_products.sql`.
+Vytvořte skript, který pro producenty a jejich produkty vytvoří embeddings přes OpenAI API (nakonfigurujte správně soubor `.env` na základě přiložené šablony) a výsledek uloží jako Parquet soubor `data/processed/simple_products.parquet`. Příklad promptu může vypadata třeba takhle:
+
+```
+Create script to prepare simple table with embeddings.
+- Input is ../source_json/producers.json
+- Create Pandas frame
+- Table columns should be producerName, productName, productDescription and productId
+- Create new column combinedText in format PRODUCER: name, PRODUCT: name, DESCRIPTION: description
+- Call OpenAI embeddings model large to get embeddings into column called embedding, but cap it to 2000 dimensions.
+- Important note - due to pgvector indexing limitations we want to keep the dimensionality of the embeddings to 2000.
+- Use envs as in template provided
+- LLM can be rate limited, implement retries and note model will typically return amount of seconds to wait during 429 errors.
+- Report progress ever 100 records or so
+- Once done export this as Parquet file ../processed/simple_products.parquet
+- Frameworks log level should be set to WARNING while keeping your own logger at INFO level
+
+Here is .env.template for your reference
+<env.template>
+# Unified OpenAI configuration (works for OpenAI and Azure OpenAI)
+# Required
+OPENAI_API_KEY=sk-your-openai-or-azure-key
+OPENAI_MODEL=gpt-5
+OPENAI_EMBEDDING_MODEL=text-embedding-3-large
+
+# Optional (required for Azure)
+OPENAI_BASE_URL=https://your-resource.openai.azure.com/openai/v1/
+OPENAI_API_VERSION=preview
+
+# PostgreSQL Database Configuration (standard PG environment variables)
+PGHOST=localhost
+PGPORT=5432
+PGDATABASE=aidb
+PGUSER=admin
+PGPASSWORD=my-secure-password-here
+</env.template>
+```
 
 Naimportujte data do databáze.
 
