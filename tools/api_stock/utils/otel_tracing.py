@@ -21,33 +21,36 @@ import os
 from typing import Optional
 
 
-class ContextAttributeSpanProcessor:
-    """Custom span processor to propagate context attributes to all child spans.
+class BaggageSpanProcessor:
+    """Custom span processor that automatically copies baggage values to span attributes.
     
-    This processor ensures that business dimensions set via OpenTelemetry context
-    (user_id, is_vip, agent_type, experiment, thread_id) are automatically added
-    to all spans, including those created by auto-instrumentation libraries.
-    
-    This enables filtering and querying traces by business dimensions in Grafana Tempo.
+    This ensures that user/session context set via Baggage API is available as
+    queryable attributes on all spans (including child spans from auto-instrumented
+    frameworks/libraries). Baggage propagates across service boundaries via W3C headers.
     """
     
+    # Define which baggage keys to copy to span attributes
+    # Using Langfuse semantic conventions for user.id and session.id
+    BAGGAGE_KEYS = [
+        "user.id",
+        "is_vip",
+        "agent_type",
+        "experiment",
+        "thread_id",
+        "session.id",
+    ]
+    
     def on_start(self, span: "Span", parent_context=None):
-        """Called when span starts - add context attributes.
-        
-        Args:
-            span: The span being started
-            parent_context: Optional parent context to inherit attributes from
-        """
-        from opentelemetry import context as otel_context
+        """Called when span starts - copy baggage to span attributes."""
+        from opentelemetry import baggage, context as otel_context
         
         ctx = parent_context or otel_context.get_current()
         
-        # Propagate custom dimensions from context to span attributes
-        dimensions = ["user_id", "is_vip", "agent_type", "experiment", "thread_id"]
-        for dimension in dimensions:
-            value = otel_context.get_value(dimension, ctx)
+        # Copy each baggage item to span attributes
+        for key in self.BAGGAGE_KEYS:
+            value = baggage.get_baggage(key, ctx)
             if value is not None:
-                span.set_attribute(dimension, value)
+                span.set_attribute(key, value)
     
     def on_end(self, span):
         """Called when span ends."""
@@ -59,7 +62,7 @@ class ContextAttributeSpanProcessor:
     
     def force_flush(self, timeout_millis: int = 30000):
         """Called on force flush."""
-        pass
+        return True
 
 
 def configure_otel_tracing(
@@ -135,8 +138,8 @@ def configure_otel_tracing(
         # Configure tracer provider
         provider = TracerProvider(resource=resource)
         
-        # Add custom span processor to propagate context attributes
-        provider.add_span_processor(ContextAttributeSpanProcessor())
+        # Add custom span processor to propagate baggage to span attributes
+        provider.add_span_processor(BaggageSpanProcessor())
         
         # Add OTLP exporter with batch processor
         otlp_exporter = OTLPSpanExporter(endpoint=otlp_endpoint, insecure=True)

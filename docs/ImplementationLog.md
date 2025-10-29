@@ -6,6 +6,89 @@ This document tracks key implementation decisions, architectural patterns, and c
 
 ## OpenTelemetry & Observability
 
+### 2025-10-29: OpenTelemetry Baggage Implementation for Cross-Service Context Propagation
+
+**Summary**: Replaced context-based attribute propagation with OpenTelemetry Baggage API for automatic cross-service propagation of business dimensions via W3C headers. This enables distributed tracing with user context preserved across all service boundaries.
+
+**Motivation**: 
+- Previous implementation used `context.set_value()` which only propagates within a single process
+- Baggage propagates automatically via W3C headers to downstream services (HTTP calls)
+- Aligns with [d-ai-maf-observability](https://github.com/tkubica12/d-ai-maf-observability) reference implementation
+- Enables querying traces by user_id, is_vip across entire distributed system
+
+**Implementation Changes**:
+
+1. **BaggageSpanProcessor** (replaces ContextAttributeSpanProcessor):
+   ```python
+   class BaggageSpanProcessor:
+       BAGGAGE_KEYS = ["user_id", "is_vip", "agent_type", "experiment", "thread_id", "session_id"]
+       
+       def on_start(self, span, parent_context=None):
+           from opentelemetry import baggage
+           ctx = parent_context or otel_context.get_current()
+           
+           for key in self.BAGGAGE_KEYS:
+               value = baggage.get_baggage(key, ctx)
+               if value is not None:
+                   span.set_attribute(key, value)
+   ```
+
+2. **Baggage Propagation Patterns**:
+   
+   **Origin Service (DreamFarm Agent)**:
+   - Extracts user context from JWT (user_id, is_vip)
+   - Sets baggage with all business dimensions
+   - Generates session_id, extracts thread_id from URL
+   - All downstream HTTP calls automatically carry baggage via W3C headers
+   
+   **Downstream Services (Chef Agent, API Stock, MCP Servers)**:
+   - Inherit baggage from incoming W3C headers
+   - Extract values: `baggage.get_baggage("user_id", ctx)`
+   - Enrich with service-specific agent_type
+   - Child spans automatically get all baggage attributes
+
+3. **Files Updated** (8 services total):
+   - `agents/dreamfarm-agent/src/utils/otel_tracing.py` + `src/main.py`
+   - `agents/chef-agent/src/utils/otel_tracing.py` + `src/main.py`
+   - `tools/api_stock/utils/otel_tracing.py` + `main.py`
+   - `tools/mcp_visualization_generator/utils/otel_tracing.py`
+   - `tools/mcp_chef_services/utils/otel_tracing.py`
+   - `tools/mcp_public_farmer_tools/utils/otel_tracing.py`
+
+**Benefits**:
+- ✅ Automatic propagation via W3C Baggage headers (no manual header passing)
+- ✅ Works with OpenTelemetry auto-instrumentation (OpenAI SDK, httpx)
+- ✅ All spans in distributed trace have business dimensions
+- ✅ Query traces by user: `{span.user_id="user_001"}` in Grafana Tempo
+- ✅ Standards-compliant W3C Baggage specification
+
+**Baggage Keys**:
+| Key | Origin | Purpose | OpenTelemetry Convention |
+|-----|--------|---------|--------------------------|
+| `user.id` | DreamFarm Agent (JWT) | User identifier for filtering traces | ✅ Semantic convention |
+| `is_vip` | DreamFarm Agent (JWT) | VIP status ("true"/"false") | No (custom) |
+| `agent_type` | Each service | Service identifier (dreamfarm, chef, api-stock) | No (custom) |
+| `experiment` | DreamFarm Agent (env) | A/B test identifier | No (custom) |
+| `thread_id` | DreamFarm Agent (URL) | Conversation thread ID | No (custom) |
+| `session.id` | DreamFarm Agent (thread_id) | Session identifier (uses thread_id value) | ✅ Semantic convention |
+
+**Key Design Decisions**:
+- **OpenTelemetry Semantic Conventions**: Using `user.id` and `session.id` (with dots) instead of underscores for standard compatibility across observability platforms
+- **session.id = thread_id**: Conversation thread represents a session, so `session.id` uses the `thread_id` value
+- **Fallback session**: If no thread_id exists (e.g., /chat endpoint), generates a temporary session identifier
+
+**Testing**:
+```bash
+# Query traces by business dimensions in Tempo (OpenTelemetry conventions)
+{span.user.id="user_001"}
+{span.is_vip="true"}
+{span.session.id="thread_abc"}
+```
+
+**Reference**: See `docs/OTEL_BAGGAGE_IMPLEMENTATION.md` for detailed documentation.
+
+---
+
 ### 2025-10-19: Complete Service Instrumentation & StarletteInstrumentor Bug Fix
 
 **Summary**: Implemented comprehensive OpenTelemetry instrumentation across all 5 services (DreamFarm Agent, Chef Agent, API Stock, 3 MCP servers) with dual OpenAI provider support, business dimensions middleware, and Kubernetes/Terraform deployment configuration. Fixed critical runtime bug in MCP servers caused by incorrect StarletteInstrumentor usage.

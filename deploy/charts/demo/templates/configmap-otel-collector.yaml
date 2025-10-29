@@ -91,16 +91,16 @@ data:
         traces:
           receivers: [otlp]
           processors: [memory_limiter, resource, batch]
-          exporters: [debug, otlp/aspire, otlp/tempo, otlphttp/langfuse]
+          exporters: [otlp/aspire, otlp/tempo, otlphttp/langfuse]
         
         # Metrics pipeline - send to Aspire Dashboard and Prometheus
         metrics:
           receivers: [otlp]
           processors: [memory_limiter, resource, batch]
-          exporters: [debug, otlp/aspire, prometheusremotewrite]
+          exporters: [otlp/aspire, prometheusremotewrite]
         
         # Logs pipeline - send to Aspire Dashboard and Loki
         logs:
           receivers: [otlp]
           processors: [memory_limiter, resource, batch]
-          exporters: [debug, otlp/aspire, otlphttp/loki]
+          exporters: [otlp/aspire, otlphttp/loki]

@@ -207,38 +207,48 @@ app.add_middleware(
 # OpenTelemetry business dimensions middleware
 @app.middleware("http")
 async def add_business_dimensions(request: Request, call_next):
-    """Add business context attributes to OpenTelemetry spans and propagate via context."""
+    """Add business context attributes to OpenTelemetry spans and propagate via baggage.
+    
+    Chef Agent receives baggage from DreamFarm Agent via W3C headers and enriches spans.
+    Baggage is automatically inherited from incoming requests and propagated to child spans.
+    """
     if otel_enabled:
         from opentelemetry import trace as otel_trace
-        from opentelemetry import context as otel_context
+        from opentelemetry import baggage, context as otel_context
         
         span = otel_trace.get_current_span()
         if span and span.is_recording():
-            # Set static agent_type dimension (chef for this service)
-            span.set_attribute("agent_type", "chef")
+            # Get current context (may already have baggage from incoming request)
+            ctx = otel_context.get_current()
             
-            # Set experiment dimension
-            experiment = os.getenv("OTEL_EXPERIMENT", "production")
+            # Try to extract user context from incoming baggage (from DreamFarm Agent)
+            # Using Langfuse semantic conventions: user.id and session.id
+            user_id = baggage.get_baggage("user.id", ctx) or "backend-service"
+            is_vip_str = baggage.get_baggage("is_vip", ctx) or "false"
+            is_vip = is_vip_str.lower() in ["true", "1", "yes"]
+            
+            # Set agent_type for Chef Agent
+            agent_type = "chef"
+            experiment = baggage.get_baggage("experiment", ctx) or os.getenv("OTEL_EXPERIMENT", "production")
+            
+            # Set attributes on span (using Langfuse conventions)
+            span.set_attribute("agent_type", agent_type)
             span.set_attribute("experiment", experiment)
-            
-            # Note: Chef Agent is typically called by DreamFarm Agent, so user context
-            # may be propagated via trace context headers (W3C Trace Context)
-            # We could extract user_id/is_vip from custom headers if DreamFarm sends them,
-            # but for now we'll use defaults since this is a backend service
-            user_id = "backend-service"
-            is_vip = False
-            
-            span.set_attribute("user_id", user_id)
+            span.set_attribute("user.id", user_id)
             span.set_attribute("is_vip", is_vip)
             
-            # Propagate custom dimensions via OpenTelemetry context
-            ctx = otel_context.get_current()
-            ctx = otel_context.set_value("user_id", user_id, ctx)
-            ctx = otel_context.set_value("is_vip", is_vip, ctx)
-            ctx = otel_context.set_value("agent_type", "chef", ctx)
-            ctx = otel_context.set_value("experiment", experiment, ctx)
+            # Enrich baggage with chef agent_type (override for child spans)
+            ctx = baggage.set_baggage("agent_type", agent_type, ctx)
             
-            # Execute request with propagated context
+            # Propagate thread_id and session.id if present
+            thread_id = baggage.get_baggage("thread_id", ctx)
+            session_id = baggage.get_baggage("session.id", ctx)
+            if thread_id:
+                span.set_attribute("thread_id", thread_id)
+            if session_id:
+                span.set_attribute("session.id", session_id)
+            
+            # Execute request with enriched baggage context
             token_ctx = otel_context.attach(ctx)
             try:
                 response = await call_next(request)

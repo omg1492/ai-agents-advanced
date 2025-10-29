@@ -391,10 +391,14 @@ app.add_middleware(
 # OpenTelemetry business dimensions middleware
 @app.middleware("http")
 async def add_business_dimensions(request: Request, call_next):
-    """Add business context attributes to OpenTelemetry spans and propagate via context."""
+    """Add business context attributes to OpenTelemetry spans and propagate via baggage.
+    
+    Uses OpenTelemetry Baggage API for cross-service propagation of business dimensions.
+    Baggage is automatically propagated via W3C headers to downstream services.
+    """
     if otel_enabled:
         from opentelemetry import trace as otel_trace
-        from opentelemetry import context as otel_context
+        from opentelemetry import baggage, context as otel_context
         
         span = otel_trace.get_current_span()
         if span and span.is_recording():
@@ -418,19 +422,12 @@ async def add_business_dimensions(request: Request, call_next):
                 except Exception:
                     pass  # Keep defaults
             
-            # Set user dimensions on span
-            span.set_attribute("user_id", user_id)
+            # Set user dimensions on span (using Langfuse conventions)
+            span.set_attribute("user.id", user_id)
             span.set_attribute("is_vip", is_vip)
             
-            # Propagate custom dimensions via OpenTelemetry context
-            # This makes them available to child spans (database, OpenAI, etc.)
-            ctx = otel_context.get_current()
-            ctx = otel_context.set_value("user_id", user_id, ctx)
-            ctx = otel_context.set_value("is_vip", is_vip, ctx)
-            ctx = otel_context.set_value("agent_type", "dreamfarm", ctx)
-            ctx = otel_context.set_value("experiment", experiment, ctx)
-            
             # Extract thread_id from path if present (for /threads/{thread_id} endpoints)
+            thread_id = None
             path = request.url.path
             if "/threads/" in path:
                 # Parse thread_id from path like /threads/{thread_id}/messages
@@ -439,9 +436,29 @@ async def add_business_dimensions(request: Request, call_next):
                     thread_id = parts[2]
                     if thread_id:  # Not empty
                         span.set_attribute("thread_id", thread_id)
-                        ctx = otel_context.set_value("thread_id", thread_id, ctx)
             
-            # Execute request with propagated context
+            # Use thread_id as session.id (conversation thread = session in Langfuse)
+            # If no thread_id, generate a session identifier
+            if thread_id:
+                session_id = thread_id
+            else:
+                import uuid
+                session_id = f"session_{uuid.uuid4().hex[:8]}"
+            span.set_attribute("session.id", session_id)
+            
+            # Set baggage for automatic propagation to all child spans and downstream services
+            # Baggage propagates via W3C headers automatically
+            # Using Langfuse semantic conventions: user.id and session.id
+            ctx = otel_context.get_current()
+            ctx = baggage.set_baggage("user.id", user_id, ctx)
+            ctx = baggage.set_baggage("is_vip", str(is_vip).lower(), ctx)
+            ctx = baggage.set_baggage("agent_type", "dreamfarm", ctx)
+            ctx = baggage.set_baggage("experiment", experiment, ctx)
+            ctx = baggage.set_baggage("session.id", session_id, ctx)
+            if thread_id:
+                ctx = baggage.set_baggage("thread_id", thread_id, ctx)
+            
+            # Execute request with propagated baggage context
             token_ctx = otel_context.attach(ctx)
             try:
                 response = await call_next(request)
