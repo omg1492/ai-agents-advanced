@@ -142,3 +142,122 @@ V databázi si náhodně vyberte produkt s `is_vip = true` a zkuste jej najít j
 
 ### Shrnutí
 Máme funkční agentic tool‑based search se striktním filtrováním citlivých (VIP) produktů a základ znalostního grafu. To vytváří základ pro hlubší semantické i strukturální dotazování v dalších lekcích.
+
+
+# Úkol (student branch)
+- Ve student branch není implmentován semantic search ve formě nástroje a použitím HyDE (Hypothetical Document Embedding). Přidejte tento nástroj a otestujte, zjistěte jak funguje.
+- Knowledge Graph nástroje ve studentském branch implementovány, ale v systém promptu chybí jejich popis a pár pokynů jak je může agent efektivně využívat, takže výsledky nejsou ideální. Vylepšete prompt.
+- VIP fencing je ve studentském branch implementován na graph a semantic nástrojích, ale ne u keyword search. Ověřte, že aktuálně vám agent vrátí VIP produkt i pod normálním uživatelem, pokud se zeptáte tak, že se aktivuje keyword search. Opravte to.
+  
+## GitHub Copilot – příklady promptů pro začátek
+
+Níže jsou příklady kvalitních promptů pro GitHub Copilot. Copilot funguje nejlépe s kontextem – vysvětlete mu co chcete dosáhnout, jaké technologie používáte a jaké jsou kroky k řešení.
+
+### Úkol 1: Implementace semantic search s HyDE
+
+```
+I need to implement semantic_product_search tool in the DreamFarm agent application. This is a RAG (Retrieval Augmented Generation) system using:
+- FastAPI backend with OpenAI Responses API (function calling)
+- PostgreSQL with pgvector extension for vector similarity search
+- OpenAI embeddings (text-embedding-3-large, 2000 dimensions)
+
+Current state:
+- File: agents/dreamfarm-agent/src/services/agentic_search.py
+- The semantic_search() method is stubbed out and returns empty list
+- The _embed() helper method already exists and works
+- The keyword_search() method shows the pattern (uses SQL with pgvector)
+
+Requirements:
+1. Implement HyDE (Hypothetical Document Embedding) technique:
+   - Take the user's text query and generate embedding using self._embed(text_value)
+   - Use pgvector cosine similarity operator <=> for distance calculation
+   - Convert distance to similarity score: 1 - (embedding <=> query_vector)
+
+2. Query structure:
+   - Table: products (columns: product_id, producer_name, product_name, product_description, embedding, is_vip)
+   - Return top k results ordered by similarity
+   - Include VIP fencing: WHERE (is_vip = false OR :user_is_vip = true)
+
+3. Also need to register the tool in openai_service.py:
+   - Add tool schema in get_tools() method (around line 193)
+   - Tool name: "semantic_product_search"
+   - Parameters: text (string, required), k (integer, 3-10, optional)
+   - Update execution logic in both openai_service.py and main.py
+
+Please show me the complete implementation with proper error handling and logging.
+```
+
+### Úkol 2: Vylepšení system promptu pro graph tools
+
+```
+I need to improve the system prompt guidance for knowledge graph search tools in a DreamFarm AI assistant. The application uses:
+- Apache AGE (graph database extension for PostgreSQL)
+- OpenAI function calling
+- Two graph tools: graph_dfs_similarity_search and graph_bfs_taxonomy_search
+
+Current state:
+- File: agents/dreamfarm-agent/src/templates/system_prompt.j2
+- Minimal guidance exists (line ~40-50): just mentions tools are available
+- The LLM doesn't know when to use DFS vs BFS effectively
+
+Tool capabilities:
+1. graph_dfs_similarity_search:
+   - Takes product_id (UUID) and k (number of results)
+   - Finds similar products by traversing graph relationships
+   - Best for: "find similar to this product", "alternatives to product X", "more like this"
+   - Requires: a specific product must already be identified
+
+2. graph_bfs_taxonomy_search:
+   - Takes query (natural language) and k (number of results)
+   - Embeds query, selects relevant taxonomy concepts (categories, cuisines, certifications, allergens)
+   - Expands to products connected to those concepts
+   - Best for: broad exploratory queries, "Italian dairy products", "organic breakfast items"
+
+Requirements:
+Add clear tactical guidance to the system prompt that explains:
+- When to use DFS (after identifying specific product, for similarity/alternatives)
+- When to use BFS (for broad/ambiguous queries, category exploration)
+- That DFS needs concrete product_id from previous search results (not guessed)
+- How to choose appropriate k value (3-10 range)
+- How these tools complement semantic/keyword search
+
+Keep the guidance concise but actionable. The LLM should clearly understand the decision tree.
+```
+
+### Úkol 3: Oprava VIP fencing v keyword search
+
+```
+I need to fix a security issue (VIP fencing) in the keyword search functionality of a DreamFarm marketplace application.
+
+Context:
+- Application has VIP and non-VIP users (stored in JWT, extracted as user_is_vip boolean)
+- Some products have is_vip=true flag (premium products)
+- Non-VIP users should NEVER see VIP products in search results
+- VIP users should see all products
+
+Current problem:
+- File: agents/dreamfarm-agent/src/services/agentic_search.py, keyword_search() method
+- The SQL query does NOT filter VIP products - security gap!
+- Semantic search and graph tools already have proper fencing implemented
+
+The keyword_search method:
+- Uses PostgreSQL full-text search with ts_rank()
+- Takes keywords array, k (limit), and user_is_vip flag
+- Currently queries: WHERE fts_document @@ to_tsquery('english', :q)
+- Missing: VIP filtering in WHERE clause
+
+Required fix:
+Add the VIP fencing condition to the SQL WHERE clause:
+- Should include: AND (is_vip = false OR :user_is_vip = true)
+- Must pass user_is_vip as a bind parameter
+- This ensures non-VIP users only see non-VIP products
+
+Reference implementations (already correct):
+- semantic_search() method in same file has: WHERE (is_vip = false OR :user_is_vip = true)
+- graph_search_service.py methods also implement this pattern
+
+Please show me the corrected keyword_search SQL query with proper VIP fencing.
+```
+
+## Další možné rozšíření (dobrovolně)
+- Rozšiřte LLM-based přípravu grafu o nové agregace, například sumář producenta (agregáty typu počty registrovaných produktů, procento co má skladem, pro které kuchyně má typicky suroviny, hlavní zaměření producenta podle jeho produktů), připravená data zaneste do grafové databáze a nabídněte jako nástroj
