@@ -71,8 +71,9 @@ Mechanismus:
 
 Cache obsahuje pouze bezpečné, obecné Q&A bez specifických produktů (rychlost + nákladové úspory, žádné riziko zastarání).
 
----
-### Rychlé spuštění (navazuje na předchozí lekce)
+# Ukázka (teacher branch)
+
+## Rychlé spuštění (navazuje na předchozí lekce)
 1. Spusťte infrastrukturu (PostgreSQL) + API (pokud ještě neběží):
 ```pwsh
 cd deploy/local
@@ -102,7 +103,7 @@ npm run dev
 6. Otevřete `http://localhost:3000` a zkuste dotazy.
 
 ---
-### .env (nové / relevantní proměnné)
+## .env (nové / relevantní proměnné)
 ```env
 # RAG
 ENABLE_RAG=true
@@ -120,8 +121,7 @@ OPENAI_MODEL=gpt-5
 OPENAI_EMBEDDING_MODEL=text-embedding-3-large
 ```
 
----
-### Jak skripty fungují
+## Jak skripty fungují
 | Skript | Vstup | Kroky | Model výstup (Pydantic) |
 |--------|-------|-------|-------------------------|
 | `process_pdfs.py` | `data/PDFs/*.pdf` | PDF → Markdown (MarkItDown) → LLM structured parse | `ProductSummary` |
@@ -130,8 +130,12 @@ OPENAI_EMBEDDING_MODEL=text-embedding-3-large
 
 Výstup skriptů se tiskne do konzole; můžete jej zachytit, parsovat a ukládat.
 
----
-### Další možné rozšíření (dobrovolně)
+# Úkol (student branch)
+- Ve vašem branch je vyřešené procesování videa a obrázky, ale chybí **řešení pro PDF** - vytvořte.
+- Ve vašem branch je implementovaný full-text search, ale ne semantický - **dodělejte semantic search** a následně vytvořte metodu spojední obou výsledků do jediného s **Reciprocal Rank Fusion**.
+- Ve vašem branch chybí **semantická cache**, impementujte ji.
+
+## Další možné rozšíření (dobrovolně)
 - Dotáhnout datovou pipeline do automatického importu do databáze
 - Místo RRF použít semantic reranking
 
