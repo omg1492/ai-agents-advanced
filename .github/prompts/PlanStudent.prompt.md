@@ -1,0 +1,2 @@
+See attached plan for this lesson with description of teacher demonstration and than what students are supposed to do on student branch with some of features missing there.
+Without changing any files at this point I want you to prepare plan for removal of features that should not be present on student branch.
