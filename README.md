@@ -76,7 +76,7 @@ Kurz **podporuje obě platformy**:
 9. **Bezpečnost a evaluace** - Red teaming, LLM-as-judge, evaluační framework
 10. **Observability a škálovatelné nasazení** - OpenTelemetry, Kubernetes, CI/CD, IaC
 
-🎯 **[Detailní agenda lekcí s koncepty a technologiemi →](docs/Agenda.md)**
+🎯 **[Detailní agenda lekcí s koncepty a technologiemi →](docs/agenda.md)**
 
 ---
 
