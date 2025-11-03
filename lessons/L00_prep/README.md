@@ -1,24 +1,24 @@
-# Lesson 00 - Preparation
-Following topics are technical concepts you should now before starting the lessons as well as requirements for your setup and access to services.
+# Lekce 00 - Příprava
+Následující témata jsou technické koncepty, které byste měli znát před zahájením lekcí, stejně jako požadavky na vaše nastavení a přístup ke službám.
 
-## Access to services
-- **Make sure you have access to `OpenAI` or `Azure OpenAI`** API keys with enough credit (I will be using Azure OpenAI for which you can get Azure trail subscription for free, but going directly with OpenAI is also fine, althow not fully tested in my code)
-- Recommendation is to go with [Azure Trial](https://azure.microsoft.com/en-us/pricing/purchase-options/azure-account) or with your company Azure. Alternatively use [OpenAI Platform](https://platform.openai.com/settings/organization/billing/overview) and add some credit (absolute majority of our example code is using latest OpenAI SDK which works the same between Azure and OpenA flavors using **Responses API** so it should work fine)
-- You will need AI code assistant, I will be using (and recommend) **GitHub Copilot** - you need at least Pro version (or Pro+, Bussines or Enterprise) which youc by for 10 USD or get trial [here](https://github.com/features/copilot/plans)
+## Přístup ke službám
+- **Ujistěte se, že máte přístup k `OpenAI` nebo `Azure OpenAI`** API klíčům s dostatečným kreditem (budu používat Azure OpenAI, pro který můžete získat zkušební Azure předplatné zdarma, ale přímé použití OpenAI je také v pořádku, ačkoli není plně otestováno v mém kódu)
+- Doporučení je jít s [Azure Trial](https://azure.microsoft.com/en-us/pricing/purchase-options/azure-account) nebo s vaším firemním Azure. Alternativně použijte [OpenAI Platform](https://platform.openai.com/settings/organization/billing/overview) a přidejte nějaký kredit (absolutní většina našeho ukázkového kódu používá nejnovější OpenAI SDK, které funguje stejně mezi Azure a OpenAI variantami pomocí **Responses API**, takže by to mělo fungovat dobře)
+- Budete potřebovat AI kódovacího asistenta, budu používat (a doporučuji) **GitHub Copilot** - potřebujete alespoň Pro verzi (nebo Pro+, Business nebo Enterprise), kterou si můžete koupit za 10 USD nebo získat zkušební verzi [zde](https://github.com/features/copilot/plans)
 
-## Concepts recommended to know before starting this course
-- Learn `uv` - a Python environment and package manager
-- You should know basics of `Docker` (creating Dockerfiles, building images, running containers) and `Docker Compose` (YAML file syntax,docker compose up, down, logs, etc.)
-- Get familiar with Python concepts and libraries like `classes`, `Pydantic`, `FastAPI`, `SQLAlchemy`, `pytest`, and `Jinja2`
-- Basic understanding of how to run `React` apps, use `npm`, have it installed on your machine
-- Learn basics of `PostgreSQL` (creating databases, tables, running queries), knowing little bit of `pgvector` is a plus
-- Get familiar with `GitHub Copilot` (this is what I will be using, but if you are user of Cursor or Windsurf, it is fine too)
-- Basics of `git` and `GitHub` (cloning repositories, creating branches, committing changes, pushing to remote)
+## Koncepty, které je doporučeno znát před zahájením tohoto kurzu
+- Naučte se `uv` - Python prostředí a správce balíčků
+- Měli byste znát základy `Docker` (vytváření Dockerfile, sestavování images, spouštění kontejnerů) a `Docker Compose` (syntaxe YAML souboru, docker compose up, down, logs atd.)
+- Seznamte se s Python koncepty a knihovnami jako `classes`, `Pydantic`, `FastAPI`, `SQLAlchemy`, `pytest` a `Jinja2`
+- Základní pochopení, jak spouštět `React` aplikace, používat `npm`, mít ho nainstalovaný na vašem stroji
+- Naučte se základy `PostgreSQL` (vytváření databází, tabulek, spouštění dotazů), znalost `pgvector` je plus
+- Seznamte se s `GitHub Copilot` (to je to, co budu používat, ale pokud jste uživatel Cursor nebo Windsurf, je to také v pořádku)
+- Základy `git` a `GitHub` (klonování repozitářů, vytváření větví, commitování změn, pushování do remote)
   
-## Requirements for your machine
-For local machine make sure you have all required permissions (things like containers, networking, ability to install software, ...) and install the following tools:
-- Visual Studio Code and log in with GitHub Copilot
-- Have `Python` and `npm` installed on your machine
-- Install `Rancher Desktop` in Docker compatibility mode and test it - or alternatively use any other local Linux Docker compatible system
+## Požadavky na váš stroj
+Pro lokální stroj se ujistěte, že máte všechna požadovaná oprávnění (věci jako kontejnery, networking, schopnost instalovat software, ...) a nainstalujte následující nástroje:
+- Visual Studio Code a přihlaste se pomocí GitHub Copilot
+- Mějte `Python` a `npm` nainstalované na vašem stroji
+- Nainstalujte `Rancher Desktop` v režimu kompatibility s Docker a otestujte ho - nebo alternativně použijte jakýkoli jiný lokální Linux Docker kompatibilní systém
 
-Alternatively you can use **GitHub Codespaces** to get cloud-based dev environment.
+Alternativně můžete použít **GitHub Codespaces** pro získání cloudového vývojového prostředí.
