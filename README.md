@@ -194,7 +194,7 @@ Příklad: Začněte L01 z `L01-student`, porovnejte s `L01-teacher` po dokonče
 
 ## Dokumentace
 
-- **[Agenda](docs/Agenda.md)**
+- **[Agenda](docs/agenda.md)**
 - **[Design.md](docs/Design.md)** - Přehled architektury a systémový design
 - **[APIReference.md](docs/APIReference.md)** - Kompletní REST a WebSocket API specifikace
 - **[DataSchemas.md](docs/DataSchemas.md)** - Databázová schémata a indexy
