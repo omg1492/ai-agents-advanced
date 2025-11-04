@@ -323,33 +323,31 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest):
         full_text = ""
         response_id_local = None
         try:
-            # Use non-streaming API (streaming requires verified organization)
-            # Build params conditionally - only add reasoning for o1 models
-            params = {
-                "model": openai_service.model_name,
-                "instructions": system_prompt or None,
-                "input": payload.message,
-                "store": True,
-                "previous_response_id": prev_resp_id or None,
-            }
-
-            # Only add reasoning parameter for o1 models (gpt-5 family)
-            if openai_service.model_name.startswith("o1") or openai_service.model_name.startswith("gpt-5"):
-                params["reasoning"] = {"effort": "minimal"}
-
-            response = await openai_service.client.responses.create(**params)
-
-            # Get the full response text
-            full_text = getattr(response, "output_text", "")
-            response_id_local = getattr(response, "id", None)
-
-            # Simulate streaming by yielding the full text
-            # (Frontend expects streaming format)
-            if full_text:
-                yield full_text
-
+            # Stream from OpenAI Responses API (unified OpenAI/Azure client)
+            async with openai_service.client.responses.stream(
+                model=openai_service.model_name,
+                instructions=system_prompt or None,
+                input=payload.message,
+                store=True,
+                previous_response_id=prev_resp_id or None,
+                reasoning={"effort": "minimal"},
+            ) as stream:
+                async for event in stream:
+                    # Collect plain text deltas
+                    et = getattr(event, "type", "")
+                    if et.endswith("response.output_text.delta") or et == "response.output_text.delta":
+                        delta = getattr(event, "delta", "")
+                        if delta:
+                            full_text += delta
+                            yield delta
+                    elif et.endswith("response.error") or et == "response.error":
+                        err = getattr(event, "error", None)
+                        logger.error(f"OpenAI stream error: {err}")
+                # Get final response to retrieve response_id
+                final = await stream.get_final_response()
+                response_id_local = getattr(final, "id", None)
         except Exception as e:
-            logger.error(f"Response generation failed: {e}")
+            logger.error(f"Streaming failed: {e}")
             # Stop streaming; client will handle partial content
         finally:
             # Update server-side state/history when stream completes
