@@ -1,13 +1,17 @@
-# Lekce 02 – Používání nástrojů (Web search, API, MCP)
+# Lekce 02 - Používání nástrojů (Web search, API, MCP)
 V této lekci rozšíříme základní chatbot o schopnost volat nástroje. Model si může dynamicky vyžádat externí data a pak pokračovat v odpovědi. Oproti lekci 01 přibývají tři zdroje:
 
 - Cloud MCP Farmer Tools (sezónní tipy, počasí, čas)
 - Tavily (web / news search)
-- Lokální Stock API (aktuální sklad – funkce `get_stock`)
+- Lokální Stock API (aktuální sklad - funkce `get_stock`)
 
 **MCP Farmer Tools běží v cloudu** na adrese `https://farmer-tools.tomasdemo.org/mcp/`. API klíč vám předá lektor/průvodce. Lokálně už nic nespouštíte.
 
-**Docker Compose nyní startuje i Stock API**, takže není třeba pouštět `tools/api_stock` ručně.
+**Docker Compose nyní startuje i Stock API**, takže není třeba pouštět `tools/api_stock` ručně:
+```bash
+cd tools/api_stock/
+uv run main.py 
+```
 
 **Koncepty:**
 - Tool-use (function call + MCP)
@@ -18,19 +22,19 @@ V této lekci rozšíříme základní chatbot o schopnost volat nástroje. Mode
 - OpenAI Responses API (GPT‑5)
 - MCP (Farmer Tools, Tavily)
 - FastAPI (agent, stock)
-- PostgreSQL + pgvector (z předchozí lekce – volitelné)
+- PostgreSQL + pgvector (z předchozí lekce - volitelné)
 
 # Ukázka (teacher branch)
 
 ## Rychlé spuštění
 1. Spusťte infrastrukturu (PostgreSQL + stock API) pokud neběží:
-	```pwsh
+	```bash
 	cd deploy/local
-	docker compose up -d postgres api-stock
+	export DOCKER_DEFAULT_PLATFORM=linux/amd64 && docker compose up -d postgres api-stock
 	```
 
 2. Naimportujte stock data (pokud ještě nebyla naimportována):
-	```pwsh
+	```bash
 	cd data/scripts
 	uv run configure_postgresql.py
 	uv run import_simple_products.py
@@ -38,13 +42,13 @@ V této lekci rozšíříme základní chatbot o schopnost volat nástroje. Mode
 	```
 
 3. Frontend (pokud neběží):
-	```pwsh
+	```bash
 	cd frontend
 	npm install
 	npm run dev
 	```
 4. DreamFarm Agent:
-	```pwsh
+	```bash
 	cd agents/dreamfarm-agent
 	uv sync
 	uv run dreamfarm-agent
@@ -86,12 +90,12 @@ TAVILY_API_KEY=<váš_tavily_key>
 ## Jak to funguje
 - `OpenAIService.get_tools()` zaregistruje: MCP tool „farmer-tools“, MCP tool „tavily“ (pokud klíč) a lokální function tool `get_stock`.
 - Model při potřebě dat vrátí `function_call` → agent zavolá REST (`POST /stock`) a výsledek pošle zpět přes `submit_tool_outputs`.
-- UI zobrazuje průběh (DF_META) – uvidíte, kdy byl nástroj volán.
+- UI zobrazuje průběh (DF_META) - uvidíte, kdy byl nástroj volán.
 
 ---
 ## Zkuste se zeptat
 1. „What seasonal farm products do you recommend this month?“ (Farmer Tools)
-2. „Do we have stock for product <UUID>?“ (Stock – použijte reálné UUID z DB) - pokud používáte přepřipravená data, zkuste `083166ea-c088-40cc-bc06-4e5e506210f8` a očekávejte výsledek 176
+2. „Do we have stock for product <UUID>?“ (Stock - použijte reálné UUID z DB) - pokud používáte přepřipravená data, zkuste `083166ea-c088-40cc-bc06-4e5e506210f8` a očekávejte výsledek 176
 3. „Find two recent recipe ideas using goat cheese and cite sources. Use Internet search and give me links.“ (Tavily)
 4. „Recommend two goat aged cheeses from the catalog and check their stock.“ (RAG + Stock)
 
