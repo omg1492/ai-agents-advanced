@@ -16,7 +16,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Iterable, List, Any
-from collections.abc import Sequence as SeqABC, Iterable as IterABC
+from collections.abc import Sequence as SeqABC
 
 import pandas as pd
 import psycopg2
@@ -58,10 +58,8 @@ def to_vector_literal(vec: List[float]) -> str:
 def iter_prepared_rows(df: pd.DataFrame) -> Iterable[tuple[str, str, str]]:
     """Yield (question, answer, vector_literal) rows.
 
-    More permissive embedding handling:
-    - Accept any non-string iterable (numpy ndarray, list, tuple, array.array, etc.)
-    - Fallback: if object provides __iter__ and __len__, attempt list() coercion
-    - Skip only when clearly not iterable or empty after coercion
+    Accept any non-string sequence (including numpy ndarray). Log a few skip reasons
+    to help troubleshooting if count unexpectedly zero.
     """
     skipped_empty = skipped_type = 0
     for i, row in df.iterrows():
@@ -72,33 +70,24 @@ def iter_prepared_rows(df: pd.DataFrame) -> Iterable[tuple[str, str, str]]:
             if i < 5:
                 logger.debug("Skipping row %d: missing q/a or embedding", i)
             continue
-        # Reject raw strings/bytes outright
-        if isinstance(emb, (str, bytes)):
+        # Check if it's a valid embedding: must have __len__ and __iter__, but not be string/bytes
+        if isinstance(emb, (str, bytes)) or not (hasattr(emb, "__len__") and hasattr(emb, "__iter__")):
             skipped_type += 1
             if skipped_type <= 3:
-                logger.debug("Skipping row %d: embedding is text-like (%r)", i, type(emb))
+                logger.debug("Skipping row %d: embedding type %r not sequence", i, type(emb))
             continue
-        emb_list: list[float] | None = None
-        try:
-            if isinstance(emb, SeqABC) or isinstance(emb, IterABC):
-                emb_list = list(emb)
-            else:
-                # Last resort attempt
-                emb_list = list(emb)  # may raise TypeError
-        except Exception:  # noqa: BLE001
-            skipped_type += 1
-            if skipped_type <= 3:
-                logger.debug("Skipping row %d: embedding not iterable type=%r", i, type(emb))
-            continue
+        emb_list = list(emb)
         if not emb_list:
             skipped_empty += 1
             if skipped_empty <= 3:
-                logger.debug("Skipping row %d: empty embedding sequence after coercion", i)
+                logger.debug("Skipping row %d: empty embedding sequence", i)
             continue
         yield (q, a, to_vector_literal(emb_list))
     if skipped_type or skipped_empty:
         logger.info(
-            "Embedding skips summary (non_iterable=%d, empty=%d).", skipped_type, skipped_empty
+            "Skipped embeddings (type=%d, empty=%d). If all rows skipped, parquet embedding dtype may be unexpected.",
+            skipped_type,
+            skipped_empty,
         )
 
 
