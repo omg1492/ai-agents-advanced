@@ -75,18 +75,18 @@ Cache obsahuje pouze bezpečné, obecné Q&A bez specifických produktů (rychlo
 
 ## Rychlé spuštění (navazuje na předchozí lekce)
 1. Spusťte infrastrukturu (PostgreSQL) + API (pokud ještě neběží):
-```pwsh
+```bash
 cd deploy/local
-docker compose up -d postgres api-stock
+export DOCKER_DEFAULT_PLATFORM=linux/amd64 && docker compose up -d postgres api-stock
 ```
 2. Nakonfigurujte PostgreSQL (pgvector extension + schéma):
-```pwsh
+```bash
 cd data/scripts
 uv sync
 uv run configure_postgresql.py
 ```
 3. Naimportujte základní data do databáze:
-```pwsh
+```bash
 # Import produktů s embeddingy
 uv run import_simple_products.py
 
@@ -97,19 +97,19 @@ uv run import_stock.py
 uv run import_qna.py
 ```
 4. (Volitelně) zpracujte multimediální soubory (použijte reálné produkty z `data/`):
-```pwsh
+```bash
 uv run process_pdfs.py
 uv run process_images.py
 uv run process_videos.py
 ```
 5. Spusťte agenta (s aktivovaným RAG a cache):
-```pwsh
+```bash
 cd agents/dreamfarm-agent
 uv sync
 uv run dreamfarm-agent
 ```
 6. Frontend:
-```pwsh
+```bash
 cd frontend
 npm install
 npm run dev
