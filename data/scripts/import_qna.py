@@ -70,7 +70,8 @@ def iter_prepared_rows(df: pd.DataFrame) -> Iterable[tuple[str, str, str]]:
             if i < 5:
                 logger.debug("Skipping row %d: missing q/a or embedding", i)
             continue
-        if isinstance(emb, (str, bytes)) or not isinstance(emb, SeqABC):
+        # Check if it's a valid embedding: must have __len__ and __iter__, but not be string/bytes
+        if isinstance(emb, (str, bytes)) or not (hasattr(emb, "__len__") and hasattr(emb, "__iter__")):
             skipped_type += 1
             if skipped_type <= 3:
                 logger.debug("Skipping row %d: embedding type %r not sequence", i, type(emb))
