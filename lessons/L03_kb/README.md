@@ -1,4 +1,4 @@
-## Lekce 03 – Znalostní báze z dokumentů, obrázků a videí, hybridní vyhledávání & semantický cache
+## Lekce 03 - Znalostní báze z dokumentů, obrázků a videí, hybridní vyhledávání & semantický cache
 
 V této lekci stavíme na předchozích základech (RAG + nástroje) a rozšiřujeme systém o ingest heterogenních zdrojů (PDF, obrázky, video/audio) do jednotné znalostní báze, hybridní (semantic + full‑text) vyhledávání s Reciprocal Rank Fusion a semantický cache pro bleskové odpovědi na nejběžnější úvodní otázky.
 
@@ -20,15 +20,15 @@ V této lekci stavíme na předchozích základech (RAG + nástroje) a rozšiřu
 ---
 ### Novinky oproti lekci 02
 1. Skripty pro zpracování multimédií v `data/scripts/`:
-	- `process_pdfs.py` – PDF → Markdown (MarkItDown) → LLM structured parse (`ProductSummary`)
-	- `process_images.py` – obrázek (base64) → vision prompt → structured `ImageProductSummary`
-	- `process_videos.py` – sampling 3 rámců + (volitelně) extrakce audia přes ffmpeg + lokální Whisper → vision + text prompt → `VideoProductSummary`
+	- `process_pdfs.py` - PDF → Markdown (MarkItDown) → LLM structured parse (`ProductSummary`)
+	- `process_images.py` - obrázek (base64) → vision prompt → structured `ImageProductSummary`
+	- `process_videos.py` - sampling 3 rámců + (volitelně) extrakce audia přes ffmpeg + lokální Whisper → vision + text prompt → `VideoProductSummary`
 2. Schéma / tabulky rozšířené o full‑text (`fts_combined`) a HNSW index pro vektorové dotazy.
 3. Hybridní RAG pipeline: 
 	- Semantic pass (embedding dotazu)
 	- LLM extrakce klíčových slov → FTS (to_tsquery)
 	- Reciprocal Rank Fusion (RRF) pro sjednocení pořadí
-4. Semantický cache pro první zprávu (tabulka `semantic_cache`) – top 1 nejpodobnější otázka nad uloženými embeddingy, pokud překročí práh podobnosti → okamžitá odpověď bez volání modelu.
+4. Semantický cache pro první zprávu (tabulka `semantic_cache`) - top 1 nejpodobnější otázka nad uloženými embeddingy, pokud překročí práh podobnosti → okamžitá odpověď bez volání modelu.
 
 ---
 ### Architektura (rozšíření)
@@ -46,7 +46,7 @@ Data Pipeline Scripts → (PDF / Image / Video -> summaries + text) → Ingest �
 ```
 
 ---
-### Hybridní vyhledávání – detail
+### Hybridní vyhledávání - detail
 1. Vypočti embedding dotazu → top N kandidátů (cosine) z `simple_products.embedding`.
 2. LLM (Responses / Chat beta parse) extrahuje normalizovaná klíčová slova (structured schema).
 3. Full‑text dotaz: `fts_combined @@ to_tsquery('simple', <OR-joined keywords>)` + `ts_rank`.
@@ -65,7 +65,7 @@ Používá se pouze pro úplně první uživatelskou zprávu v konverzaci, aby n
 
 Mechanismus:
 1. Embed první zprávu.
-2. Dotaz na `semantic_cache` (pgvector) – kosinová podobnost (HNSW index).
+2. Dotaz na `semantic_cache` (pgvector) - kosinová podobnost (HNSW index).
 3. Pokud max podobnost ≥ `SEMANTIC_CACHE_SIMILARITY_THRESHOLD` (výchozí 0.93) → vrátí se uložená odpověď, žádné volání LLM.
 4. Miss → pokračuje standardní pipeline (cache se neaplikuje na další zprávy).
 
