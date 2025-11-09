@@ -33,7 +33,7 @@ Ne všichni zákazníci mají mít přístup k prémiovým (VIP) produktům. Pot
 
 ## Implementované prvky
 - `is_vip` sloupec a filtrování ve vyhledávacích nástrojích
-- Feature flagy: `ENABLE_RAG`, `ENABLE_AGENTIC_SEARCH`, `REQUIRE_AUTH`
+- Feature flagy: `ENABLE_RAG`, `AGENTIC_SEARCH_ENABLED`, `AUTH_ENABLED`
 - Keycloak container v `docker-compose` + skripty pro vytvoření demo uživatelů
 - AGE inicializace + import grafu (producent ↔ produkt, produkt ↔ alergen, produkt ↔ certifikace)
 - System prompt doplněn o striktní groundování produktových tvrzení
@@ -81,9 +81,9 @@ uv run provision_keycloak.py
 
 4. Spusťte agenta s autentizací, agentic search a grafovými nástroji (příklad .env hodnot):
 ```env
-REQUIRE_AUTH=true
+AUTH_ENABLED=true
 ENABLE_RAG=false
-ENABLE_AGENTIC_SEARCH=true
+AGENTIC_SEARCH_ENABLED=true
 GRAPH_SEARCH_ENABLED=true
 OPENAI_MODEL=gpt-5
 OPENAI_EMBEDDING_MODEL=text-embedding-3-large
@@ -111,7 +111,7 @@ npm run dev
 	- Jako VIP uvidíte i položky se `is_vip = true`.
 	- Jako běžný uživatel se VIP produkty ve výsledcích vůbec neobjeví.
   
-8. Zapněte/porovnejte i klasický jednoduchý RAG (`ENABLE_RAG=true`, `ENABLE_AGENTIC_SEARCH=false`) pro rozdíl: klasický RAG (bez fencing) vs. agentic search (s fencing).
+8. Zapněte/porovnejte i klasický jednoduchý RAG (`ENABLE_RAG=true`, `AGENTIC_SEARCH_ENABLED=false`) pro rozdíl: klasický RAG (bez fencing) vs. agentic search (s fencing).
    
 9.  (Volitelně) Otestujte grafové nástroje dotazy uvedené níže.
 
