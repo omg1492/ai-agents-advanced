@@ -61,7 +61,8 @@ uv run embeddings_qna.py            	# (volitelné) embeddings pro QnA
 uv run import_products.py
 uv run import_simple_products.py  
 uv run import_stock.py
-uv run import_qna.py      
+uv run import_qna.py   
+uv run import_concept_embeddings.py   
 
 # Knowledge Graph (AGE):
 uv run import_graph_age.py --reset  # producenti, alergeny, certifikace (a produkty)
