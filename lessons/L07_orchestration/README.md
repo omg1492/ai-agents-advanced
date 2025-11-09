@@ -131,6 +131,7 @@ Help me implement generate_review_packet Temporal activity for human operator es
 Create generate_review_packet(complaint: ComplaintExtraction, profile: UserProfile, decision: ComplaintDecision) -> ReviewPacket in activities/generate.py.
 Generate summary, pros/cons lists, recommendation, and priority level for manual review cases.
 ```
+
 ## Další možné rozšíření (dobrovolně)
 - Integrace s ticketing systémem (Jira, ServiceNow) pro automatické vytváření ticketů při eskalaci
 
