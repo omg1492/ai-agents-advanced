@@ -1,18 +1,18 @@
-## Lekce 07 – Orchestrace s Temporal
+# Lekce 07 – Orchestrace s Temporal
 
-Implementujeme dlouhodobě běžící business proces (handling stížností) pomocí **Temporal** orchestrace s integráciou Azure OpenAI. Workflow zajišťuje spolehlivé víceúrovňové vyřizování stížností – od klasifikace přes extrakci dat, rozhodování podle firemní politiky až po generování odpovědí.
+V této lekci navazujeme na předchozí lekce a přidáváme orchestraci dlouhodobě běžících business procesů pomocí **Temporal**. Cílem je spolehlivé víceúrovňové vyřizování stížností – od klasifikace přes extrakci dat, rozhodování podle firemní politiky až po generování odpovědí s automatickými retry, auditováním a schopností pokračovat po výpadku.
 
-### Byznys motivace
-Komplexní procesy (stížnosti, objednávky, onboarding) vyžadují spolehlivou orchestraci s automatickými retry, auditováním a schopností pokračovat po výpadku. Temporal zajišťuje perzistenci stavu a deterministické provedení workflow.
+## Byznys motivace
+Komplexní procesy (stížnosti, objednávky, onboarding) vyžadují spolehlivou orchestraci, která přežije výpadky služeb, restarty a deploymenty. Uživatel potřebuje garantovat, že každá stížnost bude zpracována deterministicky, s plnou auditovatelností a možností lidské eskalace. Temporal zajišťuje perzistenci stavu a automatické opakování při selhání.
 
-### Co je Temporal
+## Co je Temporal
 **Temporal** je platforma pro orchestraci dlouhodobě běžících procesů (durable workflows). Garantuje:
 - Automatické opakování (retry) při selhání
 - Perzistentní stav workflow (přežije restarty, deploymenty)
 - Deterministické provedení (oddělení logiky od side-effectů)
 - Viditelnost do Web UI (http://localhost:8233)
 
-### Architektura workflow
+## Architektura workflow
 ```
 Stížnost → Klasifikace (LLM) → Extrakce (LLM) → Fetch profilu → Rozhodnutí (LLM) → Řešení (LLM)
                 ↓                    ↓                ↓               ↓                 ↓
@@ -35,43 +35,39 @@ Stížnost → Klasifikace (LLM) → Extrakce (LLM) → Fetch profilu → Rozhod
 - Pokud je stížnost → postupně projde všemi fázemi s automatickým retry při selhání.
 - Rozhodnutí využívá firemní politiku + kontext zákazníka (loyalita, score).
 
-### Technologie
-- **Temporal** (durable orchestration)
-- **Azure OpenAI** (Responses API, structured outputs, reasoning support)
-- **Pydantic** (type-safe data modely)
-- **Python 3.12** + `uv` (package management)
+## Implementace orchestrace
+- Každá fáze workflow je implementována jako samostatná Temporal aktivita s deklarovaným retry policy.
+- Activities jsou pure funkce s jasným vstupem/výstupem (Pydantic modely) – testovatelné izolovaně.
+- Workflow řídí pořadí volání activities a rozhodovací logiku (if stížnost → extractInfo → fetchProfile → decide).
+- Azure OpenAI Responses API zajišťuje structured outputs (validované Pydantic schématem) s reasoning effortem.
+- Temporal server persistuje stav po každém kroku – při výpadku worker pokračuje od posledního checkpointu.
+- Web UI umožňuje live inspekci (vstupy, výstupy, reasoning) každé activity v historii workflow.
+- Pro HUMAN_REVIEW aktivita generuje review packet s pro/proti argumenty a doporučením pro operátora.
 
----
-
-## Jak předvést demo
-
-### Prerekvizity
-1. Temporal server (dev režim):
-   ```pwsh
-   temporal server start-dev
-   ```
-   Web UI: http://localhost:8233
-
-2. Azure OpenAI konfigurace (`.env` v `orchestration/complaint_workflow/`):
-   ```env
-   OPENAI_API_KEY=...
-   OPENAI_BASE_URL=https://....openai.azure.com/openai/v1/
-   OPENAI_API_VERSION=2024-10-21
-   OPENAI_MODEL=gpt-5
-   REASONING_EFFORT=minimal
-   ```
-
-3. Závislosti:
-   ```pwsh
-   cd orchestration/complaint_workflow
-   uv sync
-   ```
-
-### Demo run (self-contained worker)
-Spusťte demo skript – automaticky nastartuje worker a zpracuje všechny příklady:
+## Jak vyzkoušet (rychlý start)
+1. Spusťte Temporal server (dev režim):
 ```pwsh
-uv run python demo.py
+temporal server start-dev
 ```
+Web UI: http://localhost:8233
+
+2. Vytvořte `.env` soubor v `orchestration/complaint_workflow/`:
+```env
+OPENAI_API_KEY=...
+OPENAI_BASE_URL=https://....openai.azure.com/openai/v1/
+OPENAI_API_VERSION=2024-10-21
+OPENAI_MODEL=gpt-5
+REASONING_EFFORT=minimal
+```
+
+3. Spusťte demo (self-contained worker):
+```
+cd orchestration/complaint_workflow
+uv run demo.py
+```
+
+## Rychlé demonstrační flow
+**Demo run** – automaticky nastartuje worker a zpracuje všechny příklady:
 
 **Co se stane**:
 - Načtou se příklady z `complaints/` (complaint1.json, complaint2.json, non-complaint.json)
@@ -84,14 +80,13 @@ uv run python demo.py
 - `complaint2.json` (shnilé produkty, podezřelý profil) → **HUMAN_REVIEW** → review packet
 - `non-complaint.json` (dotaz na produkty) → **early exit** → informační zpráva
 
-### Krokování v UI
+**Krokování v UI**:
 1. Otevřete http://localhost:8233
 2. Najděte workflow ID (např. `complaint-demo-complaint1`)
 3. Klikněte na workflow → vidíte historii events (ClassifyComplaintActivity, ExtractComplaintInfoActivity...)
 4. Každá aktivita zobrazí input, output a reasoning (pokud je `REASONING_EFFORT` > minimal)
 
-### Produkční režim (long-running worker)
-Pro produkci (webhook, queue consumer):
+**Produkční režim** (long-running worker):
 ```pwsh
 # Terminal 1: worker (běží dlouhodobě)
 uv run python worker.py
@@ -100,75 +95,42 @@ uv run python worker.py
 uv run python client_run.py complaints/complaint1.json
 ```
 
----
+# Úkol (student branch)
+Ve studentském branch je implementována pouze klasifikace, přidejte další části workflow.
 
-## Příklady scénářů
+## GitHub Copilot – příklady promptů pro začátek
 
-### Scénář 1: Validní stížnost (auto-approve)
-**Input**: „Rozbitá sklenice sýra, objednávka #ORD789, mám fotky"
-**Profil**: Loyální zákazník, vysoký score (85), 42 objednávek, 1 předchozí stížnost
-**Cesta**: Klasifikace (✓) → Extrakce → Profil → **VALID** → Zpráva
-**Výsledek**: Omluva, refund, subject „We're Taking Care of This"
+Níže jsou příklady promptů pro GitHub Copilot. Copilot funguje nejlépe s kontextem – vysvětlete mu co chcete dosáhnout, jaké technologie používáte a jaké jsou kroky k řešení.
 
-### Scénář 2: Eskalace na člověka (HUMAN_REVIEW)
-**Input**: „Produkty byly shnilé, připojuji fotky"
-**Profil**: Nový účet, 0 objednávek, 3 stížnosti (podezřelý pattern)
-**Cesta**: Klasifikace (✓) → Extrakce → Profil → **HUMAN_REVIEW** → Review packet
-**Výsledek**: Packet s pro/proti argumenty, doporučená akce, high priority
-
-### Scénář 3: Není stížnost (short-circuit)
-**Input**: „Máte bio rajčata skladem?"
-**Cesta**: Klasifikace (✗) → **Early exit**
-**Výsledek**: „Děkujeme za dotaz, navštivte help centrum"
-
----
-
-## Struktura projektu
-
-```
-orchestration/complaint_workflow/
-├── models.py              # Pydantic modely (ComplaintIn, WorkflowResult, ...)
-├── workflow.py            # Temporal workflow (orchestrace logiky)
-├── activities.py          # Activities (LLM volání, fetch dat)
-├── llm_adapter.py         # Azure OpenAI client wrapper
-├── worker.py              # Long-running worker proces
-├── demo.py                # Self-contained demo (embedded worker)
-├── complaints/            # Příklady JSON (complaint1, complaint2, non-complaint)
-├── .env.sample            # Šablona konfigurace
-└── pyproject.toml         # Závislosti (temporalio, openai, pydantic)
+### Úkol 1: Implementace extrakční aktivity
+```markdown
+Help me implement the extract_complaint_info Temporal activity that extracts structured complaint data using Azure OpenAI structured outputs.
+Create activities/extract.py with extract_complaint_info(text: str) -> ComplaintExtraction activity.
+Use @activity.defn with retry policy, Azure OpenAI Responses API with structured outputs, and Pydantic model ComplaintExtraction with optional fields: order_id, product_names (list), complaint_date, reason, evidence_urls (list).
 ```
 
----
+### Úkol 2: Implementace rozhodovací aktivity
+```markdown
+Help me implement the decide_complaint_validity Temporal activity that decides VALID/NOT_VALID/HUMAN_REVIEW based on company policy and user profile.
+Create activities/decide.py with decide_complaint_validity(complaint: ComplaintExtraction, profile: UserProfile) -> ComplaintDecision.
+Use reasoning model with structured outputs. System prompt should include company policy (refund within 14 days, VIP priority) and few-shot examples for valid issues vs suspicious patterns.
+Return ComplaintDecision with action, reason, and confidence fields.
+```
 
-## Klíčové koncepty
+### Úkol 3: Implementace generování odpovědi
+```markdown
+Help me implement generate_user_message Temporal activity for customer-facing responses.
+Create activities/generate.py with generate_user_message(decision: ComplaintDecision, complaint: ComplaintExtraction) -> UserMessage.
+For VALID: empathetic apology with refund offer. For NOT_VALID: polite decline with policy explanation.
+Return UserMessage with subject, message, and tone fields.
+```
 
-### Workflow vs Activities
-- **Workflow** = deterministická logika (if/else, loop) – žádné I/O, žádné random
-- **Activities** = side-effecty (LLM API, DB, HTTP) – s retry policy a timeouts
+### Úkol 4: Implementace review podkladů
+```markdown
+Help me implement generate_review_packet Temporal activity for human operator escalation.
+Create generate_review_packet(complaint: ComplaintExtraction, profile: UserProfile, decision: ComplaintDecision) -> ReviewPacket in activities/generate.py.
+Generate summary, pros/cons lists, recommendation, and priority level for manual review cases.
+```
+## Další možné rozšíření (dobrovolně)
+- Integrace s ticketing systémem (Jira, ServiceNow) pro automatické vytváření ticketů při eskalaci
 
-### Structured Outputs
-Všechna LLM volání používají `responses.parse()` s Pydantic schématy → type-safe, validované odpovědi.
-
-### Policy-Based Decision
-Rozhodovací aktivita (`decide_complaint_validity`) používá:
-- Firemní politiku (dokument s pravidly)
-- Few-shot examples (6 anotovaných příkladů)
-- Kontext zákazníka (score, loyalita, historie)
-→ Konzistentní, vysvětlitelná rozhodnutí
-
-### Observability
-- Structured logging s `ORCH_PHASE` prefixem (classify, extract, decide, ...)
-- Temporal Web UI pro live inspekci
-- Event history (každá aktivita = event s input/output)
-
----
-
-## Shrnutí
-Temporal orchestrace poskytuje robustní základ pro komplexní business procesy s LLM. Oddělení workflow logiky od side-effectů (activities) zajišťuje spolehlivost, testovatelnost a možnost evoluce systému bez ztráty běžících procesů.
-
-**Benefity**:
-- Automatické retry při selhání LLM / API
-- Perzistence stavu (přežije restarty, deploymenty)
-- Audit trail (každý krok zalogován)
-- Type-safe díky Pydantic
-- Škálovatelné (worker pool, horizontal scaling)
