@@ -70,11 +70,27 @@ npm install
 npm run dev
 ```
 
+Add into `.env`
+```
+# Memory Features (granular flags)
+# Enable raw conversation persistence (ConversationStore)
+CONVERSATION_STORE_ENABLED=true
+# Enable memory_search tool (semantic search over conversation summaries)
+MEMORY_SEARCH_ENABLED=true
+# Enable user profile fetching/injection into system prompt
+USER_PROFILE_ENABLED=true
+# Voice / Realtime API feature
+VOICE_ENABLED=true  # Set to true to enable voice mode (requires gpt-4o-realtime-preview model access)
+VOICE_MODEL=gpt-4o-realtime-preview
+```
+
 ## Rychlý demonstrační flow
 1. Dotaz na paměť: „Bavili jsme se někdy o nějakém receptu s rajčaty? O čem konkrétně?".
-5. Zápis do profilu: „Pamatuj si, že nemám rád kozí sýr a preferuji vegetariánská jídla." 
-6. Ověření: „Co o mě víš?" (vrátí dietní preference + dislikes).
-7. Voice: UI „Start Voice" → řekněte „Jaké dietní informace o mně máš?" → odpověď využije profil.
+   - `SELECT cs.* FROM public.conversation_summaries AS cs`
+2. Zápis do profilu: „Pamatuj si, že nemám rád kozí sýr a preferuji vegetariánská jídla." 
+   - `SELECT up.* FROM public.user_profiles AS up`
+3. Ověření: „Co o mě víš?" (vrátí dietní preference + dislikes).
+4. Voice: UI „Start Voice" → řekněte „Jaké dietní informace o mně máš?" → odpověď využije profil.
 
 # Úkol (student branch)
 Ve studentském branch nejsou některé věci implementovány:
