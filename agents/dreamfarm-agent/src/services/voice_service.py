@@ -257,10 +257,8 @@ class VoiceService:
                 }
 
                 # Azure: NO type/model in session (passed to connect() instead)
-                # Azure: NO output_modalities (not supported in 2025-04-01-preview)
-                # OpenAI: YES output_modalities
-                if not self._is_azure:
-                    session_config["output_modalities"] = ["text", "audio"]
+                # Note: output_modalities parameter has been removed from the Realtime API
+                # The 'modalities' field (set above on line 240) already controls both input and output
 
                 # Add tools if available
                 if tools:

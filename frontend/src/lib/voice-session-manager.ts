@@ -308,10 +308,19 @@ function attachWebSocketHandlers(socket: WebSocket) {
 
 	socket.onmessage = (event) => {
 		if (event.data instanceof Blob) {
+			console.log('[VoiceSessionManager] 🔊 Received audio blob, size:', event.data.size);
 			event.data.arrayBuffer().then((buffer) => {
+				console.log('[VoiceSessionManager] 🔊 Audio buffer ready, size:', buffer.byteLength);
 				audioQueue.push(buffer);
 				void playAudioQueue();
 			});
+			return;
+		}
+
+		if (event.data instanceof ArrayBuffer) {
+			console.log('[VoiceSessionManager] 🔊 Received audio ArrayBuffer, size:', event.data.byteLength);
+			audioQueue.push(event.data);
+			void playAudioQueue();
 			return;
 		}
 
