@@ -1,4 +1,4 @@
-# Lekce 05 – Paměť uživatele, Shrnutí konverzací & Realtime Voice
+# Lekce 05 - Paměť uživatele, Shrnutí konverzací & Realtime Voice
 
 V této lekci navazujeme na agentic / grafové vyhledávání (Lekce 04) a přidáváme uživatelskou dlouhodobou paměť (raw zprávy + shrnutí), profil s řízeným zápisem a základní obousměrný hlasový režim. Cílem je personalizovanější odpověď a multimodální interakce.
 
@@ -22,14 +22,14 @@ Pro hlas používáme speech-to-speech model, což nám umožňuje dobře zachyc
 - Persistujeme pouze textové přepisy (audio se neukládá)
 
 ## Jak vyzkoušet (rychlý start)
-1. Spusťte lokální infrastrukturu (PostgreSQL, Keycloak, stock API, agent – pokud ještě neběží):
-```pwsh
+1. Spusťte lokální infrastrukturu (PostgreSQL, Keycloak, stock API, agent - pokud ještě neběží):
+```bash
 cd deploy/local
 docker compose up -d postgres keycloak api-stock
 ```
 
 1. Inicializujte data. Základní pořadí + volitelné kroky:
-```pwsh
+```bash
 cd data/scripts
 uv run configure_postgresql.py      # (jednorázově) rozšíření/ tabulky pokud ještě nejsou
 uv run gen_basic_data.py            # (volitelné) základní produkty (JSON / Parquet)
@@ -51,39 +51,39 @@ uv run gen_conversations.py --user-id user1
 uv run process_conversations.py
 ```
 
-3. (Volitelně) vytvoření Keycloak uživatelů – pokud máte připravený skript (např. `provision_keycloak.py` v `identity/`):
-```pwsh
+3. (Volitelně) vytvoření Keycloak uživatelů - pokud máte připravený skript (např. `provision_keycloak.py` v `identity/`):
+```bash
 cd identity
 uv run provision_keycloak.py
 ```
 
 4. Spusťte agenta:
-```pwsh
+```bash
 cd agents/dreamfarm-agent
 uv run dreamfarm-agent
 ```
 
 5. Frontend:
-```pwsh
+```bash
 cd frontend
 npm install
 npm run dev
 ```
 
 ## Rychlý demonstrační flow
-1. Dotaz na paměť: „Bavili jsme se někdy o nějakém receptu s rajčaty? O čem konkrétně?“.
-5. Zápis do profilu: „Pamatuj si, že nemám rád kozí sýr a preferuji vegetariánská jídla.“ 
-6. Ověření: „Co o mě víš?“ (vrátí dietní preference + dislikes).
-7. Voice: UI „Start Voice“ → řekněte „Jaké dietní informace o mně máš?“ → odpověď využije profil.
+1. Dotaz na paměť: „Bavili jsme se někdy o nějakém receptu s rajčaty? O čem konkrétně?".
+5. Zápis do profilu: „Pamatuj si, že nemám rád kozí sýr a preferuji vegetariánská jídla." 
+6. Ověření: „Co o mě víš?" (vrátí dietní preference + dislikes).
+7. Voice: UI „Start Voice" → řekněte „Jaké dietní informace o mně máš?" → odpověď využije profil.
 
 # Úkol (student branch)
 Ve studentském branch nejsou některé věci implementovány:
 - Tabulka a batch processing konverzací je, ale chybí vám nástroj pro agenta
 - Uživatelský profil se do system promptu načítá, ale nemáte nástroj pro jeho úpravu, zápisy
 
-## GitHub Copilot – příklady promptů pro začátek
+## GitHub Copilot - příklady promptů pro začátek
 
-Níže jsou příklady promptů pro GitHub Copilot. Copilot funguje nejlépe s kontextem – vysvětlete mu co chcete dosáhnout, jaké technologie používáte a jaké jsou kroky k řešení.
+Níže jsou příklady promptů pro GitHub Copilot. Copilot funguje nejlépe s kontextem - vysvětlete mu co chcete dosáhnout, jaké technologie používáte a jaké jsou kroky k řešení.
 
 ### Úkol 1: Implementace vyhledávání v paměti konverzací
 ```markdown
