@@ -1,4 +1,4 @@
-# Lekce 06 – Ad hoc kódování & Vizualizační artefakty
+# Lekce 06 - Ad hoc kódování & Vizualizační artefakty
 
 V této lekci navazujeme na paměť a hlas (Lekce 05) a přidáváme schopnost ad‑hoc datové analýzy a okamžité generování vizuálních HTML artefaktů. Cílem je dát uživateli možnost přinést vlastní data (např. sledování váhy, nutriční záznamy, jednoduché tabulky) a ihned z nich získat přehledové statistiky, grafy a estetické vizualizace podporující engagement i konverze na marketplace.
 
@@ -10,39 +10,45 @@ V této lekci navazujeme na paměť a hlas (Lekce 05) a přidáváme schopnost a
 - Přístup k souboru: preferovaně přes kontejner (`/containers/{container_id}/files/...`), fallback na `/files/{file_id}/content` pro robustnost.
 - Frontend překládá sandbox cesty `sandbox:/mnt/data/...` na veřejné proxy URL s tokenem (`/files/{file_id}/content?token=...`).
 - Obrázky (PNG/JPG/WEBP) se automaticky renderují jako Markdown image bez potřeby Bearer tokenu; textové výstupy se vkládají přímo.
-- Data se po expiraci tokenu stávají nedostupnými – neprovádí se žádný archiv.
+- Data se po expiraci tokenu stávají nedostupnými - neprovádí se žádný archiv.
 
 ## Implementace vizualizačního MCP serveru
 - Dostupný nástroj `generate_infographic` (MCP server na Azure Container Apps) vytváří kompletní HTML artefakty.
 - Po obdržení tool response backend extrahuje HTML, generuje UUID a ukládá ho do in-memory registru s TTL (1 h).
 - Událost `DF_META` informuje frontend o vytvoření artefaktu (`visualization.artifact_created`, `artifact_id`).
-- Do zprávy pro uživatele se vloží odkaz `[View Visualization](/artifacts/{uuid})` – renderer ho detekuje a nahrazuje komponentou s iframe.
+- Do zprávy pro uživatele se vloží odkaz `[View Visualization](/artifacts/{uuid})` - renderer ho detekuje a nahrazuje komponentou s iframe.
 - Iframe je sandboxovaný (`allow-same-origin`), bez povolení skriptů třetích stran; bezpečnostní vrstva brání XSS.
 - HTML je účelově bez externích CDN závislostí (rychlejší render, menší riziko výpadků).
-- Expirace artefaktu zajišťuje automatické čištění paměti – žádná dlouhodobá persistence.
+- Expirace artefaktu zajišťuje automatické čištění paměti - žádná dlouhodobá persistence.
 
 ## Jak vyzkoušet (rychlý start)
-1. Spusťte lokální infrastrukturu (PostgreSQL, Keycloak, stock API – pokud již neběží):
-```pwsh
+1. Spusťte lokální infrastrukturu (PostgreSQL, Keycloak, stock API - pokud již neběží):
+```bash
 cd deploy/local
 docker compose up -d postgres keycloak api-stock
 ```
 
-2. Inicializujte data (volitelné – jen pokud jste ještě neprošli předchozí lekce):
-```pwsh
+2. Inicializujte data (volitelné - jen pokud jste ještě neprošli předchozí lekce):
+```bash
 cd data/scripts
 uv run configure_postgresql.py
 uv run import_all.py
 ```
 
 3. Spusťte agenta (feature flagy pro ad‑hoc výpočty / vizualizace dle konfigurace):
-```pwsh
+```bash
 cd agents/dreamfarm-agent
 uv run dreamfarm-agent
 ```
 
+```
+VISUALIZATION_MCP_ENABLED=true
+VISUALIZATION_MCP_URL=https://ca-mcp-viz-gen.grayisland-3e7e5fd0.swedencentral.azurecontainerapps.io/mcp
+VISUALIZATION_MCP_API_KEY=mykey
+```
+
 4. Spusťte frontend:
-```pwsh
+```bash
 cd frontend
 npm install
 npm run dev
