@@ -42,6 +42,9 @@ uv run dreamfarm-agent
 ```
 
 ```
+ENABLE_CODE_INTERPRETER=true
+CODE_INTERPRETER_CONTAINER_TYPE=auto  # Container type: "auto" (default) or other Azure-supported values
+REASONING_EFFORT=medium # The OpenAI API doesn't allow code_interpreter to run with reasoning.effort: 'minimal' 
 VISUALIZATION_MCP_ENABLED=true
 VISUALIZATION_MCP_URL=https://ca-mcp-viz-gen.grayisland-3e7e5fd0.swedencentral.azurecontainerapps.io/mcp
 VISUALIZATION_MCP_API_KEY=mykey
