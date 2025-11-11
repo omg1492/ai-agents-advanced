@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 import io
 import json
 import secrets
+import time
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException, Request, Depends, status, Query, WebSocket, WebSocketDisconnect, UploadFile, File
@@ -1106,14 +1107,27 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                         
                         # Code interpreter events
                         elif et == "response.code_interpreter_call.in_progress":
-                            # Emit meta event when code interpreter starts
+                            # Log when code interpreter tool is invoked (code will be generated next)
+                            call_id = getattr(event, "call_id", "unknown")
+                            logger.info("=" * 80)
+                            logger.info("CODE INTERPRETER - TOOL INVOKED (generating code...)")
+                            logger.info("=" * 80)
+                            logger.info(f"Call ID: {call_id}")
+                            if attachments_local:
+                                logger.info(f"Input Files: {len(attachments_local)} file(s) attached")
+                                for fid in attachments_local:
+                                    logger.info(f"  - {fid}")
+                            else:
+                                logger.info("Input Files: None (ad-hoc code execution)")
+                            logger.info("=" * 80)
+                            
+                            # Emit meta event
                             meta = {
                                 "kind": "tool_event",
                                 "event_type": et,
                                 "tool_name": "code_interpreter",
                                 "status": "in_progress"
                             }
-                            logger.info(f"Code interpreter started: {meta}")
                             yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
                         
                         elif et == "response.code_interpreter_call.interpreting":
@@ -1132,19 +1146,53 @@ async def send_message_stream(thread_id: str, payload: SendMessageRequest, user_
                             pass
                         
                         elif et == "response.code_interpreter_call_code.done":
-                            # Code finalized
+                            # Code finalized - log complete code and mark execution start time
                             code = getattr(event, "code", "")
-                            logger.info(f"Code interpreter code finalized: {len(code)} chars")
+                            code_exec_start = time.time()
+                            logger.info("=" * 80)
+                            logger.info("CODE INTERPRETER - CODE GENERATED (executing now...)")
+                            logger.info("=" * 80)
+                            logger.info(f"\n{code}\n")
+                            logger.info("=" * 80)
+                            logger.info("⏳ Executing in sandbox...")
                         
                         elif et == "response.code_interpreter_call.completed":
-                            # Note: streaming events don't contain outputs - will be retrieved in response.completed
+                            # Log completion with execution time and outputs if available
+                            try:
+                                elapsed = time.time() - code_exec_start
+                                logger.info(f"✓ Execution completed in {elapsed:.2f}s")
+                            except:
+                                logger.info("✓ Execution completed")
+                            
+                            outputs = getattr(event, "outputs", None)
+                            if outputs:
+                                logger.info("=" * 80)
+                                logger.info("CODE INTERPRETER - EXECUTION RESULT")
+                                logger.info("=" * 80)
+                                for idx, output in enumerate(outputs):
+                                    output_type = getattr(output, "type", "unknown")
+                                    if output_type == "logs":
+                                        logs_content = getattr(output, "logs", "")
+                                        logger.info(f"[Output {idx+1}] Type: LOGS")
+                                        logger.info(f"{logs_content}")
+                                    elif output_type == "image":
+                                        logger.info(f"[Output {idx+1}] Type: IMAGE (file generated)")
+                                    elif output_type == "error":
+                                        error_msg = getattr(output, "error", "")
+                                        logger.error(f"[Output {idx+1}] Type: ERROR")
+                                        logger.error(f"{error_msg}")
+                                    else:
+                                        logger.info(f"[Output {idx+1}] Type: {output_type}")
+                                logger.info("=" * 80)
+                            else:
+                                logger.info("📝 Outputs will be available in final response (not in stream)")
+                            
                             meta = {
                                 "kind": "tool_event",
                                 "event_type": et,
                                 "tool_name": "code_interpreter",
                                 "status": "completed"
                             }
-                            logger.info(f"Code interpreter completed: {meta}")
                             yield "\nDF_META:" + json.dumps(meta, ensure_ascii=False) + "\n"
                         
                         # Handle function call arguments streaming
