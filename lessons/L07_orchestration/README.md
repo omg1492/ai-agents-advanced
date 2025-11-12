@@ -45,24 +45,28 @@ Stížnost → Klasifikace (LLM) → Extrakce (LLM) → Fetch profilu → Rozhod
 - Pro HUMAN_REVIEW aktivita generuje review packet s pro/proti argumenty a doporučením pro operátora.
 
 ## Jak vyzkoušet (rychlý start)
+0. Instalujte https://learn.temporal.io/getting_started/python/dev_environment/
+```bash
+brew install temporal
+```
 1. Spusťte Temporal server (dev režim):
-```pwsh
+```bash
 temporal server start-dev
 ```
 Web UI: http://localhost:8233
 
-2. Vytvořte `.env` soubor v `orchestration/complaint_workflow/`:
+1. Vytvořte `.env` soubor v `orchestration/complaint_workflow/`:
 ```env
-OPENAI_API_KEY=...
-OPENAI_BASE_URL=https://....openai.azure.com/openai/v1/
-OPENAI_API_VERSION=2024-10-21
+OPENAI_BASE_URL=https://api.openai.com/v1/
+OPENAI_API_KEY=sk-proj-REDACTED
 OPENAI_MODEL=gpt-5
 REASONING_EFFORT=minimal
 ```
 
-3. Spusťte demo (self-contained worker):
-```
+1. Spusťte demo (self-contained worker):
+```bash
 cd orchestration/complaint_workflow
+uv sync
 uv run demo.py
 ```
 
@@ -87,7 +91,7 @@ uv run demo.py
 4. Každá aktivita zobrazí input, output a reasoning (pokud je `REASONING_EFFORT` > minimal)
 
 **Produkční režim** (long-running worker):
-```pwsh
+```bash
 # Terminal 1: worker (běží dlouhodobě)
 uv run python worker.py
 
