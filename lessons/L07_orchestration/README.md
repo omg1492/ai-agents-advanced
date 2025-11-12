@@ -63,6 +63,21 @@ OPENAI_MODEL=gpt-5
 REASONING_EFFORT=minimal
 ```
 
+**Poznámka k REASONING_EFFORT**:
+- `minimal` - Nejrychlejší, bez reasoning (~10-20s na aktivitu)
+- `low` - Model používá reasoning interně (~30-45s na aktivitu)
+- `medium` - Více reasoning pro lepší odpovědi (~45-60s na aktivitu)
+- `high` - Maximální reasoning effort (~60-120s na aktivitu, vyžaduje zvýšený timeout)
+
+⚠️ Pro `REASONING_EFFORT=high` je již nastaven `ACTIVITY_TIMEOUT=120s` v `activities.py`
+
+**⚠️ DŮLEŽITÉ - Reasoning text není dostupný**:
+- OpenAI Responses API s `text_format` (structured outputs) **neposkytuje reasoning text**
+- Reasoning probíhá interně (vidíte `reasoning_tokens` v usage), ale obsah není exponovaný
+- Benefit: Lepší kvalita a přesnost odpovědí díky internímu reasoning
+- Trade-off: Nemůžete vidět "chain of thought" modelu
+- Pro debugging: Spoléhejte na `confidence` hodnoty a `reason` pole v odpovědích
+
 1. Spusťte demo (self-contained worker):
 ```bash
 cd orchestration/complaint_workflow
@@ -97,6 +112,21 @@ uv run python worker.py
 
 # Terminal 2: spuštění workflow programově
 uv run python client_run.py complaints/complaint1.json
+```
+
+## Temporal CLI Commands
+```bash
+# Describe workflow execution
+temporal workflow describe --workflow-id complaint-demo-complaint1
+
+# Show workflow history
+temporal workflow show --workflow-id complaint-demo-complaint1
+
+# List all workflows
+temporal workflow list
+
+# Query workflow state (if you implement queries)
+temporal workflow query --workflow-id complaint-demo-complaint1 --name get_status
 ```
 
 # Úkol (student branch)

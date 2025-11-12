@@ -426,7 +426,10 @@ USER PROFILE:
 
 
 # Activity execution configuration for Temporal
-ACTIVITY_TIMEOUT = timedelta(seconds=30)
+# Note: Increase timeout when using high reasoning effort (can take 60-120s)
+# For REASONING_EFFORT=minimal: 30s is sufficient
+# For REASONING_EFFORT=high: Use 120s to allow for extended reasoning
+ACTIVITY_TIMEOUT = timedelta(seconds=120)
 ACTIVITY_RETRY_POLICY = RetryPolicy(
     maximum_attempts=3,
     initial_interval=timedelta(seconds=1),
