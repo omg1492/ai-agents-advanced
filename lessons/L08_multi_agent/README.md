@@ -93,11 +93,16 @@ CHEF_AGENT_URL=http://localhost:8002
 ```bash
 # Terminál 1: Chef Agent
 cd agents/chef-agent/src
-uv run .\main.py
+uv run main.py
 
 # Terminál 2: DreamFarm Agent
+cd agents/dreamfarm-agent
+rm -rf .venv
+uv venv --python 3.12        # mel jsem 3.14 
+uv sync
+
 cd agents/dreamfarm-agent/src
-uv run .\main.py
+uv run main.py
 
 # Terminál 3: Frontend
 cd frontend
