@@ -41,6 +41,10 @@ async def classify_complaint_activity(message: str) -> ComplaintClassification:
         - retry_policy: max_attempts=3, initial_interval=1s, backoff=2.0
     """
     workflow_id = activity.info().workflow_id
+    
+    # Uncomment to debug:
+    # import pdb; pdb.set_trace()
+    
     logger.info(f"ORCH_PHASE=classify workflow_id={workflow_id}")
     
     try:
