@@ -1,4 +1,4 @@
-# Lekce 08 – Multi-agent systémy
+# Lekce 08 - Multi-agent systémy
 
 V této lekci navazujeme na orchestraci (Lekce 07) a přidáváme specializovaného agenta pro kuchařské služby a catering. Cílem je ukázat, jak rozdělit komplexní doménu do více nezávislých agentů, kteří spolu komunikují přes HTTP, a jak implementovat agent-as-tool pattern pro čistou separaci odpovědností.
 
@@ -39,11 +39,11 @@ graph LR
 
 ### Chef Services MCP Server
 **MCP Nástroje:**
-- `search_chefs` – hledání podle specializace/akce
-- `search_services` – catering služby
-- `check_availability` – kontrola dostupnosti
-- `calculate_pricing` – kalkulace ceny
-- `place_order` – rezervace
+- `search_chefs` - hledání podle specializace/akce
+- `search_services` - catering služby
+- `check_availability` - kontrola dostupnosti
+- `calculate_pricing` - kalkulace ceny
+- `place_order` - rezervace
 
 ### Chef Agent
 - Specializovaný backend agent (port 8002)
@@ -52,21 +52,21 @@ graph LR
 - Systémový prompt optimalizovaný pro backend operace
 
 ### DreamFarm Agent Integration
-- `ChefAgentClient` – HTTP delegace na Chef Agent
+- `ChefAgentClient` - HTTP delegace na Chef Agent
 - Function tool `query_chef_services` registrovaný v OpenAI
 - Streaming loop handler pro zpracování odpovědí
 - Graceful degradation při nedostupnosti Chef Agenta
 
 ## Jak vyzkoušet (rychlý start)
 
-1. Spusťte lokální infrastrukturu (PostgreSQL, Keycloak, stock API – pokud již neběží):
-```pwsh
+1. Spusťte lokální infrastrukturu (PostgreSQL, Keycloak, stock API - pokud již neběží):
+```bash
 cd deploy/local
 docker compose up -d postgres keycloak api-stock
 ```
 
 2. (Volitelně) Inicializujte data, pokud jste ještě neprošli předchozí lekce:
-```pwsh
+```bash
 cd data/scripts
 uv run configure_postgresql.py
 uv run import_all.py
@@ -90,7 +90,7 @@ CHEF_AGENT_URL=http://localhost:8002
 ```
 
 4. Spusťte agenty a frontend:
-```pwsh
+```bash
 # Terminál 1: Chef Agent
 cd agents/chef-agent/src
 uv run .\main.py
@@ -143,9 +143,9 @@ npm run dev
 # Úkol (student branch)
 Máte k dispozici běžící MCP server chef services případně jeho zdrojový kód pro vlastní nasazení. Vytvořte chef agenta a otestujte samostatně. Pak ho přidejte jako nástroj do dreamfarm agent.
 
-## GitHub Copilot – příklady promptů pro začátek
+## GitHub Copilot - příklady promptů pro začátek
 
-Níže jsou příklady promptů pro GitHub Copilot. Copilot funguje nejlépe s kontextem – vysvětlete mu co chcete dosáhnout, jaké technologie používáte a jaké jsou kroky k řešení.
+Níže jsou příklady promptů pro GitHub Copilot. Copilot funguje nejlépe s kontextem - vysvětlete mu co chcete dosáhnout, jaké technologie používáte a jaké jsou kroky k řešení.
 
 ### Úkol 1: Implementace chef agent s FastAPI
 ```markdown
