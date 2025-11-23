@@ -287,6 +287,13 @@ Architecture is documented across specialized files:
 - `docs/ImplementationLog.md` - Implementation decisions
 - `docs/CommonErrors.md` - Troubleshooting guide
 
+### External Reference Documentation
+
+When answering questions about Temporal workflows, activities, or orchestration:
+- Reference `docs/temporal-docs.txt` - Complete Temporal documentation (from https://docs.temporal.io/llms-full.txt)
+- This file contains comprehensive guidance on workflow patterns, activities, testing, versioning, and best practices
+- Use this documentation to provide accurate, official answers about Temporal features and implementation details
+
 ## Important Development Practices
 
 ### Code Organization (from AGENTS.md)
