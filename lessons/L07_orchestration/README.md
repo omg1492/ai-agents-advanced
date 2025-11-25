@@ -23,53 +23,56 @@ Stížnost → Klasifikace (LLM) → Extrakce (LLM) → Fetch profilu → Rozhod
 
 ```mermaid
 flowchart TD
-    Start([User Complaint]) --> Phase1{Phase 1: Classification<br/><b>classify_complaint</b>}
+    Start([ComplaintIn]) --> Act1{classify_complaint}
 
-    Phase1 -->|"is_complaint = false<br/>(confidence)"| Exit1[/"Early exit:<br/>Help center message"/]
-    Phase1 -->|"is_complaint = true"| Phase2[Phase 2: Information Extraction<br/><b>extract_complaint_info</b><br/><i>order_id, products, reason, evidence</i>]
+    Act1 -->|is_complaint = false| Exit[Return: NOT_COMPLAINT<br/>help center message]
+    Act1 -->|is_complaint = true| Act2[extract_complaint_info]
 
-    Phase2 --> Phase3[Phase 3: User Profile Fetch<br/><b>fetch_user_profile</b><br/><i>segment, score, loyalty, history</i>]
+    Act2 --> Act3[fetch_user_profile]
 
-    Phase3 --> Phase4{Phase 4: Policy Decision<br/><b>decide_complaint_validity</b><br/>LLM + Company Policy + Few-shot}
+    Act3 --> Act4{decide_complaint_validity}
 
-    Phase4 -->|VALID| Phase5a[Phase 5a: User Message<br/><b>generate_user_message</b><br/><i>Apology + Refund</i>]
-    Phase4 -->|NOT_VALID| Phase5a2[Phase 5a: User Message<br/><b>generate_user_message</b><br/><i>Polite Rejection</i>]
-    Phase4 -->|HUMAN_REVIEW| Phase5b[Phase 5b: Review Packet<br/><b>generate_review_packet</b><br/><i>For Human Operator</i>]
+    Act4 -->|VALID| Act5a[generate_user_message<br/>apology + refund]
+    Act4 -->|NOT_VALID| Act5a2[generate_user_message<br/>polite rejection]
+    Act4 -->|HUMAN_REVIEW| Act5b[generate_review_packet]
 
-    Phase5a --> Result([Result:<br/>terminal_status, action, resolution])
-    Phase5a2 --> Result
-    Phase5b --> Result
+    Act5a --> Result1([Return: COMPLETED<br/>user_message])
+    Act5a2 --> Result1
+    Act5b --> Result2([Return: PENDING_REVIEW<br/>review_packet_id])
 
-    Exit1 -.-> End([Completed])
-    Result --> End
+    Exit -.-> End([WorkflowResult])
+    Result1 --> End
+    Result2 --> End
 
-    style Phase1 fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
-    style Phase4 fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
-    style Phase2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style Phase5a fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style Phase5a2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style Phase5b fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
-    style Phase3 fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
-    style Exit1 fill:#ffebee,stroke:#c62828,stroke-width:2px
-    style Result fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style Act1 fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
+    style Act4 fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
+    style Act2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Act5a fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Act5a2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Act5b fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Act3 fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style Exit fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style Result1 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style Result2 fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    style End fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
 ```
 
 **Activity Mapping:**
-| Phase | Activity Name | Purpose |
-|-------|---------------|---------|
-| 1 | `classify_complaint` | Determine if message is a complaint |
-| 2 | `extract_complaint_info` | Extract structured data (order_id, products, reason) |
-| 3 | `fetch_user_profile` | Retrieve user segment, loyalty, score, history |
-| 4 | `decide_complaint_validity` | Apply policy + few-shot to decide action |
-| 5 (VALID/NOT_VALID) | `generate_user_message` | Create customer-facing response |
-| 5 (HUMAN_REVIEW) | `generate_review_packet` | Create operator review packet |
+| Activity Name | Purpose | Type |
+|---------------|---------|------|
+| `classify_complaint` | Determine if message is a complaint | LLM |
+| `extract_complaint_info` | Extract order_id, products, reason, evidence | LLM |
+| `fetch_user_profile` | Retrieve user segment, loyalty, score, history | Mock API |
+| `decide_complaint_validity` | Apply company policy + few-shot to decide action | LLM |
+| `generate_user_message` | Create customer-facing response (VALID/NOT_VALID) | LLM |
+| `generate_review_packet` | Create operator review packet (HUMAN_REVIEW) | LLM |
 
 **Color Legend:**
-- 🔵 Blue (decision phases): Classification, Policy-based Decision
+- 🔵 Blue (decision activities): Classification, Policy-based Decision
 - 🟣 Purple (LLM generation): Extraction, Message and Review Packet Generation
 - 🟠 Orange (data fetch): User Profile Retrieval
 - 🔴 Red (early exit): Termination without processing
-- 🟢 Green (final result): Workflow terminal state
+- 🟢 Green (final results): Workflow completion states
 
 ### Fáze workflow (6 kroků)
 
