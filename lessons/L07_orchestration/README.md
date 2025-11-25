@@ -184,6 +184,85 @@ temporal workflow list
 temporal workflow query --workflow-id complaint-demo-complaint1 --name get_status
 ```
 
+## Debugging v VS Code
+
+Pro debugging workflow a activities můžete použít VS Code debugger s Python rozšířením (debugpy).
+
+### Nastavení launch.json
+
+Vytvořte nebo upravte `.vscode/launch.json` v root adresáři projektu:
+
+```json
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Complaint Workflow Demo",
+            "type": "debugpy",
+            "request": "launch",
+            "program": "${workspaceFolder}/orchestration/complaint_workflow/demo.py",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/orchestration/complaint_workflow",
+            "envFile": "${workspaceFolder}/orchestration/complaint_workflow/.env"
+        }
+    ]
+}
+```
+
+### Jak debugovat
+
+1. **Spusťte Temporal server** (musí běžet na pozadí):
+   ```bash
+   temporal server start-dev
+   ```
+
+2. **Nastavte breakpointy**:
+   - Otevřete soubor s aktivitou (např. `activities/classify.py`)
+   - Klikněte vlevo od čísla řádku pro přidání breakpointu
+   - Breakpointy fungují v activities i v workflow definici
+
+3. **Spusťte debugger**:
+   - Stiskněte `F5` nebo klikněte na "Run and Debug" → "Debug Complaint Workflow Demo"
+   - Demo.py spustí worker a zpracuje všechny příklady
+
+4. **Debugging benefits**:
+   - **Inspect proměnných**: Najeďte myší na proměnnou nebo použijte panel Variables
+   - **Step through code**: F10 (step over), F11 (step into), Shift+F11 (step out)
+   - **Watch expressions**: Přidejte výrazy do Watch panelu pro sledování hodnot
+   - **Call stack**: Vidíte celou call stack včetně Temporal frameworku
+   - **Debug Console**: Vyhodnocujte Python výrazy za běhu
+
+5. **Tipy pro debugging activities**:
+   - `justMyCode: false` umožňuje krokovat i do Temporal SDK kódu
+   - Activities jsou pure funkce - můžete je testovat izolovaně
+   - Každá aktivita má jasný input/output (Pydantic modely)
+   - Pro debugging konkrétní aktivity nastavte breakpoint uvnitř funkce s `@activity.defn`
+
+### Debugging samostatného worker
+
+Pro debug produkčního režimu (long-running worker):
+
+```json
+{
+    "name": "Debug Complaint Worker",
+    "type": "debugpy",
+    "request": "launch",
+    "program": "${workspaceFolder}/orchestration/complaint_workflow/worker.py",
+    "console": "integratedTerminal",
+    "justMyCode": false,
+    "cwd": "${workspaceFolder}/orchestration/complaint_workflow",
+    "envFile": "${workspaceFolder}/orchestration/complaint_workflow/.env"
+}
+```
+
+Pak v jiném terminálu spusťte workflow:
+```bash
+uv run python client_run.py complaints/complaint1.json
+```
+
+Worker v debuggeru zachytí aktivity a můžete je krokovat.
+
 # Úkol (student branch)
 Ve studentském branch je implementována pouze klasifikace, přidejte další části workflow.
 
