@@ -19,6 +19,48 @@ Stížnost → Klasifikace (LLM) → Extrakce (LLM) → Fetch profilu → Rozhod
           is_complaint?      order_id/produkty    user_score    VALID/NOT_VALID    zpráva/review
 ```
 
+### Detailed Workflow Diagram
+
+```mermaid
+flowchart TD
+    Start([User Complaint]) --> Phase1{Phase 1: Classification<br/>LLM}
+
+    Phase1 -->|"is_complaint = false<br/>(confidence)"| Exit1[/"Early exit:<br/>Help center message"/]
+    Phase1 -->|"is_complaint = true"| Phase2[Phase 2: Information Extraction<br/>LLM<br/><i>order_id, products, reason, evidence</i>]
+
+    Phase2 --> Phase3[Phase 3: User Profile Fetch<br/>Mock API<br/><i>segment, score, loyalty, history</i>]
+
+    Phase3 --> Phase4{Phase 4: Policy Decision<br/>LLM + Company Policy<br/>+ Few-shot Examples}
+
+    Phase4 -->|VALID| Phase5a[Phase 5a: Message Generation<br/>LLM<br/><i>Apology + Refund</i>]
+    Phase4 -->|NOT_VALID| Phase5a2[Phase 5a: Message Generation<br/>LLM<br/><i>Polite Rejection</i>]
+    Phase4 -->|HUMAN_REVIEW| Phase5b[Phase 5b: Review Packet<br/>LLM<br/><i>For Human Operator</i>]
+
+    Phase5a --> Result([Result:<br/>terminal_status, action, resolution])
+    Phase5a2 --> Result
+    Phase5b --> Result
+
+    Exit1 -.-> End([Completed])
+    Result --> End
+
+    style Phase1 fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
+    style Phase4 fill:#e1f5ff,stroke:#0288d1,stroke-width:2px
+    style Phase2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Phase5a fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Phase5a2 fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Phase5b fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Phase3 fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    style Exit1 fill:#ffebee,stroke:#c62828,stroke-width:2px
+    style Result fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+```
+
+**Color Legend:**
+- 🔵 Blue (decision phases): Classification, Policy-based Decision
+- 🟣 Purple (LLM generation): Extraction, Message and Review Packet Generation
+- 🟠 Orange (data fetch): User Profile Retrieval
+- 🔴 Red (early exit): Termination without processing
+- 🟢 Green (final result): Workflow terminal state
+
 ### Fáze workflow (6 kroků)
 
 | Fáze | Aktivita | Popis | Model výstup |
