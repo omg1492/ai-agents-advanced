@@ -19,7 +19,9 @@ from models import (
     ComplaintDecision,
     UserMessage,
     ReviewPacket,
-    Action
+    Action,
+    HumanReviewInput,
+    HumanDecision,
 )
 
 logger = logging.getLogger(__name__)
@@ -41,6 +43,10 @@ async def classify_complaint_activity(message: str) -> ComplaintClassification:
         - retry_policy: max_attempts=3, initial_interval=1s, backoff=2.0
     """
     workflow_id = activity.info().workflow_id
+    
+    # Uncomment to debug:
+    # import pdb; pdb.set_trace()
+    
     logger.info(f"ORCH_PHASE=classify workflow_id={workflow_id}")
     
     try:
@@ -425,8 +431,154 @@ USER PROFILE:
         raise
 
 
+# =============================================================================
+# HITL Activities (Human-in-the-Loop)
+# =============================================================================
+
+
+@activity.defn(name="notify_reviewer")
+async def notify_reviewer_activity(review_packet: ReviewPacket, workflow_id: str) -> bool:
+    """
+    Notify human reviewer about pending review (mock implementation).
+
+    In production, this would:
+    - Send email notification
+    - Create ticket in ticketing system (Jira, ServiceNow)
+    - Send webhook to external system
+    - Push notification to review dashboard
+
+    This mock implementation just logs the notification.
+
+    Args:
+        review_packet: The review packet to notify about
+        workflow_id: Workflow ID for reference
+
+    Returns:
+        True if notification was sent successfully
+    """
+    activity_workflow_id = activity.info().workflow_id
+    logger.info(
+        f"ORCH_PHASE=notify_reviewer workflow_id={activity_workflow_id} "
+        f"priority={review_packet.priority}"
+    )
+
+    # Mock notification - in production this would call external APIs
+    logger.info(
+        f"[MOCK NOTIFICATION] Review Required!\n"
+        f"  Workflow: {workflow_id}\n"
+        f"  Priority: {review_packet.priority}\n"
+        f"  Summary: {review_packet.summary}\n"
+        f"  Recommendation: {review_packet.recommended_action}\n"
+        f"  ---\n"
+        f"  To approve: uv run python client_hitl.py approve {workflow_id} --reviewer YOUR_ID\n"
+        f"  To reject:  uv run python client_hitl.py reject {workflow_id} --reviewer YOUR_ID"
+    )
+
+    logger.info(
+        f"ORCH_PHASE=notify_reviewer_complete workflow_id={activity_workflow_id} "
+        f"notification_sent=True"
+    )
+
+    return True
+
+
+@activity.defn(name="generate_human_decision_message")
+async def generate_human_decision_message_activity(
+    human_decision: HumanReviewInput,
+    extraction: ComplaintExtraction,
+    user_profile: UserProfile
+) -> UserMessage:
+    """
+    Generate user-facing message based on human reviewer decision.
+
+    Handles three cases:
+    - APPROVED: Apologize and confirm refund/replacement (similar to VALID)
+    - REJECTED: Explain rejection after human review
+    - TIMEOUT_ESCALATED: Inform about escalation to management
+
+    Args:
+        human_decision: Human reviewer's decision with notes
+        extraction: Extracted complaint information
+        user_profile: User profile data
+
+    Returns:
+        UserMessage with subject, message, and tone
+    """
+    workflow_id = activity.info().workflow_id
+    logger.info(
+        f"ORCH_PHASE=generate_human_decision_message workflow_id={workflow_id} "
+        f"decision={human_decision.decision} reviewer={human_decision.reviewer_id}"
+    )
+
+    try:
+        # Build context for message generation
+        context_text = f"""
+HUMAN REVIEWER DECISION: {human_decision.decision.value}
+REVIEWER ID: {human_decision.reviewer_id}
+REVIEWER NOTES: {human_decision.reviewer_notes or 'No additional notes'}
+
+COMPLAINT DETAILS:
+- Products: {', '.join(extraction.products_involved) if extraction.products_involved else 'Not specified'}
+- Order ID: {extraction.order_id or 'Not provided'}
+- Issue: {extraction.reason or 'Not specified'}
+
+CUSTOMER:
+- Segment: {user_profile.segment}
+- Loyalty: {user_profile.loyalty_level}
+"""
+
+        # Map human decision to Action for LLM adapter
+        if human_decision.decision == HumanDecision.APPROVED:
+            action_for_message = Action.VALID  # Approved = treat like VALID
+        elif human_decision.decision == HumanDecision.REJECTED:
+            action_for_message = Action.NOT_VALID  # Rejected = treat like NOT_VALID
+        else:  # TIMEOUT_ESCALATED
+            # For timeout, we'll use NOT_VALID but modify context to indicate escalation
+            action_for_message = Action.NOT_VALID
+            context_text = f"""
+ESCALATION NOTICE: Your complaint has been escalated to management for priority review.
+REASON: Human review timeout - case automatically escalated for management attention.
+
+COMPLAINT DETAILS:
+- Products: {', '.join(extraction.products_involved) if extraction.products_involved else 'Not specified'}
+- Order ID: {extraction.order_id or 'Not provided'}
+- Issue: {extraction.reason or 'Not specified'}
+
+CUSTOMER:
+- Segment: {user_profile.segment}
+- Loyalty: {user_profile.loyalty_level}
+
+IMPORTANT: Generate a message informing the customer that their case has been escalated to management
+and they will receive a response within 24-48 hours. Tone should be apologetic for the delay.
+"""
+
+        adapter = get_llm_adapter()
+        message = await adapter.generate_user_message(
+            action=action_for_message,
+            context=context_text,
+            response_schema=UserMessage
+        )
+
+        logger.info(
+            f"ORCH_PHASE=generate_human_decision_message_complete workflow_id={workflow_id} "
+            f"tone={message.tone}"
+        )
+
+        return message
+
+    except Exception as e:
+        logger.error(
+            f"ORCH_PHASE=generate_human_decision_message_error workflow_id={workflow_id} "
+            f"error={str(e)}"
+        )
+        raise
+
+
 # Activity execution configuration for Temporal
-ACTIVITY_TIMEOUT = timedelta(seconds=30)
+# Note: Increase timeout when using high reasoning effort (can take 60-120s)
+# For REASONING_EFFORT=minimal: 30s is sufficient
+# For REASONING_EFFORT=high: Use 120s to allow for extended reasoning
+ACTIVITY_TIMEOUT = timedelta(seconds=120)
 ACTIVITY_RETRY_POLICY = RetryPolicy(
     maximum_attempts=3,
     initial_interval=timedelta(seconds=1),

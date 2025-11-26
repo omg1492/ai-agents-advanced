@@ -1,0 +1,28 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Debug Temporal Worker (uv)",
+            "type": "debugpy",
+            "request": "launch",
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "cwd": "${workspaceFolder}/orchestration/complaint_workflow",
+            "envFile": "${workspaceFolder}/orchestration/complaint_workflow/.env",
+            "program": "${workspaceFolder}/orchestration/complaint_workflow/worker.py",
+            "python": "${workspaceFolder}/orchestration/complaint_workflow/.venv/bin/python"
+        },
+        {
+            "name": "Debug Client (complaint1)",
+            "type": "debugpy",
+            "request": "launch",
+            "module": "uv",
+            "args": ["run", "python", "client_run.py", "complaints/complaint1.json"],
+            "console": "integratedTerminal",
+            "justMyCode": false,
+            "env": {
+                "PYTHONPATH": "${workspaceFolder}"
+            }
+        }
+    ]
+}

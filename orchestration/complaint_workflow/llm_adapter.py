@@ -56,6 +56,23 @@ class LLMAdapter:
             f"reasoning_effort={self.reasoning_effort}"
         )
     
+    def _log_reasoning_usage(self, response, phase: str):
+        """
+        Log reasoning token usage from response.
+        
+        Note: OpenAI Responses API with text_format does not expose reasoning text.
+        The reasoning happens internally (visible in usage.reasoning_tokens) but
+        the actual reasoning chain is not accessible via the API.
+        """
+        if self.reasoning_effort != "minimal":
+            try:
+                usage = response.usage
+                reasoning_tokens = getattr(getattr(usage, 'output_tokens_details', None), 'reasoning_tokens', 0) if usage else 0
+                if reasoning_tokens > 0:
+                    logger.info(f"💭 Reasoning ({phase}): {reasoning_tokens} tokens (internal only)")
+            except Exception:
+                pass  # Silently ignore if usage data unavailable
+    
     async def classify(
         self,
         text: str,
@@ -101,6 +118,8 @@ NOT complaints: general questions, order inquiries, product availability request
                 raise ValueError("No parsed output in response")
             
             result = response.output_parsed
+            
+            self._log_reasoning_usage(response, "classify")
             
             logger.info(
                 f"Classification completed: is_complaint={result.is_complaint}, "
@@ -163,6 +182,8 @@ Important rules:
                 raise ValueError("No parsed output in response")
             
             result = response.output_parsed
+            
+            self._log_reasoning_usage(response, "extract")
             
             logger.info(
                 f"Extraction completed: order_id={result.order_id}, "
@@ -291,6 +312,8 @@ Analyze the complaint context and make a decision."""
             
             result = response.output_parsed
             
+            self._log_reasoning_usage(response, "decide")
+            
             logger.info(
                 f"Decision completed: action={result.action}, "
                 f"confidence={result.confidence:.2f}"
@@ -390,6 +413,9 @@ Generate the message now."""
                 raise ValueError("No parsed output in response")
             
             result = response.output_parsed
+            
+            self._log_reasoning_usage(response, "generate_message")
+            
             logger.info(f"User message generated: tone={result.tone}")
             
             return result
@@ -462,6 +488,9 @@ The review packet should enable a human to quickly understand the situation and 
                 raise ValueError("No parsed output in response")
             
             result = response.output_parsed
+            
+            self._log_reasoning_usage(response, "generate_review")
+            
             logger.info(f"Review packet generated: priority={result.priority}")
             
             return result

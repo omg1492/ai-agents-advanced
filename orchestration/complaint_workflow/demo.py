@@ -36,7 +36,10 @@ with workflow.unsafe.imports_passed_through():
         fetch_user_profile_activity,
         decide_complaint_validity_activity,
         generate_user_message_activity,
-        generate_review_packet_activity
+        generate_review_packet_activity,
+        # HITL activities
+        notify_reviewer_activity,
+        generate_human_decision_message_activity,
     )
     from models import ComplaintIn
 
@@ -159,7 +162,10 @@ async def main():
             fetch_user_profile_activity,
             decide_complaint_validity_activity,
             generate_user_message_activity,
-            generate_review_packet_activity
+            generate_review_packet_activity,
+            # HITL activities
+            notify_reviewer_activity,
+            generate_human_decision_message_activity,
         ]
     )
     
