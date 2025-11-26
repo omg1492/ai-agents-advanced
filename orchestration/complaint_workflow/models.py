@@ -15,7 +15,10 @@ class TerminalStatus(str, Enum):
     """Terminal states for complaint workflow."""
     NEEDS_MORE_INFO = "NEEDS_MORE_INFO"  # Missing required fields
     COMPLETED = "COMPLETED"  # Resolved (valid/not_valid)
-    PENDING_REVIEW = "PENDING_REVIEW"  # Escalated to human
+    PENDING_REVIEW = "PENDING_REVIEW"  # Escalated to human (legacy - workflow ends)
+    HUMAN_APPROVED = "HUMAN_APPROVED"  # Human approved the complaint
+    HUMAN_REJECTED = "HUMAN_REJECTED"  # Human rejected the complaint
+    TIMEOUT_ESCALATED = "TIMEOUT_ESCALATED"  # Human didn't respond in time
 
 
 class Action(str, Enum):
@@ -23,6 +26,23 @@ class Action(str, Enum):
     VALID = "VALID"
     NOT_VALID = "NOT_VALID"
     HUMAN_REVIEW = "HUMAN_REVIEW"
+
+
+class HumanDecision(str, Enum):
+    """Human reviewer decision for HUMAN_REVIEW cases."""
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+    TIMEOUT_ESCALATED = "TIMEOUT_ESCALATED"
+
+
+class HumanReviewInput(BaseModel):
+    """Input from human reviewer via Temporal signal."""
+    decision: HumanDecision = Field(description="Human decision: APPROVED or REJECTED")
+    reviewer_id: str = Field(description="ID of the human reviewer who made the decision")
+    reviewer_notes: Optional[str] = Field(
+        default=None,
+        description="Optional notes from the reviewer explaining their decision"
+    )
 
 
 class ComplaintIn(BaseModel):
@@ -130,3 +150,12 @@ class WorkflowResult(BaseModel):
     reason: Optional[str] = None
     user_message: Optional[str] = None
     review_packet_id: Optional[str] = None
+    # HITL fields
+    reviewer_id: Optional[str] = Field(
+        default=None,
+        description="ID of human reviewer (for HUMAN_APPROVED/HUMAN_REJECTED/TIMEOUT_ESCALATED)"
+    )
+    reviewer_notes: Optional[str] = Field(
+        default=None,
+        description="Notes from the human reviewer"
+    )
